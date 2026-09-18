@@ -1,0 +1,22 @@
+{
+  "name": "hive-hub-static-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs --manifest public-manifest.json --out .",
+    "build:site": "node scripts/build.mjs --manifest public-manifest.json --out site",
+    "check": "node scripts/check.mjs --root . --manifest public-manifest.json",
+    "check:generated": "node scripts/compare-build.mjs --manifest public-manifest.json --root .",
+    "check:receipts": "node scripts/check-receipts.mjs --manifest public-manifest.json",
+    "pin:public": "node scripts/pin-public-inputs.mjs --manifest public-manifest.json",
+    "test": "node --test",
+    "verify": "npm run build && npm run check && npm test && npm run check:generated && npm run check:receipts"
+  },
+  "devDependencies": {
+    "qrcode-generator": "1.4.4"
+  }
+}
