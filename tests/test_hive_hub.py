@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import base64
 import hashlib
 import importlib.util
 import json
@@ -10,7 +11,6 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
 import unittest
 from pathlib import Path, PureWindowsPath
 from unittest import mock
@@ -37,6 +37,10 @@ def digest(value: object) -> str:
 
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def factor(byte: int = 0x41) -> str:
+    return base64.urlsafe_b64encode(bytes([byte]) * 32).rstrip(b"=").decode("ascii")
 
 
 def load_runner():
@@ -100,11 +104,6 @@ class Fixture:
             for item in self.lock["adapters"]
             if item["implementation"] == "local-subscription"
         )
-        self.verified_join = next(
-            item
-            for item in self.lock["adapters"]
-            if item["implementation"] == "verified-current-main"
-        )
 
     def declaration(
         self,
@@ -118,6 +117,8 @@ class Fixture:
         protocol: str = "example.protocol/1",
         next_step: str = "Read the verified welcome board.",
         extra_roles: bool = False,
+        factor_scope: str = "fixture/read",
+        factor_epoch: str = "1",
     ) -> dict:
         adapter = adapter or self.subscription
         spec = f"{protocol} exact specification\n".encode()
@@ -168,17 +169,30 @@ class Fixture:
             "schema": "hive-hub-learning-bundle/1",
             "artifacts": artifacts,
         }
+        record_id = "dial:sha256:" + digest(
+            {"fixture": name, "protocol": protocol, "path": path.name}
+        )
         access: dict[str, object] = {
             "visibility": visibility,
             "mode": mode,
         }
         if mode == "acl+qr":
             assert unlock is not None
-            access["unlock_sha256"] = sha(unlock.encode())
+            access.update(
+                {
+                    "scope": factor_scope,
+                    "epoch": factor_epoch,
+                    "qr_commitment": runner.qr_commitment(
+                        record_id=record_id,
+                        scope=factor_scope,
+                        epoch=factor_epoch,
+                        fragment=unlock,
+                    ),
+                }
+            )
         declaration = {
             "schema": "hive-hub-declaration/1",
-            "id": "dial:sha256:"
-            + digest({"fixture": name, "protocol": protocol, "path": path.name}),
+            "id": record_id,
             "name": name,
             "access": access,
             "protocol": {
@@ -199,11 +213,7 @@ class Fixture:
                 "artifact_sha256": sha(conformance),
             },
             "join": {
-                "kind": (
-                    "verified-current-main"
-                    if adapter["implementation"] == "verified-current-main"
-                    else "subscription"
-                ),
+                "kind": "subscription",
                 "next_step": next_step,
             },
         }
@@ -239,6 +249,7 @@ class Fixture:
         declaration: dict,
         *,
         branch: str = "feature/history",
+        extra_files: dict[str, bytes] | None = None,
     ) -> tuple[Path, str, str]:
         source = self.root / f"{name}-source"
         remote = self.root / f"{name}.git"
@@ -248,6 +259,10 @@ class Fixture:
         target = source / ".well-known" / "hive.json"
         target.parent.mkdir(parents=True)
         target.write_text(json.dumps(declaration, indent=2) + "\n", encoding="utf-8")
+        for relative, data in sorted((extra_files or {}).items()):
+            extra = source / relative
+            extra.parent.mkdir(parents=True, exist_ok=True)
+            extra.write_bytes(data)
         self._git("-C", str(source), "add", ".", cwd=self.root)
         self._commit(source, "main declaration")
         main_oid = self._output("-C", str(source), "rev-parse", "HEAD")
@@ -267,152 +282,6 @@ class Fixture:
             cwd=self.root,
         )
         return remote, main_oid, source_oid
-
-    def verified_join_repository(self) -> tuple[Path, str, str, str]:
-        source = self.root / "verified-organism-source"
-        remote = self.root / "verified-organism.git"
-        branch = "historical/source-v1"
-        source.mkdir(parents=True)
-        contract = self.lock["verified_join"]["contract"]
-        contract_text = json.dumps(contract, ensure_ascii=True, sort_keys=True, indent=2)
-        block = textwrap.dedent(
-            f"""\
-            {runner.VERIFIED_JOIN_CONTRACT_START}
-            ## Provider-neutral setup contract
-
-            ```sh
-            python3 -B microsol.py setup
-            ```
-
-            ```json
-            {contract_text}
-            ```
-            {runner.VERIFIED_JOIN_CONTRACT_END}
-            """
-        )
-        skill = ("# MicroSOL\n\n" + block).encode()
-        script = textwrap.dedent(
-            """\
-            import json
-            import os
-            import subprocess
-            import sys
-            from pathlib import Path
-
-            def head(path):
-                return subprocess.check_output(
-                    ["git", "-C", str(path), "rev-parse", "HEAD"], text=True
-                ).strip()
-
-            tooling = Path(__file__).resolve().parent
-            if sys.argv[-1] == "verify":
-                print(json.dumps({"ok": True, "network_contacted": False}))
-                raise SystemExit(0)
-
-            source = Path.cwd()
-            main_oid = head(tooling)
-            source_oid = head(source)
-            state = Path(os.environ["XDG_STATE_HOME"])
-            state.mkdir(parents=True, exist_ok=True)
-            (state / "fixture-routing.json").write_text(
-                json.dumps(
-                    {
-                        "tooling": str(tooling),
-                        "source": str(source),
-                        "main_oid": main_oid,
-                        "source_oid": source_oid,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            result = {
-                "schema": "microsol-setup-result/1",
-                "status": "ready",
-                "ok": True,
-                "ready": True,
-                "membership_complete": True,
-                "can_post": True,
-                "state": "active",
-                "action": "update" if source_oid != main_oid else "setup",
-                "source_commit": source_oid,
-                "target_release_commit": main_oid,
-                "source_unchanged": True,
-                "old_branch_unchanged": True,
-                "no_force_rebase_or_reset": True,
-                "private_histories_copied": False,
-                "private_keys_copied": False,
-                "user_summary": {
-                    "status": "ready",
-                    "message": "The device is ready for Fixture MicroSOL.",
-                    "workspace": "Fixture Workspace",
-                    "hives": ["Fixture MicroSOL"],
-                    "pods": [],
-                    "next_board_item": {
-                        "title": "Welcome",
-                        "text": "Start one bounded useful task."
-                    },
-                    "display_text": "The device is ready for Fixture MicroSOL.",
-                    "text_is_inert": True
-                }
-            }
-            print(json.dumps(result))
-            """
-        ).encode()
-        files: dict[str, bytes] = {
-            ".github/skills/microsol/SKILL.md": skill,
-            "HOME.md": ("# Home\n\n" + block).encode(),
-            "SKILL.md": skill,
-            "join-contract.json": (
-                json.dumps(contract, sort_keys=True, separators=(",", ":")) + "\n"
-            ).encode(),
-            "microsol.py": script,
-        }
-        listed = sorted({*files, "RELEASE-FILES.txt", "release-lock.json"})
-        files["RELEASE-FILES.txt"] = "".join(item + "\n" for item in listed).encode()
-        release_files = {
-            relative: {"bytes": len(data), "sha256": sha(data)}
-            for relative, data in sorted(files.items())
-        }
-        files["release-lock.json"] = (
-            json.dumps(
-                {
-                    "schema": "microsol-release-lock/1",
-                    "role": "evidence",
-                    "authority": False,
-                    "files": release_files,
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            + "\n"
-        ).encode()
-        for relative, data in files.items():
-            target = source / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-        self._git("init", "-q", "-b", "main", str(source), cwd=self.root)
-        self._git("-C", str(source), "config", "core.autocrlf", "false", cwd=self.root)
-        self._git("-C", str(source), "add", ".", cwd=self.root)
-        self._commit(source, "verified main")
-        main_oid = self._output("-C", str(source), "rev-parse", "HEAD")
-        self._git("-C", str(source), "switch", "-q", "-c", branch, cwd=self.root)
-        (source / "source-state.txt").write_text(
-            "preserved requested branch\n", encoding="utf-8"
-        )
-        self._git("-C", str(source), "add", "source-state.txt", cwd=self.root)
-        self._commit(source, "historical source")
-        source_oid = self._output("-C", str(source), "rev-parse", "HEAD")
-        self._git("-C", str(source), "switch", "-q", "main", cwd=self.root)
-        self._git(
-            "clone",
-            "-q",
-            "--bare",
-            "--no-local",
-            str(source),
-            str(remote),
-            cwd=self.root,
-        )
-        return remote, main_oid, source_oid, branch
 
     def _environment(self) -> dict[str, str]:
         environment = os.environ.copy()
@@ -592,7 +461,7 @@ class HiveHubTests(unittest.TestCase):
         ai_card = (ROOT / "tests" / "fixtures" / "ai-join-card.json").read_text()
         ai = result_of(command("decode", "--card-json", ai_card))
         self.assertEqual(ai["card_source"], "card-json")
-        secret = "camera-only-unlock-value"
+        secret = factor(0x43)
         payload = json.dumps(
             {
                 "schema": "hive-hub-qr-join-card/1",
@@ -722,34 +591,189 @@ class HiveHubTests(unittest.TestCase):
                 self.maximum = maximum
                 return raw
 
+            def geturl(self) -> str:
+                return reference["url"]
+
         response = Response()
         opener = mock.Mock()
         opener.open.return_value = response
         reference = {
-            "url": "https://fixtures.example/declarations/hive.json",
+            "url": "https://kody-w.github.io/fixtures/hive.json",
             "sha256": sha(raw),
             "bytes": len(raw),
         }
-        with mock.patch.object(runner, "build_opener", return_value=opener):
+        public_dns = [
+            (
+                runner.socket.AF_INET,
+                runner.socket.SOCK_STREAM,
+                runner.socket.IPPROTO_TCP,
+                "",
+                ("93.184.216.34", 443),
+            )
+        ]
+        with (
+            mock.patch.object(runner.socket, "getaddrinfo", return_value=public_dns),
+            mock.patch.object(
+                runner,
+                "build_opener",
+                return_value=opener,
+            ) as build_opener,
+        ):
             loaded, loaded_raw = runner._fetch_pinned_json(
                 reference,
-                limits=self.fixture.lock["limits"],
+                lock=self.fixture.lock,
                 timeout=5,
             )
         self.assertEqual(loaded, declaration)
         self.assertEqual(loaded_raw, raw)
         self.assertEqual(response.maximum, len(raw) + 1)
+        handlers = build_opener.call_args.args
+        pinned = [item for item in handlers if isinstance(item, runner._PinnedHTTPSHandler)]
+        self.assertEqual(len(pinned), 1)
+        self.assertEqual(pinned[0]._approved_addresses, ("93.184.216.34",))
         changed = dict(reference)
         changed["sha256"] = "0" * 64
         with (
+            mock.patch.object(runner.socket, "getaddrinfo", return_value=public_dns),
             mock.patch.object(runner, "build_opener", return_value=opener),
             self.assertRaises(runner.ContractError),
         ):
             runner._fetch_pinned_json(
                 changed,
-                limits=self.fixture.lock["limits"],
+                lock=self.fixture.lock,
                 timeout=5,
             )
+
+    def test_static_resolution_plan_binds_reference_root_and_locator(self) -> None:
+        locator = "dial:sha256:" + "a" * 64
+        first_reference = {
+            "url": "https://kody-w.github.io/hive-hub/first.json",
+            "sha256": "1" * 64,
+            "bytes": 101,
+        }
+        second_reference = {
+            **first_reference,
+            "url": "https://kody-w.github.io/hive-hub/second.json",
+            "sha256": "2" * 64,
+            "bytes": 202,
+        }
+
+        def card(reference: dict[str, object]) -> str:
+            return json.dumps(
+                {
+                    "schema": "hive-hub-ai-join-card/1",
+                    "locator": locator,
+                    "declaration": reference,
+                }
+            )
+
+        first_root = self.work / "first-device"
+        second_root = self.work / "second-device"
+        first = result_of(
+            command(
+                "join",
+                "--card-json",
+                card(first_reference),
+                "--device-root",
+                str(first_root),
+            )
+        )
+        substituted = result_of(
+            command(
+                "join",
+                "--card-json",
+                card(second_reference),
+                "--device-root",
+                str(first_root),
+                "--apply",
+                first["plan_digest"],
+            )
+        )
+        moved = result_of(
+            command(
+                "join",
+                "--card-json",
+                card(first_reference),
+                "--device-root",
+                str(second_root),
+            )
+        )
+        context = first["plan"]["approval_context"]
+        self.assertEqual(context["locator"], {"kind": "dial-id", "value": locator})
+        self.assertEqual(context["static_declaration"], first_reference)
+        self.assertEqual(
+            context["output_root"]["path_sha256"],
+            sha(os.fsencode(first_root)),
+        )
+        self.assertNotEqual(first["plan_digest"], moved["plan_digest"])
+        self.assertEqual(substituted["blocker"]["code"], "plan-approval-invalid")
+        self.assertFalse(first_root.exists())
+        self.assertFalse(second_root.exists())
+
+    def test_static_fetch_refuses_untrusted_ssrf_dns_and_redirects(self) -> None:
+        raw = canonical(self.fixture.declaration(self.work / "ssrf"))
+        base = {
+            "url": "https://kody-w.github.io/hive-hub/declaration.json",
+            "sha256": sha(raw),
+            "bytes": len(raw),
+        }
+        opener = mock.Mock()
+        private_dns = [
+            (
+                runner.socket.AF_INET,
+                runner.socket.SOCK_STREAM,
+                runner.socket.IPPROTO_TCP,
+                "",
+                ("169.254.169.254", 443),
+            )
+        ]
+        with (
+            mock.patch.object(runner.socket, "getaddrinfo", return_value=private_dns),
+            mock.patch.object(runner, "build_opener", return_value=opener),
+            self.assertRaises(runner.ContractError),
+        ):
+            runner._fetch_pinned_json(base, lock=self.fixture.lock, timeout=5)
+        opener.assert_not_called()
+
+        untrusted = {**base, "url": "https://attacker.example/declaration.json"}
+        with (
+            mock.patch.object(runner.socket, "getaddrinfo") as dns,
+            mock.patch.object(runner, "build_opener", return_value=opener),
+            self.assertRaises(runner.InputError),
+        ):
+            runner._fetch_pinned_json(untrusted, lock=self.fixture.lock, timeout=5)
+        dns.assert_not_called()
+
+        class RedirectedResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def geturl(self) -> str:
+                return "https://kody-w.github.io/hive-hub/substitute.json"
+
+            def read(self, maximum: int) -> bytes:
+                raise AssertionError("redirected response bytes must not be read")
+
+        public_dns = [
+            (
+                runner.socket.AF_INET,
+                runner.socket.SOCK_STREAM,
+                runner.socket.IPPROTO_TCP,
+                "",
+                ("93.184.216.34", 443),
+            )
+        ]
+        redirecting = mock.Mock()
+        redirecting.open.return_value = RedirectedResponse()
+        with (
+            mock.patch.object(runner.socket, "getaddrinfo", return_value=public_dns),
+            mock.patch.object(runner, "build_opener", return_value=redirecting),
+            self.assertRaises(runner.ContractError),
+        ):
+            runner._fetch_pinned_json(base, lock=self.fixture.lock, timeout=5)
 
     def test_chant_collision_never_guesses_and_full_dial_id_resolves(self) -> None:
         first = self.work / "first"
@@ -788,7 +812,7 @@ class HiveHubTests(unittest.TestCase):
         self.assertEqual(exact["status"], "planned")
 
     def test_optional_qr_factor_is_after_access_and_never_persisted(self) -> None:
-        secret = "correct horse battery staple"
+        secret = factor(0x52)
         hive = self.work / "factor"
         self.fixture.declaration(
             hive,
@@ -840,6 +864,48 @@ class HiveHubTests(unittest.TestCase):
             path.read_bytes() for path in device.rglob("*") if path.is_file()
         )
         self.assertNotIn(secret.encode(), persisted)
+
+    def test_qr_factor_rejects_weak_unbound_and_wrong_record_values(self) -> None:
+        with self.assertRaises(runner.FactorError):
+            runner.decode_qr_factor("weak-factor")
+        self.assertEqual(
+            runner.qr_commitment(
+                record_id="urn:hivehub:sha256:" + "a" * 64,
+                scope="scope",
+                epoch="1",
+                fragment=factor(),
+            ),
+            "urn:hivehub:sha256:"
+            "8ff1a706e0443a239d3c148fb4d7531f5bff6d472f0b466e03c1ca15dfa59856",
+        )
+
+        secret = factor(0x51)
+        declaration = self.fixture.declaration(
+            self.work / "bound-factor",
+            visibility="private",
+            mode="acl+qr",
+            unlock=secret,
+            factor_scope="vault/read",
+            factor_epoch="2026-q3",
+        )
+        legacy = json.loads(json.dumps(declaration))
+        legacy["access"] = {
+            "visibility": "private",
+            "mode": "acl+qr",
+            "unlock_sha256": sha(secret.encode("ascii")),
+        }
+        with self.assertRaises(runner.ContractError):
+            runner.validate_declaration(legacy, limits=self.fixture.lock["limits"])
+
+        wrong_record = json.loads(json.dumps(declaration))
+        wrong_record["id"] = "dial:sha256:" + "f" * 64
+        with self.assertRaises(runner.FactorError):
+            runner._check_factor(wrong_record, secret)
+
+        hmac_compare = __import__("hmac").compare_digest
+        with mock.patch.object(runner.hmac, "compare_digest", wraps=hmac_compare) as compare:
+            runner._check_factor(declaration, secret)
+            self.assertTrue(compare.called)
 
     def test_public_and_private_github_repositories_use_native_existing_access(self) -> None:
         for visibility in ("public", "private"):
@@ -941,10 +1007,38 @@ class HiveHubTests(unittest.TestCase):
         self.assertEqual(outputs[0]["blocker"]["code"], "target-unreachable")
         self.assertEqual(count_key(outputs[0], "blocker"), 1)
 
-    def test_verified_join_contract_uses_current_main_and_preserves_source(self) -> None:
+    def test_copycat_repository_contract_never_executes_repository_code(self) -> None:
         if shutil.which("git") is None:
             self.skipTest("Git is unavailable")
-        remote, main_oid, source_oid, branch = self.fixture.verified_join_repository()
+        declaration_path = self.work / "copycat-declaration"
+        declaration = self.fixture.declaration(
+            declaration_path,
+            name="Copycat Contract Hive",
+        )
+        execution_marker = self.work / "repository-code-executed"
+        network_marker = self.work / "repository-network-attempted"
+        malicious = (
+            "from pathlib import Path\n"
+            f"Path({str(execution_marker)!r}).write_text('executed')\n"
+            f"Path({str(network_marker)!r}).write_text('network')\n"
+            "import socket\n"
+            "socket.create_connection(('127.0.0.1', 9), timeout=0.1)\n"
+        ).encode()
+        remote, _, _ = self.fixture.git_repository(
+            "copycat",
+            declaration,
+            extra_files={
+                "join-contract.json": canonical(
+                    {
+                        "schema": "copyable-self-authored-contract/1",
+                        "command": ["python3", "-B", "microsol.py", "setup"],
+                    }
+                ),
+                "microsol.py": malicious,
+                "setup.py": malicious,
+                "verify.py": malicious,
+            },
+        )
         env = os.environ.copy()
         env.update(
             {
@@ -952,8 +1046,8 @@ class HiveHubTests(unittest.TestCase):
                 "HIVE_HUB_TEST_GIT_REMOTE": str(remote),
             }
         )
-        device = self.work / "verified-organism-device"
-        locator = f"fixture-org/fixture-organism at {branch}"
+        device = self.work / "copycat-device"
+        locator = "fixture-org/copycat at feature/history"
         resolve_plan = result_of(
             command(
                 "join",
@@ -964,6 +1058,8 @@ class HiveHubTests(unittest.TestCase):
                 env=env,
             )
         )
+        self.assertFalse(execution_marker.exists())
+        self.assertFalse(network_marker.exists())
         join_plan = result_of(
             command(
                 "join",
@@ -976,7 +1072,11 @@ class HiveHubTests(unittest.TestCase):
                 env=env,
             )
         )
-        self.assertEqual(join_plan["plan"]["intent"], "join-with-verified-current-main")
+        self.assertEqual(join_plan["plan"]["intent"], "save-subscription")
+        self.assertEqual(join_plan["plan"]["adapter_plan"]["kind"], "adapter-plan")
+        self.assertEqual(join_plan["plan"]["adapter_plan"]["effects"], [])
+        self.assertFalse(execution_marker.exists())
+        self.assertFalse(network_marker.exists())
         ready_process = command(
             "join",
             "--locator",
@@ -990,24 +1090,10 @@ class HiveHubTests(unittest.TestCase):
         ready = result_of(ready_process)
         self.assertEqual(ready_process.returncode, 0)
         self.assertTrue(ready["ready"])
-        self.assertTrue(ready["current_main_tooling"])
-        self.assertTrue(ready["requested_branch_preserved"])
-        self.assertNotIn(main_oid, ready_process.stdout)
-        self.assertNotIn(source_oid, ready_process.stdout)
-        routing = json.loads((device / "state" / "fixture-routing.json").read_text())
-        self.assertEqual(routing["main_oid"], main_oid)
-        self.assertEqual(routing["source_oid"], source_oid)
-        source_worktree = Path(routing["source"])
-        self.assertEqual(
-            (source_worktree / "source-state.txt").read_text(),
-            "preserved requested branch\n",
-        )
-        refs = subprocess.check_output(
-            ["git", "--git-dir", str(remote), "show-ref"],
-            text=True,
-        )
-        self.assertIn(f"{main_oid} refs/heads/main", refs)
-        self.assertIn(f"{source_oid} refs/heads/{branch}", refs)
+        self.assertEqual(ready["adapter_plan"], join_plan["plan"]["adapter_plan"])
+        self.assertEqual(ready["adapter_effects_status"], "not-executed")
+        self.assertFalse(execution_marker.exists())
+        self.assertFalse(network_marker.exists())
 
     def test_credentials_and_unlocks_never_reach_output(self) -> None:
         credential = "credential-fixture-value"

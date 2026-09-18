@@ -199,6 +199,49 @@
     return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, "0")).join("");
   }
 
+  async function assertCoreAiCard(card) {
+    const keys = Object.keys(card).sort().join(",");
+    if (
+      keys !== "adapter_plan,card_id,expected_protocol_fingerprint,expected_record_id,issued_at,kind,locator,principal,schema_version" ||
+      card.adapter_plan !== null ||
+      card.expected_record_id !== null ||
+      card.expected_protocol_fingerprint !== null ||
+      !card.principal ||
+      !["human", "ai"].includes(card.principal.kind) ||
+      typeof card.principal.id !== "string" ||
+      typeof card.locator !== "string"
+    ) {
+      throw new Error("The verified object is not a supported closed core AI join card.");
+    }
+    const body = {
+      adapter_plan: null,
+      expected_protocol_fingerprint: null,
+      expected_record_id: null,
+      issued_at: card.issued_at,
+      kind: "ai-join-card-body",
+      locator: card.locator,
+      principal: card.principal,
+      schema_version: 1
+    };
+    const bytes = new TextEncoder().encode(canonicalString(body));
+    const digest = bytesToHex(await window.crypto.subtle.digest("SHA-256", bytes));
+    if (card.card_id !== "urn:hivehub:sha256:" + digest) {
+      throw new Error("The core AI join card id does not match its canonical body.");
+    }
+  }
+
+  function canonicalString(value) {
+    if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+      return "[" + value.map(canonicalString).join(",") + "]";
+    }
+    return "{" + Object.keys(value).sort().map((key) =>
+      JSON.stringify(key) + ":" + canonicalString(value[key])
+    ).join(",") + "}";
+  }
+
   function assertPublicCard(card) {
     if (
       card.kind !== "ai-join-card" ||
@@ -206,49 +249,6 @@
       !Array.isArray(card.steps)
     ) {
       throw new Error("The verified object is not a public locator-only AI join card.");
-    }
-
-    async function assertCoreAiCard(card) {
-      const keys = Object.keys(card).sort().join(",");
-      if (
-        keys !== "adapter_plan,card_id,expected_protocol_fingerprint,expected_record_id,issued_at,kind,locator,principal,schema_version" ||
-        card.adapter_plan !== null ||
-        card.expected_record_id !== null ||
-        card.expected_protocol_fingerprint !== null ||
-        !card.principal ||
-        !["human", "ai"].includes(card.principal.kind) ||
-        typeof card.principal.id !== "string" ||
-        typeof card.locator !== "string"
-      ) {
-        throw new Error("The verified object is not a supported closed core AI join card.");
-      }
-      const body = {
-        adapter_plan: null,
-        expected_protocol_fingerprint: null,
-        expected_record_id: null,
-        issued_at: card.issued_at,
-        kind: "ai-join-card-body",
-        locator: card.locator,
-        principal: card.principal,
-        schema_version: 1
-      };
-      const bytes = new TextEncoder().encode(canonicalString(body));
-      const digest = bytesToHex(await window.crypto.subtle.digest("SHA-256", bytes));
-      if (card.card_id !== "urn:hivehub:sha256:" + digest) {
-        throw new Error("The core AI join card id does not match its canonical body.");
-      }
-    }
-
-    function canonicalString(value) {
-      if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
-        return JSON.stringify(value);
-      }
-      if (Array.isArray(value)) {
-        return "[" + value.map(canonicalString).join(",") + "]";
-      }
-      return "{" + Object.keys(value).sort().map((key) =>
-        JSON.stringify(key) + ":" + canonicalString(value[key])
-      ).join(",") + "}";
     }
   }
 

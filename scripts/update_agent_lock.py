@@ -53,113 +53,6 @@ GITHUB_SUBSCRIPTION_CONTRACT = {
     "reversible": True,
 }
 
-VERIFIED_JOIN_ADAPTER_CONTRACT = {
-    "schema": "hive-hub-adapter-contract/1",
-    "id": "hive-hub.verified-current-main/1",
-    "input": "verified-microsol-any-ai-setup/2",
-    "selection": "exact-verified-join-contract",
-    "tooling": "verified-current-main",
-    "workspace": "detached-requested-branch",
-    "existing_acl_only": True,
-    "history_rewrite": False,
-    "acl_change": False,
-    "main_push": False,
-    "executes_downloaded_learning": False,
-}
-
-VERIFIED_JOIN_CONTRACT = {
-    "blocked": {
-        "can_post": False,
-        "ok": False,
-        "ready": False,
-        "schema": "microsol-setup-result/1",
-        "status": "blocked",
-    },
-    "canonical_skill": "SKILL.md",
-    "command": ["python3", "-B", "microsol.py", "setup"],
-    "historical_update": {
-        "in_place_schema_mutation": False,
-        "preserve_original_in_place": True,
-        "source_lineage": "requested-source-lineage",
-        "unknown_state": "quarantine-or-refuse",
-    },
-    "host_dependencies": {
-        "herdr": False,
-        "mcp": False,
-        "provider_native_session": False,
-        "provider_sdk": False,
-        "provider_specific_state": False,
-        "slash_commands": False,
-    },
-    "input_and_output_are_inert_json_data": True,
-    "intent": "set this up",
-    "local_sync_blocked": {
-        "local_ready": True,
-        "membership_complete": True,
-        "ok": False,
-        "ready": False,
-        "schema": "microsol-setup-result/1",
-        "state": "active-local",
-        "status": "ready-local/sync-blocked",
-    },
-    "never_ask_for": [
-        "branch names",
-        "paths",
-        "world IDs",
-        "workspace IDs",
-        "RAPPIDs",
-        "keys",
-        "pod storage",
-        "cursors",
-        "crypto choices",
-    ],
-    "prerequisite_details": ["missing", "local_environment", "rerun"],
-    "prerequisites": {
-        "downloads_performed": False,
-        "identities_minted": 0,
-        "ok": False,
-        "ready": False,
-        "reason": "prerequisites-required",
-        "schema": "microsol-setup-prerequisites/1",
-        "status": "blocked",
-    },
-    "ready": {
-        "can_post": True,
-        "membership_complete": True,
-        "ok": True,
-        "ready": True,
-        "schema": "microsol-setup-result/1",
-        "state": "active",
-        "status": "ready",
-    },
-    "requires": [
-        "authorized private package access",
-        "terminal command execution",
-        "Python >=3.11",
-        "Node >=22",
-        "cryptography >=43",
-        "Git for isolated worktrees and private transport",
-        "POSIX no-follow filesystem support",
-    ],
-    "retry": (
-        "explicit host-permitted local environment provisioning, then the "
-        "returned rerun argv"
-    ),
-    "schema": "microsol-any-ai-setup/2",
-    "state": (
-        "isolated operator-local .microsol estate and operator-private XDG "
-        "subscriptions; no provider session state"
-    ),
-    "success_response": {
-        "external_blockers": "one",
-        "hide_implementation_details": True,
-        "include": ["workspace", "hives", "pods", "next_board_item"],
-        "source": "user_summary",
-    },
-    "update_command": ["python3", "-B", "microsol.py", "update"],
-}
-
-
 def build_lock() -> dict[str, object]:
     files = []
     for path in sorted(item for item in SKILL.rglob("*") if item.is_file()):
@@ -194,6 +87,9 @@ def build_lock() -> dict[str, object]:
             "learning_item_bytes": 33_554_432,
             "process_seconds": 600,
         },
+        "trusted_static_origins": [
+            "https://kody-w.github.io",
+        ],
         "adapters": [
             {
                 "id": SUBSCRIPTION_CONTRACT["id"],
@@ -207,28 +103,7 @@ def build_lock() -> dict[str, object]:
                 "contract": GITHUB_SUBSCRIPTION_CONTRACT,
                 "implementation": "local-subscription",
             },
-            {
-                "id": VERIFIED_JOIN_ADAPTER_CONTRACT["id"],
-                "fingerprint": digest(VERIFIED_JOIN_ADAPTER_CONTRACT),
-                "contract": VERIFIED_JOIN_ADAPTER_CONTRACT,
-                "implementation": "verified-current-main",
-            },
         ],
-        "verified_join": {
-            "contract_sha256": digest(VERIFIED_JOIN_CONTRACT),
-            "contract": VERIFIED_JOIN_CONTRACT,
-            "required_files": sorted(
-                {
-                    ".github/skills/microsol/SKILL.md",
-                    "HOME.md",
-                    "RELEASE-FILES.txt",
-                    "SKILL.md",
-                    "join-contract.json",
-                    "microsol.py",
-                    "release-lock.json",
-                }
-            ),
-        },
         "files": files,
     }
 

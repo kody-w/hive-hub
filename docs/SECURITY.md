@@ -55,8 +55,28 @@ persisted core contract.
 - duplicate JSON key and floating-point refusal;
 - canonical UTF-8 bytes and sorted keys;
 - atomic no-replace writes and byte-address verification before reversal;
+- cross-platform per-record interprocess locking around private record and
+  policy registration, including rollback;
 - no dynamic imports, `eval`, `exec`, shell commands, or subprocesses.
 
 The core does not claim resistance to a hostile process with equal operating
 system privileges. Hosts should apply normal directory ownership and
 permissions.
+
+## Universal skill network and execution boundary
+
+The skill may use locally installed Git to read an approved repository, but
+repository files are data only. A copied contract, lock, setup file, verifier,
+or adapter can never select repository code for execution. Joining writes one
+local subscription and returns an inert typed adapter plan.
+
+Pinned static declarations are fetched only from origins fixed by the locally
+shipped runner. The exact canonical URL, SHA-256, byte count, locator, and
+output-root identity are part of the approved plan digest. Before a GET, every
+DNS answer must be globally routable; loopback, private, link-local, reserved,
+multicast, unspecified, metadata, and redirect targets are refused.
+
+The release privacy scanner stores only irreversible SHA-256 deny digests.
+Private CI can add digests through
+`HIVE_HUB_PRIVATE_IDENTIFIER_DENY_SHA256`; plaintext private identifiers or
+reconstructable string halves are not shipped.

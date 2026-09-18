@@ -30,8 +30,9 @@
     },
     "unlock_fragment": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 512
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{43}$"
     }
   },
   "additionalProperties": false

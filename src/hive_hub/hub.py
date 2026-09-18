@@ -181,15 +181,16 @@ class HiveHub:
             record_plan = private_book.record_plan(record)
             policy_plan = private_book.policy_plan(policy)
             applied = []
-            try:
-                if private_book.apply(record_plan):
-                    applied.append(record_plan)
-                if private_book.apply(policy_plan):
-                    applied.append(policy_plan)
-            except Exception:
-                for plan in reversed(applied):
-                    private_book.revert(plan)
-                raise
+            with private_book.registration_transaction(record.id):
+                try:
+                    if private_book.apply(record_plan):
+                        applied.append(record_plan)
+                    if private_book.apply(policy_plan):
+                        applied.append(policy_plan)
+                except Exception:
+                    for plan in reversed(applied):
+                        private_book.revert(plan)
+                    raise
             created = bool(applied)
             policy_address = content_address(policy.to_dict())
         return {

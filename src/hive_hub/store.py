@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -315,6 +317,12 @@ class PrivateDialbook(BaseDialbook):
             f"policies/{address_digest(policy.record_id)}.json",
             policy.to_dict(),
         )
+
+    @contextmanager
+    def registration_transaction(self, record_id: str) -> Iterator[None]:
+        digest = address_digest(record_id)
+        with self._fs.interprocess_lock(f"transactions/{digest}.lock"):
+            yield
 
     def get_policy(self, record_id: str) -> PrivateAccessPolicy:
         try:

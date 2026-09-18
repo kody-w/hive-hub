@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 
 from hive_hub import AIJoinCard
 from hive_hub.adapter_runtime import builtin_adapter_contracts
+from scripts import check_public_release
 
 from .helpers import PROJECT_ROOT, WorkspaceTestCase
 
@@ -94,3 +97,42 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_privacy_scanner_uses_irreversible_deny_digests_only(self) -> None:
+        source = (
+            PROJECT_ROOT / "scripts/check_public_release.py"
+        ).read_text(encoding="utf-8")
+        literals = [
+            node.value
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+        reconstructable = {
+            hashlib.sha256(value.encode("utf-8")).hexdigest()
+            for value in literals
+        }
+        reconstructable.update(
+            hashlib.sha256((left + right).encode("utf-8")).hexdigest()
+            for left in literals
+            for right in literals
+        )
+        self.assertTrue(check_public_release.SAFE_DENY_DIGESTS)
+        self.assertTrue(
+            all(
+                re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+                for digest in check_public_release.SAFE_DENY_DIGESTS
+            )
+        )
+        self.assertTrue(
+            check_public_release.SAFE_DENY_DIGESTS.isdisjoint(reconstructable)
+        )
+        private_ci_fixture = "private-ci-fixture/repository"
+        injected = frozenset(
+            {hashlib.sha256(private_ci_fixture.encode("utf-8")).hexdigest()}
+        )
+        self.assertTrue(
+            check_public_release.contains_denied_identifier(
+                f"https://github.com/{private_ci_fixture}",
+                injected,
+            )
+        )

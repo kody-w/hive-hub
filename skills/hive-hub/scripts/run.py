@@ -49,18 +49,31 @@ _sanitize_bootstrap_path()
 del _sanitize_bootstrap_path
 
 import argparse
+import base64
+import binascii
 import hashlib
+import hmac
+import ipaddress
 import json
 import os
 import re
 import shutil
+import socket
+import ssl
 import stat
 import subprocess
 import sys
+from http.client import HTTPSConnection
 from pathlib import Path, PurePosixPath
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote, urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.parse import parse_qs, quote, unquote, urlsplit, urlunsplit
+from urllib.request import (
+    HTTPRedirectHandler,
+    HTTPSHandler,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 LOCK_SCHEMA = "hive-hub-agent-lock/1"
@@ -111,6 +124,17 @@ SENSITIVE_KEY_RE = re.compile(
     r"api[-_]?key|cookie|authorization|unlock[_-]?fragment)",
     re.IGNORECASE,
 )
+QR_FACTOR_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+QR_COMMITMENT_DOMAIN = b"hive-hub/private-access/acl+qr/v1\x00"
+TRUSTED_STATIC_ORIGINS = frozenset({"https://kody-w.github.io"})
+METADATA_HOSTS = frozenset(
+    {
+        "instance-data",
+        "metadata",
+        "metadata.azure.internal",
+        "metadata.google.internal",
+    }
+)
 ACTIVE_SUFFIXES = frozenset(
     {
         ".bat",
@@ -139,20 +163,6 @@ ACTIVE_SUFFIXES = frozenset(
         ".whl",
         ".zip",
         ".zsh",
-    }
-)
-VERIFIED_JOIN_CONTRACT_START = "<!-- microsol-any-ai-setup:start -->"
-VERIFIED_JOIN_CONTRACT_END = "<!-- microsol-any-ai-setup:end -->"
-VERIFIED_JOIN_COMMAND = ["python3", "-B", "microsol.py", "setup"]
-VERIFIED_JOIN_REQUIRED_FILES = frozenset(
-    {
-        ".github/skills/microsol/SKILL.md",
-        "HOME.md",
-        "RELEASE-FILES.txt",
-        "SKILL.md",
-        "join-contract.json",
-        "microsol.py",
-        "release-lock.json",
     }
 )
 DECLARATION_PATHS = (
@@ -239,7 +249,7 @@ class UnknownContractError(HubError):
 class ContractError(HubError):
     code = "contract-invalid"
     kind = "protocol"
-    public_message = "The Hive declaration or verified join contract is not recognized."
+    public_message = "The Hive declaration or pinned contract is not recognized."
     next_action = "Ask the Hive publisher for a complete pinned declaration and conformance bundle."
 
 
@@ -260,8 +270,8 @@ class PlanError(HubError):
 class ExecutionError(HubError):
     code = "adapter-execution-refused"
     kind = "local-execution"
-    public_message = "The verified adapter could not complete without crossing its safety contract."
-    next_action = "Preserve local state and resolve the verified local blocker before retrying."
+    public_message = "A locally shipped transport helper could not complete within its safety contract."
+    next_action = "Preserve local state and resolve the local transport blocker before retrying."
 
 
 class ChantCollisionError(HubError):
@@ -274,6 +284,59 @@ class ChantCollisionError(HubError):
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise UnreachableError()
+
+
+class _PinnedHTTPSConnection(HTTPSConnection):
+    def __init__(
+        self,
+        host: str,
+        *,
+        approved_addresses: tuple[str, ...],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(host, **kwargs)
+        self._approved_addresses = approved_addresses
+
+    def connect(self) -> None:
+        last_error: OSError | None = None
+        for address in self._approved_addresses:
+            try:
+                self.sock = socket.create_connection(
+                    (address, self.port),
+                    self.timeout,
+                    self.source_address,
+                )
+                break
+            except OSError as exc:
+                last_error = exc
+        else:
+            if last_error is None:
+                raise OSError("trusted origin has no approved address")
+            raise last_error
+        if self._tunnel_host:
+            self._tunnel()
+        server_hostname = self._tunnel_host or self.host
+        assert self.sock is not None
+        self.sock = self._context.wrap_socket(
+            self.sock,
+            server_hostname=server_hostname,
+        )
+
+
+class _PinnedHTTPSHandler(HTTPSHandler):
+    def __init__(self, approved_addresses: tuple[str, ...]) -> None:
+        super().__init__(context=ssl.create_default_context())
+        self._approved_addresses = approved_addresses
+
+    def https_open(self, request):
+        def connection(host: str, **kwargs: Any) -> _PinnedHTTPSConnection:
+            return _PinnedHTTPSConnection(
+                host,
+                approved_addresses=self._approved_addresses,
+                **kwargs,
+            )
+
+        return self.do_open(connection, request)
 
 
 class LockedArgumentParser(argparse.ArgumentParser):
@@ -499,8 +562,8 @@ def _validate_lock_shape(lock: dict[str, Any]) -> None:
         "version",
         "runner",
         "limits",
+        "trusted_static_origins",
         "adapters",
-        "verified_join",
         "files",
     }:
         raise PackageError()
@@ -545,6 +608,12 @@ def _validate_lock_shape(lock: dict[str, Any]) -> None:
         or limits["process_seconds"] > 900
     ):
         raise PackageError()
+    trusted_static_origins = lock.get("trusted_static_origins")
+    if (
+        not isinstance(trusted_static_origins, list)
+        or trusted_static_origins != sorted(TRUSTED_STATIC_ORIGINS)
+    ):
+        raise PackageError()
     adapters = lock.get("adapters")
     if not isinstance(adapters, list) or not adapters:
         raise PackageError()
@@ -562,29 +631,12 @@ def _validate_lock_shape(lock: dict[str, Any]) -> None:
             or SHA256_RE.fullmatch(str(adapter.get("fingerprint"))) is None
             or adapter["id"] in seen
             or not isinstance(adapter.get("contract"), dict)
-            or adapter.get("implementation")
-                not in {"local-subscription", "verified-current-main"}
+            or adapter.get("implementation") != "local-subscription"
             or digest(adapter["contract"]) != adapter["fingerprint"]
         ):
             raise PackageError()
         seen.add(adapter["id"])
-    verified_join = lock.get("verified_join")
-    if (
-        not isinstance(verified_join, dict)
-        or set(verified_join)
-        != {
-            "contract_sha256",
-            "contract",
-            "required_files",
-        }
-        or SHA256_RE.fullmatch(str(verified_join.get("contract_sha256"))) is None
-        or not isinstance(verified_join.get("contract"), dict)
-        or digest(verified_join["contract"]) != verified_join["contract_sha256"]
-        or verified_join["contract"].get("schema") != "microsol-any-ai-setup/2"
-        or verified_join["contract"].get("command") != VERIFIED_JOIN_COMMAND
-        or not isinstance(verified_join.get("required_files"), list)
-        or set(verified_join["required_files"]) != VERIFIED_JOIN_REQUIRED_FILES
-    ):
+    if not seen:
         raise PackageError()
 
 
@@ -852,26 +904,111 @@ def _artifact_reference(
 
 def _validated_inert_url(raw: Any) -> str:
     value = _text(raw, maximum=4096, ascii_only=True)
-    parsed = urlsplit(value)
+    if "\\" in value or any(ord(character) < 0x20 for character in value):
+        raise ContractError()
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        raise ContractError() from None
     if (
-        parsed.scheme != "https"
-        or not parsed.hostname
+        parsed.scheme.casefold() != "https"
+        or not hostname
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.port is not None
+        or port is not None
         or parsed.query
         or parsed.fragment
-        or parsed.hostname.casefold() in {"localhost", "localhost.localdomain"}
-        or parsed.hostname.casefold().endswith((".local", ".internal"))
-        or re.fullmatch(r"[0-9.]+", parsed.hostname) is not None
+        or hostname.endswith(".")
         or not parsed.path.startswith("/")
     ):
         raise ContractError()
-    if parsed.hostname.casefold() == "raw.githubusercontent.com":
+    try:
+        canonical_host = hostname.encode("idna").decode("ascii").casefold()
+    except UnicodeError:
+        raise ContractError() from None
+    if (
+        canonical_host in {"localhost", "localhost.localdomain"}
+        or canonical_host in METADATA_HOSTS
+        or canonical_host.endswith((".local", ".internal"))
+    ):
+        raise ContractError()
+    try:
+        ipaddress.ip_address(canonical_host.split("%", 1)[0])
+    except ValueError:
+        pass
+    else:
+        raise ContractError()
+    if canonical_host == "raw.githubusercontent.com":
         parts = [part for part in parsed.path.split("/") if part]
         if len(parts) < 4 or COMMIT_RE.fullmatch(parts[2]) is None:
             raise ContractError()
-    return value
+    return urlunsplit(("https", canonical_host, parsed.path, "", ""))
+
+
+def _static_origin(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.port is not None:
+        raise ContractError()
+    return f"https://{parsed.hostname.casefold()}"
+
+
+def _trusted_static_reference(
+    value: Any,
+    *,
+    lock: dict[str, Any],
+) -> dict[str, Any]:
+    reference = _validate_static_reference(value, lock["limits"])
+    origin = _static_origin(reference["url"])
+    if (
+        origin not in TRUSTED_STATIC_ORIGINS
+        or origin not in lock["trusted_static_origins"]
+    ):
+        raise InputError()
+    return reference
+
+
+def _resolve_public_addresses(url: str) -> tuple[str, ...]:
+    parsed = urlsplit(url)
+    hostname = parsed.hostname
+    if parsed.scheme != "https" or not hostname or parsed.port is not None:
+        raise ContractError()
+    try:
+        resolved = socket.getaddrinfo(
+            hostname,
+            443,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+            proto=socket.IPPROTO_TCP,
+        )
+    except OSError:
+        raise UnreachableError() from None
+    addresses: set[str] = set()
+    for _family, _type, _protocol, _canonical_name, socket_address in resolved:
+        if not socket_address:
+            raise ContractError()
+        raw_address = str(socket_address[0]).split("%", 1)[0]
+        try:
+            address = ipaddress.ip_address(raw_address)
+        except ValueError:
+            raise ContractError() from None
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+            address = address.ipv4_mapped
+        if (
+            not address.is_global
+            or address.is_loopback
+            or address.is_private
+            or address.is_link_local
+            or address.is_reserved
+            or address.is_multicast
+            or address.is_unspecified
+        ):
+            raise ContractError()
+        addresses.add(address.compressed)
+    if not addresses:
+        raise UnreachableError()
+    return tuple(sorted(addresses))
 
 
 def validate_learning(
@@ -960,7 +1097,13 @@ def validate_declaration(
     if not isinstance(access, dict) or set(access) not in (
         {"visibility"},
         {"visibility", "mode"},
-        {"visibility", "mode", "unlock_sha256"},
+        {
+            "visibility",
+            "mode",
+            "scope",
+            "epoch",
+            "qr_commitment",
+        },
     ):
         raise ContractError()
     visibility = access.get("visibility")
@@ -970,11 +1113,28 @@ def validate_declaration(
         "acl+qr",
     }:
         raise ContractError()
-    unlock_sha256 = access.get("unlock_sha256")
+    scope = access.get("scope")
+    epoch = access.get("epoch")
+    commitment = access.get("qr_commitment")
     if mode == "acl+qr":
-        if SHA256_RE.fullmatch(str(unlock_sha256)) is None:
+        if (
+            set(access)
+            != {
+                "visibility",
+                "mode",
+                "scope",
+                "epoch",
+                "qr_commitment",
+            }
+            or not isinstance(scope, str)
+            or not isinstance(epoch, str)
+            or not isinstance(commitment, str)
+            or CORE_ADDRESS_RE.fullmatch(commitment) is None
+        ):
             raise ContractError()
-    elif unlock_sha256 is not None:
+        scope = _text(scope, maximum=512)
+        epoch = _text(epoch, maximum=256)
+    elif set(access) not in ({"visibility"}, {"visibility", "mode"}):
         raise ContractError()
     protocol = value.get("protocol")
     if not isinstance(protocol, dict) or set(protocol) != {
@@ -1037,7 +1197,7 @@ def validate_declaration(
         raise ContractError()
     kind = join.get("kind")
     next_step = _text(join.get("next_step"), maximum=2048)
-    if kind not in {"subscription", "verified-current-main"}:
+    if kind != "subscription":
         raise ContractError()
     if SECRET_VALUE_RE.search(next_step):
         raise ContractError()
@@ -1049,8 +1209,12 @@ def validate_declaration(
             "visibility": visibility,
             "mode": mode,
             **(
-                {"unlock_sha256": str(unlock_sha256)}
-                if unlock_sha256 is not None
+                {
+                    "scope": scope,
+                    "epoch": epoch,
+                    "qr_commitment": commitment,
+                }
+                if mode == "acl+qr"
                 else {}
             ),
         },
@@ -1272,6 +1436,8 @@ def parse_request_input(
         )
     else:
         request["workspace_descriptor"] = None
+    if request.get("unlock") is not None:
+        decode_qr_factor(request["unlock"])
     request.pop("locator", None)
     return request
 
@@ -1406,11 +1572,13 @@ def _safe_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
 def target_digest(
     descriptor: dict[str, Any],
     workspace: dict[str, Any] | None,
+    static_reference: dict[str, Any] | None = None,
 ) -> str:
     return digest(
         {
             "locator": _safe_descriptor(descriptor),
             "workspace": _safe_descriptor(workspace) if workspace else None,
+            "static_declaration": static_reference,
         }
     )
 
@@ -1523,13 +1691,26 @@ def _plan(
     intent: str,
     target_sha256: str,
     binding_sha256: str | None,
+    locator: dict[str, Any],
+    output_root: Path,
     effects: list[dict[str, Any]],
+    adapter_plan: dict[str, Any] | None = None,
+    static_declaration: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], str]:
     value = {
         "schema": PLAN_SCHEMA,
         "intent": intent,
         "target_sha256": target_sha256,
         "binding_sha256": binding_sha256,
+        "approval_context": {
+            "locator": _safe_descriptor(locator),
+            "output_root": {
+                "kind": "local-device-root",
+                "path_sha256": hashlib.sha256(os.fsencode(output_root)).hexdigest(),
+            },
+            "static_declaration": static_declaration,
+        },
+        "adapter_plan": adapter_plan,
         "effects": effects,
         "approval": "exact-digest-only",
     }
@@ -1555,7 +1736,14 @@ def _resolution_path(root: Path, target_sha256: str) -> Path:
     return root / "resolutions" / target_sha256 / "resolution.json"
 
 
-def _resolve_plan(kind: str, target_sha256: str) -> tuple[dict[str, Any], str]:
+def _resolve_plan(
+    kind: str,
+    target_sha256: str,
+    *,
+    locator: dict[str, Any],
+    output_root: Path,
+    static_reference: dict[str, Any] | None,
+) -> tuple[dict[str, Any], str]:
     transport = (
         "adapter-native-git-acl"
         if kind == "github"
@@ -1565,6 +1753,9 @@ def _resolve_plan(kind: str, target_sha256: str) -> tuple[dict[str, Any], str]:
         intent="resolve-hive",
         target_sha256=target_sha256,
         binding_sha256=None,
+        locator=locator,
+        output_root=output_root,
+        static_declaration=static_reference,
         effects=[
             {
                 "kind": "network-read",
@@ -1586,43 +1777,24 @@ def _join_plan(
     *,
     target_sha256: str,
     binding_sha256: str,
-    implementation: str,
+    locator: dict[str, Any],
+    output_root: Path,
 ) -> tuple[dict[str, Any], str]:
-    if implementation == "local-subscription":
-        effects = [
-            {
-                "kind": "local-write",
-                "purpose": "one local Hive subscription",
-                "reversible": True,
-            }
-        ]
-        intent = "save-subscription"
-    else:
-        effects = [
-            {
-                "kind": "network-read",
-                "transport": "adapter-native-git-acl",
-                "bounded": True,
-                "credentials_output": False,
-            },
-            {
-                "kind": "local-write",
-                "purpose": "detached current-main and requested-branch worktrees",
-                "reversible": True,
-            },
-            {
-                "kind": "local-execute",
-                "command": VERIFIED_JOIN_COMMAND,
-                "downloaded_learning_executed": False,
-                "remote_write": False,
-            },
-        ]
-        intent = "join-with-verified-current-main"
+    adapter_plan = _typed_adapter_plan(declaration)
     return _plan(
-        intent=intent,
+        intent="save-subscription",
         target_sha256=target_sha256,
         binding_sha256=binding_sha256,
-        effects=effects,
+        locator=locator,
+        output_root=output_root,
+        adapter_plan=adapter_plan,
+        effects=[
+            {
+                "kind": "local-write",
+                "purpose": "one local Hive subscription and inert adapter plan",
+                "reversible": True,
+            }
+        ],
     )
 
 
@@ -1640,15 +1812,81 @@ def _adapter(
     raise UnknownContractError(learning=declaration["learning"])
 
 
+def _typed_adapter_plan(declaration: dict[str, Any]) -> dict[str, Any]:
+    record_match = DIAL_ID_RE.fullmatch(declaration["id"])
+    if record_match is None:
+        raise ContractError()
+    return {
+        "kind": "adapter-plan",
+        "schema_version": 1,
+        "adapter_registration_address": (
+            "urn:hivehub:sha256:" + declaration["adapter"]["fingerprint"]
+        ),
+        "record_id": "urn:hivehub:sha256:" + record_match.group(1),
+        "effects": [],
+    }
+
+
+def decode_qr_factor(fragment: Any) -> bytes:
+    value = _text(fragment, maximum=43, ascii_only=True)
+    if QR_FACTOR_RE.fullmatch(value) is None:
+        raise FactorError()
+    try:
+        decoded = base64.urlsafe_b64decode(value + "=")
+    except (ValueError, binascii.Error):
+        raise FactorError() from None
+    canonical = base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii")
+    if len(decoded) != 32 or canonical != value:
+        raise FactorError()
+    return decoded
+
+
+def qr_commitment(
+    *,
+    record_id: str,
+    scope: str,
+    epoch: str,
+    fragment: str,
+) -> str:
+    record_match = DIAL_ID_RE.fullmatch(record_id)
+    core_match = CORE_ADDRESS_RE.fullmatch(record_id)
+    if record_match is not None:
+        normalized_record = "urn:hivehub:sha256:" + record_match.group(1)
+    elif core_match is not None:
+        normalized_record = record_id
+    else:
+        raise ContractError()
+    scope_text = _text(scope, maximum=512)
+    epoch_text = _text(epoch, maximum=256)
+    commitment = hashlib.sha256()
+    commitment.update(QR_COMMITMENT_DOMAIN)
+    for item in (
+        normalized_record.encode("utf-8"),
+        scope_text.encode("utf-8"),
+        epoch_text.encode("utf-8"),
+    ):
+        commitment.update(len(item).to_bytes(4, "big"))
+        commitment.update(item)
+    commitment.update(decode_qr_factor(fragment))
+    return "urn:hivehub:sha256:" + commitment.hexdigest()
+
+
 def _check_factor(declaration: dict[str, Any], unlock: str | None) -> None:
     access = declaration["access"]
     if access["mode"] != "acl+qr":
         return
-    if (
-        unlock is None
-        or hashlib.sha256(unlock.encode("utf-8")).hexdigest()
-        != access["unlock_sha256"]
-    ):
+    if unlock is None:
+        raise FactorError()
+    try:
+        candidate = qr_commitment(
+            record_id=declaration["id"],
+            scope=access["scope"],
+            epoch=access["epoch"],
+            fragment=unlock,
+        )
+    except HubError:
+        raise FactorError() from None
+    if not hmac.compare_digest(candidate, access["qr_commitment"]):
         raise FactorError()
 
 
@@ -2135,193 +2373,6 @@ def _git_blob(
         raise ContractError() from None
 
 
-def _extract_contract_from_skill(raw: bytes, maximum: int) -> dict[str, Any] | None:
-    if len(raw) > maximum:
-        raise ContractError()
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeError:
-        raise ContractError() from None
-    if (
-        VERIFIED_JOIN_CONTRACT_START not in text
-        and VERIFIED_JOIN_CONTRACT_END not in text
-    ):
-        return None
-    if (
-        text.count(VERIFIED_JOIN_CONTRACT_START) != 1
-        or text.count(VERIFIED_JOIN_CONTRACT_END) != 1
-    ):
-        raise ContractError()
-    body = text.split(VERIFIED_JOIN_CONTRACT_START, 1)[1].split(
-        VERIFIED_JOIN_CONTRACT_END, 1
-    )[0]
-    commands = re.findall(r"```sh[ \t]*\n(.*?)```", body, re.DOTALL)
-    contracts = re.findall(r"```json[ \t]*\n(.*?)```", body, re.DOTALL)
-    if len(commands) != 1 or commands[0].strip() != " ".join(
-        VERIFIED_JOIN_COMMAND
-    ):
-        raise ContractError()
-    if len(contracts) != 1:
-        raise ContractError()
-    try:
-        return parse_json_object(
-            contracts[0].encode("utf-8"),
-            label="MicroSOL contract",
-            maximum=maximum,
-        )
-    except ValueError:
-        raise ContractError() from None
-
-
-def _verified_join_contract_from_git(
-    cache: Path,
-    main_oid: str,
-    *,
-    lock: dict[str, Any],
-    timeout: int,
-    helpers: list[str],
-) -> tuple[dict[str, Any], dict[str, bytes]] | None:
-    files: dict[str, bytes] = {}
-    contract_raw = _git_blob(
-        cache,
-        main_oid,
-        "join-contract.json",
-        maximum=lock["limits"]["json_bytes"],
-        timeout=timeout,
-        optional=True,
-        helpers=helpers,
-    )
-    if contract_raw is None:
-        return None
-    files["join-contract.json"] = contract_raw
-    try:
-        contract = parse_json_object(
-            files["join-contract.json"],
-            label="MicroSOL join contract",
-            maximum=lock["limits"]["json_bytes"],
-        )
-    except ValueError:
-        raise ContractError() from None
-    if canonical_bytes(contract) != canonical_bytes(
-        lock["verified_join"]["contract"]
-    ):
-        return None
-    for relative in (
-        "SKILL.md",
-        ".github/skills/microsol/SKILL.md",
-        "HOME.md",
-        "release-lock.json",
-    ):
-        data = _git_blob(
-            cache,
-            main_oid,
-            relative,
-            maximum=8 * 1024 * 1024,
-            timeout=timeout,
-            helpers=helpers,
-        )
-        assert data is not None
-        files[relative] = data
-    skill_contract = _extract_contract_from_skill(
-        files["SKILL.md"], lock["limits"]["json_bytes"]
-    )
-    mirror_contract = _extract_contract_from_skill(
-        files[".github/skills/microsol/SKILL.md"],
-        lock["limits"]["json_bytes"],
-    )
-    home_contract = _extract_contract_from_skill(
-        files["HOME.md"], lock["limits"]["json_bytes"]
-    )
-    embedded = [
-        item for item in (skill_contract, mirror_contract, home_contract) if item is not None
-    ]
-    if embedded and any(
-        canonical_bytes(item) != canonical_bytes(contract) for item in embedded
-    ):
-        raise ContractError()
-    if files["SKILL.md"] != files[".github/skills/microsol/SKILL.md"]:
-        raise ContractError()
-    return contract, files
-
-
-def _verified_join_declaration(
-    *,
-    lock: dict[str, Any],
-    repository: str,
-    main_oid: str,
-    files: dict[str, bytes],
-) -> dict[str, Any]:
-    def artifact(role: str, relative: str, media_type: str) -> dict[str, Any]:
-        data = files[relative]
-        return {
-            "role": role,
-            "url": (
-                f"https://raw.githubusercontent.com/{repository}/"
-                f"{main_oid}/{quote(relative, safe='/')}"
-            ),
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "bytes": len(data),
-            "media_type": media_type,
-        }
-
-    artifacts = [
-        artifact("spec", "join-contract.json", "application/json"),
-        artifact("schema", "join-contract.json", "application/json"),
-        artifact("examples", "SKILL.md", "text/markdown"),
-        artifact("conformance", "release-lock.json", "application/json"),
-        artifact("skill", "SKILL.md", "text/markdown"),
-    ]
-    learning_body = {
-        "schema": "hive-hub-learning-bundle/1",
-        "artifacts": artifacts,
-    }
-    adapter = next(
-        item
-        for item in lock["adapters"]
-        if item["implementation"] == "verified-current-main"
-    )
-    protocol_sha = lock["verified_join"]["contract_sha256"]
-    value = {
-        "schema": DECLARATION_SCHEMA,
-        "id": "dial:sha256:"
-        + digest(
-            {
-                "repository": repository,
-                "main": main_oid,
-                "contract": protocol_sha,
-            }
-        ),
-        "name": "Verified current-main Hive",
-        "access": {"visibility": "private", "mode": "acl-only"},
-        "protocol": {
-            "id": "microsol-any-ai-setup/2",
-            "fingerprint": protocol_sha,
-            "spec_sha256": artifacts[0]["sha256"],
-        },
-        "adapter": {
-            "id": adapter["id"],
-            "fingerprint": adapter["fingerprint"],
-        },
-        "learning": {
-            **learning_body,
-            "sha256": digest(learning_body),
-        },
-        "conformance": {
-            "id": "verified-release-lock/1",
-            "artifact_sha256": artifacts[3]["sha256"],
-        },
-        "join": {
-            "kind": "verified-current-main",
-            "next_step": "Use verified current-main tooling against the preserved requested branch.",
-        },
-    }
-    # The exact MicroSOL protocol fingerprint is its contract. The spec artifact
-    # carries the same canonical JSON with a trailing newline, so bind the
-    # protocol to the canonical contract while keeping the artifact hash exact.
-    value["protocol"]["fingerprint"] = value["protocol"]["spec_sha256"]
-    return validate_declaration(value, limits=lock["limits"])
-
-
 def _generic_declaration_from_git(
     cache: Path,
     main_oid: str,
@@ -2367,6 +2418,7 @@ def _resolve_github(
     lock: dict[str, Any],
     hint: Any,
     timeout: int,
+    target_sha256: str,
 ) -> dict[str, Any]:
     helpers = _credential_helpers(descriptor["remote"])
     advertised = _advertised_oids(
@@ -2389,35 +2441,17 @@ def _resolve_github(
         maximum=lock["limits"]["git_output_bytes"],
         helpers=helpers,
     )
-    verified_join = _verified_join_contract_from_git(
+    declaration, raw, declaration_path = _generic_declaration_from_git(
         cache,
         advertised["main"],
         lock=lock,
         timeout=timeout,
         helpers=helpers,
     )
-    if verified_join is not None:
-        _, files = verified_join
-        declaration = _verified_join_declaration(
-            lock=lock,
-            repository=descriptor["repository"],
-            main_oid=advertised["main"],
-            files=files,
-        )
-        raw = canonical_bytes(declaration)
-        declaration_path = "join-contract.json"
-    else:
-        declaration, raw, declaration_path = _generic_declaration_from_git(
-            cache,
-            advertised["main"],
-            lock=lock,
-            timeout=timeout,
-            helpers=helpers,
-        )
     _check_declaration_hint(declaration, raw, hint, lock["limits"])
     return {
         "schema": "hive-hub-resolution/1",
-        "target_sha256": target_digest(descriptor, None),
+        "target_sha256": target_sha256,
         "source": {
             "kind": "github",
             "repository": descriptor["repository"],
@@ -2434,10 +2468,11 @@ def _resolve_github(
 def _fetch_pinned_json(
     reference: dict[str, Any],
     *,
-    limits: dict[str, int],
+    lock: dict[str, Any],
     timeout: int,
 ) -> tuple[dict[str, Any], bytes]:
-    reference = _validate_static_reference(reference, limits)
+    reference = _trusted_static_reference(reference, lock=lock)
+    approved_addresses = _resolve_public_addresses(reference["url"])
     request = Request(
         reference["url"],
         headers={
@@ -2447,8 +2482,15 @@ def _fetch_pinned_json(
         method="GET",
     )
     try:
-        response = build_opener(_NoRedirect).open(request, timeout=timeout)
+        response = build_opener(
+            ProxyHandler({}),
+            _NoRedirect(),
+            _PinnedHTTPSHandler(approved_addresses),
+        ).open(request, timeout=timeout)
         with response:
+            final_url = response.geturl()
+            if _validated_inert_url(final_url) != reference["url"]:
+                raise ContractError()
             raw = response.read(reference["bytes"] + 1)
     except HubError:
         raise
@@ -2463,13 +2505,13 @@ def _fetch_pinned_json(
         value = parse_json_object(
             raw,
             label="pinned static declaration",
-            maximum=limits["json_bytes"],
-            maximum_depth=limits["json_depth"],
-            maximum_nodes=limits["json_nodes"],
+            maximum=lock["limits"]["json_bytes"],
+            maximum_depth=lock["limits"]["json_depth"],
+            maximum_nodes=lock["limits"]["json_nodes"],
         )
     except ValueError:
         raise ContractError() from None
-    return validate_declaration(value, limits=limits), raw
+    return validate_declaration(value, limits=lock["limits"]), raw
 
 
 def _resolve_static(
@@ -2478,15 +2520,16 @@ def _resolve_static(
     descriptor: dict[str, Any],
     lock: dict[str, Any],
     timeout: int,
+    target_sha256: str,
 ) -> dict[str, Any]:
     declaration, _ = _fetch_pinned_json(
         reference,
-        limits=lock["limits"],
+        lock=lock,
         timeout=timeout,
     )
     return {
         "schema": "hive-hub-resolution/1",
-        "target_sha256": target_digest(descriptor, None),
+        "target_sha256": target_sha256,
         "source": {
             "kind": "pinned-static-json",
             "reference": reference,
@@ -2510,6 +2553,8 @@ def _binding_digest(
         binding["main_oid"] = source["main_oid"]
         binding["source_oid"] = source["source_oid"]
         binding["branch"] = source["branch"]
+    elif source["kind"] == "pinned-static-json":
+        binding["reference"] = source["reference"]
     return digest(binding)
 
 
@@ -2539,6 +2584,8 @@ def _resolution_cache(
     target_sha256: str,
     *,
     lock: dict[str, Any],
+    expected_kind: str,
+    expected_static_reference: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     value = _read_storage_json(
         _resolution_path(root, target_sha256),
@@ -2557,6 +2604,15 @@ def _resolution_cache(
     value["declaration"] = validate_declaration(
         value["declaration"], limits=lock["limits"]
     )
+    source = value["source"]
+    if expected_kind == "static":
+        if (
+            source.get("kind") != "pinned-static-json"
+            or source.get("reference") != expected_static_reference
+        ):
+            raise StorageError()
+    elif source.get("kind") != "github":
+        raise StorageError()
     return value
 
 
@@ -2580,6 +2636,7 @@ def _subscription_record(
     workspace: dict[str, Any] | None,
     binding_sha256: str,
 ) -> dict[str, Any]:
+    adapter_plan = _typed_adapter_plan(declaration)
     locator: dict[str, Any]
     if descriptor["kind"] == "github":
         locator = {
@@ -2610,6 +2667,8 @@ def _subscription_record(
         "name": declaration["name"],
         "protocol": declaration["protocol"],
         "adapter": declaration["adapter"],
+        "adapter_plan": adapter_plan,
+        "adapter_effects_status": "not-executed",
         "declaration_sha256": digest(declaration),
         "binding_sha256": binding_sha256,
         "locator": locator,
@@ -2624,354 +2683,6 @@ def _save_subscription(root: Path, record: dict[str, Any]) -> str:
     return receipt
 
 
-def _verify_release_file(root: Path, relative: str, record: dict[str, Any]) -> None:
-    path = root / _safe_relative(relative)
-    if (
-        not isinstance(record, dict)
-        or set(record) != {"bytes", "sha256"}
-        or type(record.get("bytes")) is not int
-        or not 0 <= record["bytes"] <= 32 * 1024 * 1024
-        or SHA256_RE.fullmatch(str(record.get("sha256"))) is None
-    ):
-        raise ContractError()
-    data = _read_regular(path, record["bytes"])
-    if len(data) != record["bytes"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
-        raise ContractError()
-
-
-def _verify_join_release(root: Path, lock: dict[str, Any]) -> None:
-    listed_raw = _read_regular(
-        root / "RELEASE-FILES.txt", lock["limits"]["git_output_bytes"]
-    )
-    try:
-        listed_text = listed_raw.decode("utf-8")
-    except UnicodeError:
-        raise ContractError() from None
-    if not listed_raw.endswith(b"\n") or b"\r" in listed_raw:
-        raise ContractError()
-    listed = listed_text.splitlines()
-    if (
-        not listed
-        or len(listed) > 10_000
-        or listed != sorted(set(listed))
-        or not VERIFIED_JOIN_REQUIRED_FILES.issubset(listed)
-    ):
-        raise ContractError()
-    actual: list[str] = []
-    for path in sorted(root.rglob("*")):
-        relative_parts = path.relative_to(root).parts
-        if relative_parts and relative_parts[0] in {".git", ".microsol"}:
-            continue
-        relative = path.relative_to(root).as_posix()
-        information = path.lstat()
-        if stat.S_ISLNK(information.st_mode):
-            raise ContractError()
-        if stat.S_ISREG(information.st_mode):
-            actual.append(relative)
-        elif not stat.S_ISDIR(information.st_mode):
-            raise ContractError()
-    if listed != actual:
-        raise ContractError()
-    release_raw = _read_regular(root / "release-lock.json", 8 * 1024 * 1024)
-    try:
-        release = parse_json_object(
-            release_raw,
-            label="MicroSOL release lock",
-            maximum=8 * 1024 * 1024,
-        )
-    except ValueError:
-        raise ContractError() from None
-    if (
-        set(release) != {"schema", "role", "authority", "files"}
-        or release.get("schema") != "microsol-release-lock/1"
-        or release.get("role") != "evidence"
-        or release.get("authority") is not False
-        or not isinstance(release.get("files"), dict)
-    ):
-        raise ContractError()
-    expected = set(listed) - {
-        "release-lock.json",
-        "workspaces/workspace-lock.json",
-    }
-    if set(release["files"]) != expected:
-        raise ContractError()
-    for relative in sorted(expected):
-        _verify_release_file(root, relative, release["files"][relative])
-    contract_raw = _read_regular(
-        root / "join-contract.json", lock["limits"]["json_bytes"]
-    )
-    try:
-        contract = parse_json_object(
-            contract_raw,
-            label="MicroSOL join contract",
-            maximum=lock["limits"]["json_bytes"],
-        )
-    except ValueError:
-        raise ContractError() from None
-    if canonical_bytes(contract) != canonical_bytes(
-        lock["verified_join"]["contract"]
-    ):
-        raise ContractError()
-
-
-def _worktree(
-    cache: Path,
-    repository_root: Path,
-    *,
-    role: str,
-    oid: str,
-    timeout: int,
-    maximum: int,
-    helpers: list[str],
-) -> Path:
-    target = repository_root / "worktrees" / role / oid
-    _private_directory(target.parent, create=True)
-    if not target.exists():
-        _run_git(
-            [
-                "--git-dir",
-                str(cache),
-                "worktree",
-                "add",
-                "--detach",
-                str(target),
-                oid,
-            ],
-            cwd=repository_root,
-            timeout=timeout,
-            maximum=maximum,
-            network=True,
-            helpers=helpers,
-        )
-    head = _run_git(
-        ["-C", str(target), "rev-parse", "HEAD"],
-        cwd=repository_root,
-        timeout=timeout,
-        maximum=128,
-        network=False,
-    ).decode("ascii").strip()
-    symbolic = subprocess.run(
-        [
-            _git_executable(),
-            *_git_options(network=False, helpers=[]),
-            "-C",
-            str(target),
-            "symbolic-ref",
-            "-q",
-            "HEAD",
-        ],
-        env=_git_environment(network=False),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    status = _run_git(
-        ["-C", str(target), "status", "--porcelain", "--untracked-files=no"],
-        cwd=repository_root,
-        timeout=timeout,
-        maximum=maximum,
-        network=False,
-    )
-    if head != oid or symbolic.returncode == 0 or status:
-        raise StorageError()
-    return target
-
-
-def _run_json_process(
-    command: list[str],
-    *,
-    cwd: Path,
-    environment: dict[str, str],
-    timeout: int,
-    maximum: int,
-) -> tuple[int, dict[str, Any]]:
-    try:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        raise ExecutionError() from None
-    if len(result.stdout) > maximum or len(result.stderr) > maximum:
-        raise ExecutionError()
-    try:
-        value = parse_json_object(
-            result.stdout,
-            label="adapter result",
-            maximum=maximum,
-        )
-    except ValueError:
-        raise ExecutionError() from None
-    return result.returncode, value
-
-
-def _safe_user_summary(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ExecutionError()
-    allowed = {
-        "status",
-        "message",
-        "workspace",
-        "hives",
-        "pods",
-        "next_board_item",
-        "blocker",
-        "display_text",
-        "text_is_inert",
-    }
-    if set(value) - allowed:
-        raise ExecutionError()
-    _assert_no_sensitive_output(value)
-    encoded = canonical_bytes(value)
-    if len(encoded) > 16 * 1024:
-        raise ExecutionError()
-    return value
-
-
-def _verified_join_environment(root: Path) -> dict[str, str]:
-    environment = _git_environment(network=False)
-    state = root / "state"
-    _private_directory(state, create=True)
-    environment.update(
-        {
-            "MICROSOL_HIVE_SUBSCRIPTIONS": str(state / "subscriptions"),
-            "XDG_STATE_HOME": str(state),
-        }
-    )
-    return environment
-
-
-def _apply_verified_join(
-    *,
-    root: Path,
-    descriptor: dict[str, Any],
-    resolution: dict[str, Any],
-    lock: dict[str, Any],
-    timeout: int,
-    workspace: dict[str, Any] | None,
-    binding_sha256: str,
-) -> dict[str, Any]:
-    source = resolution["source"]
-    if (
-        descriptor.get("kind") != "github"
-        or source.get("kind") != "github"
-        or source.get("repository") != descriptor.get("repository")
-        or source.get("branch") != descriptor.get("branch")
-        or COMMIT_RE.fullmatch(str(source.get("main_oid"))) is None
-        or COMMIT_RE.fullmatch(str(source.get("source_oid"))) is None
-    ):
-        raise ContractError()
-    repository_root = _repository_root(root, descriptor)
-    cache = repository_root / "cache.git"
-    if not cache.is_dir():
-        raise StorageError()
-    helpers = _credential_helpers(descriptor["remote"])
-    main = _worktree(
-        cache,
-        repository_root,
-        role="main",
-        oid=source["main_oid"],
-        timeout=timeout,
-        maximum=lock["limits"]["git_output_bytes"],
-        helpers=helpers,
-    )
-    requested = _worktree(
-        cache,
-        repository_root,
-        role="source",
-        oid=source["source_oid"],
-        timeout=timeout,
-        maximum=lock["limits"]["git_output_bytes"],
-        helpers=helpers,
-    )
-    _verify_join_release(main, lock)
-    environment = _verified_join_environment(root)
-    python = sys.executable
-    verify_code, verification = _run_json_process(
-        [python, "-B", str(main / "microsol.py"), "verify"],
-        cwd=main,
-        environment=environment,
-        timeout=timeout,
-        maximum=lock["limits"]["git_output_bytes"],
-    )
-    if (
-        verify_code != 0
-        or verification.get("ok") is not True
-        or verification.get("network_contacted") is not False
-    ):
-        raise ExecutionError()
-    before = _run_git(
-        ["-C", str(requested), "status", "--porcelain", "--untracked-files=no"],
-        cwd=repository_root,
-        timeout=timeout,
-        maximum=lock["limits"]["git_output_bytes"],
-        network=False,
-    )
-    returncode, result = _run_json_process(
-        [python, "-B", str(main / "microsol.py"), "setup"],
-        cwd=requested,
-        environment=environment,
-        timeout=timeout,
-        maximum=lock["limits"]["git_output_bytes"],
-    )
-    after = _run_git(
-        ["-C", str(requested), "status", "--porcelain", "--untracked-files=no"],
-        cwd=repository_root,
-        timeout=timeout,
-        maximum=lock["limits"]["git_output_bytes"],
-        network=False,
-    )
-    if before or after:
-        raise ExecutionError()
-    ready_contract = lock["verified_join"]["contract"]["ready"]
-    if returncode != 0 or any(result.get(key) != value for key, value in ready_contract.items()):
-        prerequisites = lock["verified_join"]["contract"]["prerequisites"]
-        if all(result.get(key) == value for key, value in prerequisites.items()):
-            raise ExecutionError(
-                details={"reason": "prerequisites-required"}
-            )
-        raise ExecutionError()
-    if source["source_oid"] != source["main_oid"]:
-        required = {
-            "action": "update",
-            "source_commit": source["source_oid"],
-            "target_release_commit": source["main_oid"],
-            "source_unchanged": True,
-            "old_branch_unchanged": True,
-            "no_force_rebase_or_reset": True,
-            "private_histories_copied": False,
-            "private_keys_copied": False,
-        }
-        if any(result.get(key) != value for key, value in required.items()):
-            raise ExecutionError()
-    summary = _safe_user_summary(result.get("user_summary"))
-    record = _subscription_record(
-        resolution["declaration"],
-        descriptor=descriptor,
-        workspace=workspace,
-        binding_sha256=binding_sha256,
-    )
-    receipt = _save_subscription(root, record)
-    return {
-        "schema": RESULT_SCHEMA,
-        "operation": "join",
-        "status": "ready",
-        "ready": True,
-        "adapter": resolution["declaration"]["adapter"]["id"],
-        "current_main_tooling": True,
-        "requested_branch_preserved": True,
-        "local_subscription_sha256": receipt,
-        "user_summary": summary,
-    }
-
-
 def _apply_subscription(
     *,
     root: Path,
@@ -2981,6 +2692,7 @@ def _apply_subscription(
     binding_sha256: str,
     operation: str,
 ) -> dict[str, Any]:
+    adapter_plan = _typed_adapter_plan(declaration)
     record = _subscription_record(
         declaration,
         descriptor=descriptor,
@@ -2994,6 +2706,8 @@ def _apply_subscription(
         "status": "ready",
         "ready": True,
         "adapter": declaration["adapter"]["id"],
+        "adapter_plan": adapter_plan,
+        "adapter_effects_status": "not-executed",
         "local_subscription_sha256": receipt,
         "user_summary": {
             "status": "ready",
@@ -3094,7 +2808,6 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
         raise InputError()
     root = device_root(args.device_root, cwd)
     workspace = request["workspace_descriptor"]
-    target_sha256 = target_digest(descriptor, workspace)
     resolution: dict[str, Any] | None = None
     remote_kind: str | None = None
     static_reference: dict[str, Any] | None = None
@@ -3111,17 +2824,29 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
         request["declaration_hint"], dict
     ) and "url" in request["declaration_hint"]:
         remote_kind = "static"
-        static_reference = request["declaration_hint"]
+        static_reference = _trusted_static_reference(
+            request["declaration_hint"],
+            lock=lock,
+        )
     else:
         raise UnreachableError()
+    target_sha256 = target_digest(descriptor, workspace, static_reference)
     if remote_kind is not None:
         resolution = _resolution_cache(
             root,
             target_sha256,
             lock=lock,
+            expected_kind=remote_kind,
+            expected_static_reference=static_reference,
         )
         if resolution is None:
-            plan, plan_sha = _resolve_plan(remote_kind, target_sha256)
+            plan, plan_sha = _resolve_plan(
+                remote_kind,
+                target_sha256,
+                locator=descriptor,
+                output_root=root,
+                static_reference=static_reference,
+            )
             if args.apply is None:
                 request["unlock"] = None
                 return 0, _planned_result(args.operation, plan, plan_sha)
@@ -3135,6 +2860,7 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
                     lock=lock,
                     hint=request["declaration_hint"],
                     timeout=args.timeout,
+                    target_sha256=target_sha256,
                 )
             else:
                 assert static_reference is not None
@@ -3143,6 +2869,7 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
                     descriptor=descriptor,
                     lock=lock,
                     timeout=args.timeout,
+                    target_sha256=target_sha256,
                 )
             _save_resolution(root, target_sha256, resolution)
             declaration = resolution["declaration"]
@@ -3153,7 +2880,8 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
                 declaration,
                 target_sha256=target_sha256,
                 binding_sha256=binding_sha256,
-                implementation=adapter["implementation"],
+                locator=descriptor,
+                output_root=root,
             )
             request["unlock"] = None
             return 0, _planned_result(args.operation, next_plan, next_sha)
@@ -3169,33 +2897,24 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
         declaration,
         target_sha256=target_sha256,
         binding_sha256=binding_sha256,
-        implementation=adapter["implementation"],
+        locator=descriptor,
+        output_root=root,
     )
     if args.apply is None:
         return 0, _planned_result(args.operation, plan, plan_sha)
     if args.apply != plan_sha:
         raise PlanError()
     _ensure_storage(root)
-    if adapter["implementation"] == "local-subscription":
-        return 0, _apply_subscription(
-            root=root,
-            descriptor=descriptor,
-            workspace=workspace,
-            declaration=declaration,
-            binding_sha256=binding_sha256,
-            operation=args.operation,
-        )
-    if adapter["implementation"] == "verified-current-main":
-        return 0, _apply_verified_join(
-            root=root,
-            descriptor=descriptor,
-            resolution=resolution,
-            lock=lock,
-            timeout=args.timeout,
-            workspace=workspace,
-            binding_sha256=binding_sha256,
-        )
-    raise UnknownContractError(learning=declaration["learning"])
+    if adapter["implementation"] != "local-subscription":
+        raise UnknownContractError(learning=declaration["learning"])
+    return 0, _apply_subscription(
+        root=root,
+        descriptor=descriptor,
+        workspace=workspace,
+        declaration=declaration,
+        binding_sha256=binding_sha256,
+        operation=args.operation,
+    )
 
 
 def _assert_no_sensitive_output(value: Any) -> None:

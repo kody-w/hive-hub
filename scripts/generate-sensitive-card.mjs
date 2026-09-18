@@ -1,5 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { canonicalJson, isMain, parseCliArgs } from "./lib/canonical.mjs";
 import { createQrSvg } from "./lib/qr.mjs";
@@ -22,7 +24,28 @@ function assertLocalOutput(root, outDir) {
   assert(!relative.startsWith("../") && relative !== "..", "Sensitive card output escapes the project");
 }
 
-function validateSensitiveCard(config) {
+function validateLocatorWithSkill(locator, projectRoot) {
+  const runner = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../skills/hive-hub/scripts/run.py"
+  );
+  const result = spawnSync(
+    process.env.PYTHON || "python3",
+    ["-I", "-B", runner, "decode", "--locator", locator],
+    {
+      cwd: projectRoot,
+      encoding: "utf8",
+      env: process.env,
+      maxBuffer: 1024 * 1024
+    }
+  );
+  assert(
+    result.status === 0,
+    "locator must pass the locked Hive Hub skill locator validator"
+  );
+}
+
+function validateSensitiveCard(config, projectRoot) {
   assert(
     config?.classification === "local-sensitive-locator-plus-unlock",
     "Sensitive card classification must be local-sensitive-locator-plus-unlock"
@@ -33,10 +56,16 @@ function validateSensitiveCard(config) {
     "cardId must contain only lowercase letters, digits, and hyphens"
   );
   assert(typeof config.locator === "string", "locator is required");
-  const locator = new URL(config.locator);
-  assert(locator.protocol === "https:", "locator must use HTTPS");
-  assert(!locator.username && !locator.password, "locator cannot contain repository credentials");
-  assert(typeof config.unlock === "string" && config.unlock.length >= 8, "unlock must be at least 8 characters");
+  validateLocatorWithSkill(config.locator, projectRoot);
+  assert(
+    typeof config.unlock === "string" && /^[A-Za-z0-9_-]{43}$/.test(config.unlock),
+    "unlock must be canonical unpadded base64url for exactly 32 bytes"
+  );
+  assert(
+    Buffer.from(config.unlock, "base64url").toString("base64url") === config.unlock &&
+      Buffer.from(config.unlock, "base64url").length === 32,
+    "unlock must be canonical unpadded base64url for exactly 32 bytes"
+  );
   assert(
     !("credential" in config) && !("privateKey" in config) && !("token" in config),
     "Repository credentials, private keys, and tokens are not accepted"
@@ -72,16 +101,12 @@ async function assertSafeOutputFile(filePath) {
 }
 
 export async function generateSensitiveCard({ config, outDir, projectRoot = process.cwd() }) {
-  validateSensitiveCard(config);
+  validateSensitiveCard(config, projectRoot);
   assertLocalOutput(projectRoot, outDir);
   const payload = {
-    accessMode: "acl+qr",
-    cardId: config.cardId,
-    classification: config.classification,
+    schema: "hive-hub-qr-join-card/1",
     locator: config.locator,
-    sourceAclRequiredFirst: true,
-    unlock: config.unlock,
-    v: 1
+    unlock_fragment: config.unlock
   };
   const payloadText = canonicalJson(payload).trimEnd();
   const svg = createQrSvg(payloadText, "Q");

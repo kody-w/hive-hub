@@ -4,14 +4,20 @@ import errno
 import os
 import secrets
 import stat
+import threading
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from .canonical import content_address
 from .errors import ConflictError, LimitError, StorageError, UnsafePathError
 from .limits import MAX_FILES_PER_COLLECTION, MAX_JSON_BYTES, MAX_PATH_DEPTH
+
+_THREAD_LOCKS_GUARD = threading.Lock()
+_THREAD_LOCKS: dict[str, threading.Lock] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +165,75 @@ class SafeFilesystem:
                 with suppress(FileNotFoundError):
                     os.unlink(temporary, dir_fd=parent_fd)
             return True
+
+    @contextmanager
+    def interprocess_lock(self, relative_path: str) -> Iterator[None]:
+        parts = self._parts(relative_path)
+        lock_key = f"{self.root}:{'/'.join(parts)}"
+        with _THREAD_LOCKS_GUARD:
+            thread_lock = _THREAD_LOCKS.setdefault(lock_key, threading.Lock())
+        with thread_lock, self._open_dir(parts[:-1], create=True) as parent_fd:
+            flags = os.O_RDWR | os.O_CREAT
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOINHERIT", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            try:
+                lock_fd = os.open(parts[-1], flags, 0o600, dir_fd=parent_fd)
+            except OSError as exc:
+                if exc.errno == errno.ELOOP:
+                    raise UnsafePathError("refusing to follow a lock-file symlink") from exc
+                raise
+            try:
+                information = os.fstat(lock_fd)
+                if not stat.S_ISREG(information.st_mode) or information.st_nlink != 1:
+                    raise UnsafePathError("transaction lock must be one regular file")
+                if information.st_size == 0:
+                    os.write(lock_fd, b"\0")
+                    os.fsync(lock_fd)
+                self._lock_file_descriptor(lock_fd)
+                try:
+                    yield
+                finally:
+                    self._unlock_file_descriptor(lock_fd)
+            finally:
+                os.close(lock_fd)
+
+    @staticmethod
+    def _lock_file_descriptor(file_descriptor: int) -> None:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt_api: Any = msvcrt
+            while True:
+                try:
+                    os.lseek(file_descriptor, 0, os.SEEK_SET)
+                    msvcrt_api.locking(file_descriptor, msvcrt_api.LK_NBLCK, 1)
+                    return
+                except OSError as exc:
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                        raise
+                    time.sleep(0.05)
+        else:
+            import fcntl
+
+            fcntl.flock(file_descriptor, fcntl.LOCK_EX)
+
+    @staticmethod
+    def _unlock_file_descriptor(file_descriptor: int) -> None:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt_api: Any = msvcrt
+            os.lseek(file_descriptor, 0, os.SEEK_SET)
+            msvcrt_api.locking(
+                file_descriptor,
+                msvcrt_api.LK_UNLCK,
+                1,
+            )
+        else:
+            import fcntl
+
+            fcntl.flock(file_descriptor, fcntl.LOCK_UN)
 
     def read_bytes(self, relative_path: str, *, max_bytes: int = MAX_JSON_BYTES) -> bytes:
         parts = self._parts(relative_path)

@@ -2,14 +2,26 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
 import re
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_LITERALS = (
-    "kody-w/" + "microsol-organization",
-    "kody-w-" + "fresh-device-onboarding",
+SAFE_DENY_DIGESTS = frozenset(
+    {
+        "18bd7d72c25c6360e675996cf605328e499729c72c6035d55a4cbaf05992327c",
+        "30c31ea528886a0b83fa156fe7f5e8da4a7fde32f0a3ad8a6fd83d6fae765cd2",
+    }
+)
+PRIVATE_DENY_ENV = "HIVE_HUB_PRIVATE_IDENTIFIER_DENY_SHA256"
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+IDENTIFIER_CANDIDATE_RE = re.compile(
+    r"(?<![A-Za-z0-9_.-])"
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{2,127}"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9_.-]{1,127})?"
+    r"(?![A-Za-z0-9_.-])"
 )
 LOCAL_PATH_RE = re.compile(r"(?:/Users/[A-Za-z0-9._-]+/|[A-Za-z]:/Users/[A-Za-z0-9._-]+/)")
 SECRET_RE = re.compile(
@@ -56,15 +68,39 @@ def text(path: Path) -> str | None:
         return None
 
 
+def deny_digests() -> frozenset[str]:
+    supplied = {
+        item.casefold()
+        for item in re.split(r"[\s,]+", os.environ.get(PRIVATE_DENY_ENV, ""))
+        if item
+    }
+    if any(SHA256_RE.fullmatch(item) is None for item in supplied):
+        raise ValueError(f"{PRIVATE_DENY_ENV} must contain only lowercase SHA-256 digests")
+    return SAFE_DENY_DIGESTS | supplied
+
+
+def contains_denied_identifier(content: str, denied: frozenset[str]) -> bool:
+    candidates = [match.group(0) for match in IDENTIFIER_CANDIDATE_RE.finditer(content)]
+    candidates.extend(
+        match.group(1).removesuffix(".git")
+        for match in GITHUB_REPOSITORY_RE.finditer(content)
+    )
+    for candidate in candidates:
+        for normalized in {candidate, candidate.casefold()}:
+            if hashlib.sha256(normalized.encode("utf-8")).hexdigest() in denied:
+                return True
+    return False
+
+
 def check() -> list[str]:
     failures: list[str] = []
+    denied = deny_digests()
     for relative in tracked_paths():
         content = text(ROOT / relative)
         if content is None:
             continue
-        for forbidden in FORBIDDEN_LITERALS:
-            if forbidden in content:
-                failures.append(f"{relative}: contains prohibited private locator")
+        if contains_denied_identifier(content, denied):
+            failures.append(f"{relative}: contains a denied private identifier digest match")
         if LOCAL_PATH_RE.search(content):
             failures.append(f"{relative}: contains a local personal path")
         if SECRET_RE.search(content):

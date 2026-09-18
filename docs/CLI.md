@@ -17,6 +17,7 @@ directories used by the selected operation.
     private/records/
     private/policies/
     private/indexes/
+    private/transactions/
   state/
     plans/
     adapter-plans/

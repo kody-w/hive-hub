@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+import time
 from unittest.mock import patch
 
 from hive_hub import (
@@ -10,9 +15,17 @@ from hive_hub import (
     public_index_from_home,
     qr_commitment,
 )
+from hive_hub.errors import LimitError, ValidationError
 from hive_hub.filesystem import SafeFilesystem
 
-from .helpers import FIXED_TIME, WorkspaceTestCase, files_under, make_record, make_stack
+from .helpers import (
+    FIXED_TIME,
+    PROJECT_ROOT,
+    WorkspaceTestCase,
+    files_under,
+    make_record,
+    make_stack,
+)
 
 
 class PrivateAccessTests(WorkspaceTestCase):
@@ -62,6 +75,22 @@ class PrivateAccessTests(WorkspaceTestCase):
                 fragment=fragment,
             ),
         )
+        other_record = make_record(
+            stack,
+            visibility="private",
+            name="Other Vault Firefly",
+            url="https://firefly.invalid/private/other-vault",
+            chant="other vault firefly",
+        )
+        self.assertNotEqual(
+            policy.qr_commitment,
+            qr_commitment(
+                record_id=other_record.id,
+                scope="vault/read",
+                epoch="2026-q3",
+                fragment=fragment,
+            ),
+        )
         self.assertNotEqual(
             policy.qr_commitment,
             qr_commitment(
@@ -81,6 +110,23 @@ class PrivateAccessTests(WorkspaceTestCase):
             )
             self.assertEqual(allowed.status, "resolved")
             self.assertTrue(compare.called)
+
+    def test_qr_factor_requires_canonical_32_byte_base64url_entropy(self) -> None:
+        stack = make_stack(self.work)
+        record = make_record(
+            stack,
+            visibility="private",
+            name="Strict Factor Firefly",
+            url="https://firefly.invalid/private/strict-factor",
+            chant="strict factor firefly",
+        )
+        for weak in ("short", "A" * 42, "A" * 43 + "=", "B" * 43):
+            with self.subTest(weak=weak), self.assertRaises((LimitError, ValidationError)):
+                PrivateAccessPolicy.create(
+                    record_id=record.id,
+                    mode="acl+qr",
+                    qr_fragment=weak,
+                )
 
     def test_absent_unauthorized_and_wrong_qr_are_identical_unreachable(self) -> None:
         stack = make_stack(self.work)
@@ -195,3 +241,84 @@ class PrivateAccessTests(WorkspaceTestCase):
         for path in files_under(self.work):
             self.assertNotIn(fragment.encode("ascii"), path.read_bytes(), str(path))
         self.assertTrue((self.work / "books" / "private").is_dir())
+
+    def test_private_record_and_policy_registration_is_one_interprocess_transaction(
+        self,
+    ) -> None:
+        stack = make_stack(self.work)
+        record = make_record(
+            stack,
+            visibility="private",
+            name="Concurrent Firefly",
+            url="https://firefly.invalid/private/concurrent",
+            chant="concurrent firefly",
+        )
+        first_policy = PrivateAccessPolicy.create(
+            record_id=record.id,
+            mode="acl+qr",
+            scope="concurrent/read",
+            epoch="1",
+            qr_fragment=generate_qr_fragment(),
+        )
+        second_policy = PrivateAccessPolicy.create(
+            record_id=record.id,
+            mode="acl+qr",
+            scope="concurrent/read",
+            epoch="2",
+            qr_fragment=generate_qr_fragment(),
+        )
+        record_path = self.work / "concurrent-record.json"
+        policy_path = self.work / "concurrent-policy.json"
+        attempted_path = self.work / "worker-attempted"
+        entered_path = self.work / "worker-entered-apply"
+        result_path = self.work / "worker-result"
+        record_path.write_text(json.dumps(record.to_dict()), encoding="utf-8")
+        policy_path.write_text(json.dumps(second_policy.to_dict()), encoding="utf-8")
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = os.pathsep.join(
+            [str(PROJECT_ROOT / "src"), str(PROJECT_ROOT)]
+        )
+        worker = PROJECT_ROOT / "tests/fixtures/register_private_worker.py"
+        private_book = stack.hub.private_book
+        record_plan = private_book.record_plan(record)
+        first_policy_plan = private_book.policy_plan(first_policy)
+        process: subprocess.Popen[str] | None = None
+        try:
+            with private_book.registration_transaction(record.id):
+                self.assertTrue(private_book.apply(record_plan))
+                process = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(worker),
+                        str(self.work),
+                        str(record_path),
+                        str(policy_path),
+                        str(attempted_path),
+                        str(entered_path),
+                        str(result_path),
+                    ],
+                    cwd=PROJECT_ROOT,
+                    env=environment,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                deadline = time.monotonic() + 10
+                while not attempted_path.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(attempted_path.exists(), "worker never attempted registration")
+                time.sleep(0.2)
+                self.assertIsNone(process.poll(), "worker bypassed the record transaction lock")
+                self.assertFalse(entered_path.exists())
+                self.assertTrue(private_book.apply(first_policy_plan))
+            assert process is not None
+            stdout, stderr = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 0, stdout + stderr)
+        finally:
+            if process is not None and process.poll() is None:
+                process.kill()
+                process.communicate()
+        self.assertEqual(result_path.read_text(encoding="utf-8"), "conflict\n")
+        self.assertEqual(private_book.get(record.id), record)
+        self.assertEqual(private_book.get_policy(record.id), first_policy)

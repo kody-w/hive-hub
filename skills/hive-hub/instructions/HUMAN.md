@@ -19,15 +19,17 @@ Useful phrases include:
 - “join this hive on this device and tell me when you are ready”
 - “scan this Hive QR code and join it”
 
-The AI first shows a plan for anything that reads the network, writes local
-state, or runs verified local tooling. Approve only the complete digest shown
-with that plan. GitHub joining can require a second plan after the repository's
-static declaration has been verified.
+The AI first shows a plan for anything that reads the network or writes local
+state. Approve only the complete digest shown with that plan. Remote joining
+can require a second plan after the exact declaration has been verified. The
+join stage saves only a subscription and inert typed adapter plan; it never
+runs repository code.
 
 The skill uses access already configured on your device. It never asks for or
 prints a token, password, private key, or repository credential. A private Hive
 may additionally require a QR factor after repository access succeeds. Keep
-that QR payload out of chat and shell history.
+that QR payload out of chat and shell history. The factor must be 32 random
+bytes in canonical unpadded base64url form.
 
 Joining an ordinary supported Hive records a removable local subscription and
 returns the Hive's next step as text. Unknown protocols are not run: you receive

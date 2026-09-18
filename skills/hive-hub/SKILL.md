@@ -2,7 +2,7 @@
 name: "hive-hub"
 description: "Safely dial or join a declared Hive from a GitHub address, local path, seven-word chant, full Dial Record ID, or camera/QR/AI join card. Use when someone says “dial this hive”, “join this hive on this device and tell me when you are ready”, or asks to scan a Hive QR code. The locked runner is protocol-neutral, plans every external effect first, uses existing access, never executes downloaded learning material, and returns one actionable blocker when it cannot continue."
 license: "MIT"
-compatibility: "Requires Python 3.11+; Git is required only for GitHub targets and exact verified current-main join contracts. Run with Python isolated mode (-I). Uses existing Git credentials without prompting and stores approved device-local state under ~/.agent-storage/hive-hub/v1 unless an absolute device root is supplied."
+compatibility: "Requires Python 3.11+; Git is required only for GitHub targets. Run with Python isolated mode (-I). Uses existing Git credentials without prompting and stores approved device-local state under ~/.agent-storage/hive-hub/v1 unless an absolute device root is supplied."
 metadata:
   version: "0.1.0"
   lock: "agent.lock"
@@ -45,19 +45,20 @@ Accepted locators are:
 - a full `dial:sha256:<64 lowercase hex>` Dial Record ID; or
 - bounded QR/AI join-card JSON.
 
-The first response is a plan whenever network access, local writes, or verified
-tool execution would occur. Show the person the effects and ask for explicit
-approval of the complete `plan_digest`. Apply only that exact digest:
+The first response is a plan whenever network access or local writes would
+occur. Show the person the effects and ask for explicit approval of the
+complete `plan_digest`. Apply only that exact digest:
 
 ```bash
 python3 -I -B scripts/run.py join --locator '<same locator>' \
   --apply '<exact lowercase plan_digest>'
 ```
 
-A GitHub target normally has two approved stages: resolve its exact commits and
-static declaration, then apply the adapter-specific join plan. Re-run the same
-command with each newly returned exact digest. Never shorten, retype, or infer a
-digest.
+A remote target normally has two approved stages: resolve its exact Git or
+pinned static declaration, then save the subscription and inert typed adapter
+plan. Static approval binds the canonical declaration URL, SHA-256, byte count,
+locator, and hashed output root. Re-run the same command with each newly
+returned exact digest. Never shorten, retype, or infer a digest.
 
 ## Camera, QR, and AI cards
 
@@ -79,7 +80,9 @@ camera_or_qr_reader | python3 -I -B scripts/run.py join --card-stdin
 The only URL form that may contain an unlock fragment is a locally consumed
 `hive://join?...#...` payload received through standard input. The runner
 removes that fragment before any lookup, never returns or stores it, and checks
-it only after the target's existing ACL has succeeded.
+it only after the target's existing ACL has succeeded. A factor is exactly 32
+random bytes encoded as canonical unpadded base64url. Its stored declaration
+commitment is bound to the record, policy scope, and epoch.
 
 ## Dialbooks
 
@@ -98,15 +101,16 @@ guess.
 - `acl-only` is the default. `acl+qr` is an optional second factor checked only
   after ACL success.
 - Remote JSON is bounded, static, and pinned by an exact Git object or explicit
-  byte count plus SHA-256.
+  byte count plus SHA-256. Static declaration fetches are limited to locally
+  trusted origins; DNS answers and redirects to loopback, private, link-local,
+  reserved, metadata, or other non-global targets are refused before use.
 - Downloaded protocol text, examples, skills, adapters, and commands remain
-  inert. Unknown adapters are never imported or executed.
-- Generic joins save one reversible local subscription and return the
-  declaration's inert next step.
-- An exact locked join contract may select verified current-`main` tooling
-  against a detached checkout of the requested source. Selection is by contract
-  bytes, never by repository name. It does not rewrite history, change ACLs,
-  copy keys, or push any branch.
+  inert. Repository-provided setup, verification, adapter, and skill code is
+  never imported or executed, even if it copies a known contract.
+- Joins save one reversible local subscription, return an exact typed inert
+  adapter plan, and return the declaration's inert next step. Adapter execution
+  belongs only to separately approved, locally shipped immutable code pinned by
+  local trust.
 - Results never contain credentials, unlock fragments, private local paths, or
   raw transport diagnostics.
 

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { webcrypto } from "node:crypto";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 import { buildStaticSurface } from "../scripts/build.mjs";
 import { checkStaticSurface } from "../scripts/check.mjs";
@@ -154,13 +157,14 @@ test("public QR envelope is locator-only and sensitive cards stay local", async 
   assert.match(resultA.cards[0].cameraQrFragment, /^#v1\.[A-Za-z0-9_-]+$/);
 
   const localOut = path.join(work, "sensitive");
+  const unlock = Buffer.alloc(32, 0x5a).toString("base64url");
   const local = await generateSensitiveCard({
     config: {
       accessMode: "acl+qr",
       cardId: "local-test-card",
       classification: "local-sensitive-locator-plus-unlock",
-      locator: "https://example.test/private-candidate",
-      unlock: "test-only-unlock"
+      locator: "https://github.com/example/private-candidate",
+      unlock
     },
     outDir: localOut,
     projectRoot: repository
@@ -169,9 +173,30 @@ test("public QR envelope is locator-only and sensitive cards stay local", async 
     readFile(local.jsonPath, "utf8"),
     readFile(local.svgPath, "utf8")
   ]);
-  assert.match(json, /test-only-unlock/);
+  const payload = JSON.parse(json);
+  assert.deepEqual(Object.keys(payload).sort(), ["locator", "schema", "unlock_fragment"]);
+  assert.deepEqual(payload, {
+    locator: "https://github.com/example/private-candidate",
+    schema: "hive-hub-qr-join-card/1",
+    unlock_fragment: unlock
+  });
   assert.match(svg, /xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
   assert.ok(!resultA.files.some((filePath) => filePath.includes("sensitive")));
+  const runner = path.join(repository, "skills/hive-hub/scripts/run.py");
+  const decoded = spawnSync(
+    process.env.PYTHON || "python3",
+    ["-I", "-B", runner, "decode", "--card-stdin"],
+    {
+      cwd: repository,
+      encoding: "utf8",
+      input: json
+    }
+  );
+  assert.equal(decoded.status, 0, decoded.stderr || decoded.stdout);
+  const decodedResult = JSON.parse(decoded.stdout);
+  assert.equal(decodedResult.card_source, "card-stdin");
+  assert.equal(decodedResult.has_optional_factor, true);
+  assert.doesNotMatch(decoded.stdout, new RegExp(unlock));
 
   await assert.rejects(
     generateSensitiveCard({
@@ -179,12 +204,104 @@ test("public QR envelope is locator-only and sensitive cards stay local", async 
         accessMode: "acl+qr",
         cardId: "must-fail",
         classification: "local-sensitive-locator-plus-unlock",
-        locator: "https://example.test/private-candidate",
-        unlock: "test-only-unlock"
+        locator: "https://github.com/example/private-candidate",
+        unlock
       },
       outDir: path.join(repository, "hub/private-card"),
       projectRoot: repository
     }),
     /Sensitive cards may be written only/
   );
+});
+
+test("generated join script executes the real core camera-card path", async () => {
+  const coreCard = resultA.cards[0].cameraAiCard;
+  const cardBytes = await readFile(path.join(buildA, coreCard.path));
+  const cardDocument = JSON.parse(cardBytes);
+  const joinScript = await readFile(path.join(buildA, "hub/join/join.js"), "utf8");
+  const elements = new Map(
+    ["status", "failure", "machine-readable", "machine-section"].map((id) => [
+      id,
+      { hidden: id !== "failure", textContent: "" }
+    ])
+  );
+  let finish;
+  const completed = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const status = elements.get("status");
+  Object.defineProperty(status, "textContent", {
+    get() {
+      return this.value || "";
+    },
+    set(value) {
+      this.value = value;
+      if (value === "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill." ||
+          value === "Verification failed.") {
+        finish(value);
+      }
+    }
+  });
+  const location = new URL(
+    `https://kody-w.github.io/hive-hub/hub/join/${resultA.cards[0].cameraQrFragment}`
+  );
+  const context = {
+    TextDecoder,
+    TextEncoder,
+    URL,
+    URLSearchParams,
+    Uint8Array,
+    atob,
+    btoa,
+    console,
+    crypto: webcrypto,
+    document: {
+      getElementById(id) {
+        return elements.get(id);
+      }
+    },
+    fetch: async (url) => {
+      assert.equal(String(url), coreCard.url);
+      return {
+        ok: true,
+        async arrayBuffer() {
+          return cardBytes.buffer.slice(
+            cardBytes.byteOffset,
+            cardBytes.byteOffset + cardBytes.byteLength
+          );
+        }
+      };
+    },
+    setTimeout,
+    window: {
+      atob,
+      btoa,
+      crypto: webcrypto,
+      history: {
+        replaceState() {}
+      },
+      location: {
+        hash: location.hash,
+        href: location.href,
+        origin: location.origin,
+        pathname: location.pathname,
+        search: location.search
+      }
+    }
+  };
+  vm.runInNewContext(joinScript, context);
+  const finalStatus = await Promise.race([
+    completed,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("core camera-card path timed out")), 2000)
+    )
+  ]);
+  assert.equal(
+    finalStatus,
+    "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill.",
+    elements.get("failure").textContent
+  );
+  const machine = JSON.parse(elements.get("machine-readable").textContent);
+  assert.deepEqual(machine.card, cardDocument);
+  assert.equal(machine.verification.coreContract, "verified");
 });

@@ -26,8 +26,13 @@ locators—not authority.
 - Private absence, failed ACL, missing policy, and wrong optional QR factor all
   return the identical `unreachable` result.
 - No-follow reads, bounded traversal, regular-file checks, atomic no-replace
-  writes, and reversible subscription writes.
+  writes, reversible subscription writes, and per-record interprocess
+  transactions for private record/policy registration.
 - No downloaded protocol text, skill, or adapter is executed.
+- The universal skill never executes repository-provided setup or verification
+  code. Joining saves a subscription and returns an inert typed adapter plan;
+  execution is reserved for separately approved locally shipped immutable code
+  pinned by local trust.
 - Built-in adapter contracts are loaded lazily; unavailable RAPP tooling remains
   inert and never becomes a core requirement.
 
@@ -304,9 +309,16 @@ node scripts/generate-sensitive-card.mjs \
   --out-dir .hive-hub/private-cards/example
 ```
 
-Local card input must declare `accessMode: "acl+qr"`. The generated payload
-states that the source ACL must succeed first; the QR value is only a second
-factor and cannot replace or weaken source authorization.
+Local card input must declare `accessMode: "acl+qr"` and provide a canonical
+unpadded base64url encoding of exactly 32 random bytes. The generated JSON is
+the exact closed shape accepted by the skill:
+
+```json
+{"locator":"<validated skill locator>","schema":"hive-hub-qr-join-card/1","unlock_fragment":"<43-character factor>"}
+```
+
+The source ACL must succeed first; the QR value is only a second factor and
+cannot replace or weaken source authorization.
 
 The public builder never imports or invokes that tool, and public-card
 validation rejects sensitive fields.
@@ -364,10 +376,14 @@ python3 -I -B scripts/run.py join --locator 'owner/repo at branch' \
   --apply '<exact returned plan digest>'
 ```
 
-Every network read, local write, or verified adapter execution is planned
-first. Existing source access is used without prompting or credential output.
-Unknown protocols remain inert and return one blocker with their
-content-addressed learning bundle.
+Every network read and local write is planned first. Static plans bind the
+canonical declaration URL, expected SHA-256, byte count, locator, and output
+root identity; apply recomputes that exact plan. Trusted-origin and DNS/IP
+checks reject loopback, private, link-local, reserved, metadata, and redirected
+targets before static content is accepted. Existing source access is used
+without prompting or credential output. Repository code is always inert.
+Unknown protocols return one blocker with their content-addressed learning
+bundle.
 
 ## Verify
 
