@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hive-hub"
+version = "0.1.0"
+description = "Protocol-neutral, local-first Hive discovery and bootstrap core"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Hive Hub contributors" }]
+keywords = ["hive", "protocol", "discovery", "local-first"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.scripts]
+hive-hub = "hive_hub.cli:main"
+
+[tool.setuptools]
+package-dir = { hive_hub = "src/hive_hub", adapters = "adapters" }
+include-package-data = true
+packages = ["hive_hub", "adapters"]
+
+[tool.setuptools.package-data]
+hive_hub = ["py.typed", "schema/*.json"]
+adapters = [
+  "py.typed",
+  "fixtures/*.json",
+  "fixtures/filesystem_workspace/*.json",
+  "fixtures/legacy_hub/**/*.json",
+  "fixtures/legacy_hub/**/*.py",
+  "fixtures/legacy_hub_escape/**/*.json",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = [
+  "src",
+  "adapters",
+  "tests/test_contracts.py",
+  "tests/test_hub.py",
+  "tests/test_private_access.py",
+  "tests/test_safety_cli.py",
+  "tests/test_adapter_runtime.py",
+  "tests/test_release_integration.py",
+]

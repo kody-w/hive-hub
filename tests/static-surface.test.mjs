@@ -1,0 +1,307 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { webcrypto } from "node:crypto";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import test, { after, before } from "node:test";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
+
+import { buildStaticSurface } from "../scripts/build.mjs";
+import { checkStaticSurface } from "../scripts/check.mjs";
+import { generateSensitiveCard } from "../scripts/generate-sensitive-card.mjs";
+import {
+  canonicalJson,
+  listPublicFiles,
+  readPublicFile,
+  sha256Bytes
+} from "../scripts/lib/canonical.mjs";
+import { loadPublicInputs } from "../scripts/lib/public-inputs.mjs";
+
+const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const manifestPath = path.join(repository, "public-manifest.json");
+const work = path.join(repository, "tests/.work/node-test");
+const buildA = path.join(work, "build-a");
+const buildB = path.join(work, "build-b");
+let resultA;
+
+before(async () => {
+  await rm(work, { force: true, recursive: true });
+  await mkdir(work, { recursive: true });
+  resultA = await buildStaticSurface({
+    manifestPath,
+    outDir: buildA
+  });
+});
+
+after(async () => {
+  await rm(work, { force: true, recursive: true });
+});
+
+test("build is byte-for-byte deterministic", async () => {
+  const resultB = await buildStaticSurface({
+    manifestPath,
+    outDir: buildB
+  });
+  assert.deepEqual(resultA.files, resultB.files);
+  const files = await listPublicFiles(buildA);
+  for (const filePath of files) {
+    const [left, right] = await Promise.all([
+      readPublicFile(buildA, filePath),
+      readPublicFile(buildB, filePath)
+    ]);
+    assert.ok(left.equals(right), `${filePath} differs across builds`);
+  }
+});
+
+test("generated surface passes links, hashes, security, and accessibility gates", async () => {
+  const result = await checkStaticSurface({
+    manifestPath,
+    root: buildA
+  });
+  assert.equal(result.inputCount, 24);
+  assert.ok(result.immutableObjectCount >= 9);
+  assert.equal(result.qrCount, 2);
+});
+
+test("example record is exact and grants no authority or semantic compatibility", async () => {
+  const record = resultA.records[0].document;
+  assert.equal(
+    record.locator.repositoryUrl,
+    "https://github.com/billwhalenmsft/softwarecoellc-vteam-hive"
+  );
+  assert.equal(record.locator.revision, "f66da3d879b53a439bc87de764d79f68ceec048a");
+  assert.deepEqual(record.claims.authority, []);
+  assert.deepEqual(record.claims.semanticCompatibility, []);
+  assert.equal(record.protocolFingerprint, record.protocol.ref);
+});
+
+test("public build input reader never scans adjacent private books", async () => {
+  const fixtureRoot = path.join(work, "isolation");
+  const publicRoot = path.join(fixtureRoot, "public-src");
+  const privateRoot = path.join(fixtureRoot, "private-books");
+  await Promise.all([
+    mkdir(publicRoot, { recursive: true }),
+    mkdir(privateRoot, { recursive: true })
+  ]);
+  const publicBytes = Buffer.from(canonicalJson({ visibility: "public" }));
+  const privatePath = path.join(privateRoot, "private-book.json");
+  await Promise.all([
+    writeFile(path.join(publicRoot, "record.json"), publicBytes),
+    writeFile(privatePath, '{"sentinel":"must-not-be-read"}\n')
+  ]);
+  await chmod(privatePath, 0o000);
+  const fixtureManifestPath = path.join(fixtureRoot, "public-manifest.json");
+  const fixtureManifest = {
+    build: {
+      apiPath: "api/hive-hub/v1",
+      generatedAt: "2026-09-18T19:16:11Z",
+      rawBaseUrl: "https://example.test/raw",
+      siteBaseUrl: "https://example.test/hub"
+    },
+    buckets: [
+      { id: "sha256-00-7f", maximum: "7f", minimum: "00" },
+      { id: "sha256-80-ff", maximum: "ff", minimum: "80" }
+    ],
+    cards: [
+      {
+        cardId: "fixture-card",
+        chant: "fixture",
+        recordId: "fixture-record",
+        slug: "fixture",
+        title: "Fixture"
+      }
+    ],
+    classification: "public-only",
+    entries: [
+      {
+        classification: "public",
+        id: "fixture-record",
+        kind: "record",
+        path: "record.json",
+        sha256: sha256Bytes(publicBytes)
+      }
+    ],
+    federation: { members: [] },
+    manifestVersion: "1.0.0",
+    productVersion: "0.1.0",
+    sourceRoot: "public-src"
+  };
+  await writeFile(fixtureManifestPath, canonicalJson(fixtureManifest));
+  try {
+    const loaded = await loadPublicInputs(fixtureManifestPath);
+    assert.deepEqual(
+      loaded.audit.inspectedInputs.map((entry) => entry.path),
+      ["public-src/record.json"]
+    );
+
+    fixtureManifest.entries[0].path = "../private-books/private-book.json";
+    await writeFile(fixtureManifestPath, canonicalJson(fixtureManifest));
+    await assert.rejects(
+      loadPublicInputs(fixtureManifestPath),
+      /Path escapes its root/,
+      "A private-book traversal must fail before any input read"
+    );
+  } finally {
+    await chmod(privatePath, 0o600);
+  }
+});
+
+test("public QR envelope is locator-only and sensitive cards stay local", async () => {
+  const publicEnvelope = resultA.cards[0].envelope;
+  assert.deepEqual(Object.keys(publicEnvelope).sort(), ["card", "sha256", "v"]);
+  assert.equal(publicEnvelope.v, 1);
+  const cameraEnvelope = resultA.cards[0].cameraEnvelope;
+  assert.deepEqual(Object.keys(cameraEnvelope).sort(), ["card", "sha256", "v"]);
+  assert.equal(cameraEnvelope.v, 1);
+  assert.match(resultA.cards[0].cameraQrFragment, /^#v1\.[A-Za-z0-9_-]+$/);
+
+  const localOut = path.join(work, "sensitive");
+  const unlock = Buffer.alloc(32, 0x5a).toString("base64url");
+  const local = await generateSensitiveCard({
+    config: {
+      accessMode: "acl+qr",
+      cardId: "local-test-card",
+      classification: "local-sensitive-locator-plus-unlock",
+      locator: "https://github.com/example/private-candidate",
+      unlock
+    },
+    outDir: localOut,
+    projectRoot: repository
+  });
+  const [json, svg] = await Promise.all([
+    readFile(local.jsonPath, "utf8"),
+    readFile(local.svgPath, "utf8")
+  ]);
+  const payload = JSON.parse(json);
+  assert.deepEqual(Object.keys(payload).sort(), ["locator", "schema", "unlock_fragment"]);
+  assert.deepEqual(payload, {
+    locator: "https://github.com/example/private-candidate",
+    schema: "hive-hub-qr-join-card/1",
+    unlock_fragment: unlock
+  });
+  assert.match(svg, /xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.ok(!resultA.files.some((filePath) => filePath.includes("sensitive")));
+  const runner = path.join(repository, "skills/hive-hub/scripts/run.py");
+  const decoded = spawnSync(
+    process.env.PYTHON || "python3",
+    ["-I", "-B", runner, "decode", "--card-stdin"],
+    {
+      cwd: repository,
+      encoding: "utf8",
+      input: json
+    }
+  );
+  assert.equal(decoded.status, 0, decoded.stderr || decoded.stdout);
+  const decodedResult = JSON.parse(decoded.stdout);
+  assert.equal(decodedResult.card_source, "card-stdin");
+  assert.equal(decodedResult.has_optional_factor, true);
+  assert.doesNotMatch(decoded.stdout, new RegExp(unlock));
+
+  await assert.rejects(
+    generateSensitiveCard({
+      config: {
+        accessMode: "acl+qr",
+        cardId: "must-fail",
+        classification: "local-sensitive-locator-plus-unlock",
+        locator: "https://github.com/example/private-candidate",
+        unlock
+      },
+      outDir: path.join(repository, "hub/private-card"),
+      projectRoot: repository
+    }),
+    /Sensitive cards may be written only/
+  );
+});
+
+test("generated join script executes the real core camera-card path", async () => {
+  const coreCard = resultA.cards[0].cameraAiCard;
+  const cardBytes = await readFile(path.join(buildA, coreCard.path));
+  const cardDocument = JSON.parse(cardBytes);
+  const joinScript = await readFile(path.join(buildA, "hub/join/join.js"), "utf8");
+  const elements = new Map(
+    ["status", "failure", "machine-readable", "machine-section"].map((id) => [
+      id,
+      { hidden: id !== "failure", textContent: "" }
+    ])
+  );
+  let finish;
+  const completed = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const status = elements.get("status");
+  Object.defineProperty(status, "textContent", {
+    get() {
+      return this.value || "";
+    },
+    set(value) {
+      this.value = value;
+      if (value === "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill." ||
+          value === "Verification failed.") {
+        finish(value);
+      }
+    }
+  });
+  const location = new URL(
+    `https://kody-w.github.io/hive-hub/hub/join/${resultA.cards[0].cameraQrFragment}`
+  );
+  const context = {
+    TextDecoder,
+    TextEncoder,
+    URL,
+    URLSearchParams,
+    Uint8Array,
+    atob,
+    btoa,
+    console,
+    crypto: webcrypto,
+    document: {
+      getElementById(id) {
+        return elements.get(id);
+      }
+    },
+    fetch: async (url) => {
+      assert.equal(String(url), coreCard.url);
+      return {
+        ok: true,
+        async arrayBuffer() {
+          return cardBytes.buffer.slice(
+            cardBytes.byteOffset,
+            cardBytes.byteOffset + cardBytes.byteLength
+          );
+        }
+      };
+    },
+    setTimeout,
+    window: {
+      atob,
+      btoa,
+      crypto: webcrypto,
+      history: {
+        replaceState() {}
+      },
+      location: {
+        hash: location.hash,
+        href: location.href,
+        origin: location.origin,
+        pathname: location.pathname,
+        search: location.search
+      }
+    }
+  };
+  vm.runInNewContext(joinScript, context);
+  const finalStatus = await Promise.race([
+    completed,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("core camera-card path timed out")), 2000)
+    )
+  ]);
+  assert.equal(
+    finalStatus,
+    "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill.",
+    elements.get("failure").textContent
+  );
+  const machine = JSON.parse(elements.get("machine-readable").textContent);
+  assert.deepEqual(machine.card, cardDocument);
+  assert.equal(machine.verification.coreContract, "verified");
+});

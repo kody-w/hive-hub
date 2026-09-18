@@ -1,0 +1,1 @@
+{"adapter_api_version":"hive-hub-adapter/1","capabilities":["discover","join","observe"],"conformance_address":"urn:hivehub:sha256:4aa9adef487b97709593fd0f78d379914eecbabd3afd272cca587e674ad4f90c","kind":"protocol-declaration","media_type":"application/vnd.firefly.mesh+json","name":"Firefly Mesh","protocol_version":"7.2","schema_version":1}

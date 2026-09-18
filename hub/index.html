@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'">
+    <meta name="referrer" content="no-referrer">
+    <meta name="description" content="Protocol-neutral Hive discovery through a deterministic static API.">
+    <title>Hive Hub</title>
+    <link rel="stylesheet" href="./assets/hub.css">
+    <link rel="alternate" type="text/plain" href="../llms.txt" title="Hive Hub instructions for AI clients">
+    <link rel="alternate" type="application/json" href="../api/hive-hub/v1/index.json" title="Hive Hub static API">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Hive Hub home">Hive Hub</a>
+      <nav aria-label="Primary">
+        <a href="../api/hive-hub/v1/index.json">Static API</a>
+        <a href="../llms.txt">llms.txt</a>
+        <a href="./join/">AI join</a>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">Static · protocol-neutral · verifiable</p>
+        <h1 id="hero-title">Find a Hive without mistaking a locator for authority.</h1>
+        <p class="lede">Hive Hub is a no-server discovery surface for humans and AIs. Every Dial Record points to an exact protocol declaration, learning bundle, conformance contract, and adapter.</p>
+        <div class="actions">
+          <a class="button" href="../api/hive-hub/v1/dialbook.json">Open the public dialbook</a>
+          <a class="button button-secondary" href="../api/hive-hub/v1/offline-seed.json">Download the offline seed</a>
+        </div>
+      </section>
+
+      <section class="principles" aria-labelledby="principles-title">
+        <h2 id="principles-title">Discovery boundaries</h2>
+        <ul class="feature-grid">
+          <li><strong>Locators are candidates.</strong><span>Chants, cards, QR codes, repositories, and URLs do not establish unique authority.</span></li>
+          <li><strong>Protocols are exact.</strong><span>Content fingerprints bind declarations and learning material to immutable bytes.</span></li>
+          <li><strong>Content stays inert.</strong><span>Downloaded code and instructions require separate approval and verification.</span></li>
+          <li><strong>Access remains at source.</strong><span>The Hub adds no collaborators, credentials, brokers, or access side channels.</span></li>
+        </ul>
+      </section>
+
+      <section class="example" aria-labelledby="example-title">
+        <div>
+          <p class="eyebrow">Public example Dial Record</p>
+          <h2 id="example-title">SoftwareCo LLC V-Team Hive repository</h2>
+          <dl>
+            <div><dt>Repository</dt><dd><a href="https://github.com/billwhalenmsft/softwarecoellc-vteam-hive" rel="noreferrer noopener">https://github.com/billwhalenmsft/softwarecoellc-vteam-hive</a></dd></div>
+            <div><dt>Exact commit</dt><dd><code>f66da3d879b53a439bc87de764d79f68ceec048a</code></dd></div>
+            <div><dt>Chant</dt><dd><code>softwarecoellc-vteam-hive</code> <span class="muted">(candidate locator only)</span></dd></div>
+            <div><dt>Compatibility</dt><dd>No authority or cross-protocol semantic compatibility is claimed.</dd></div>
+          </dl>
+          <div class="actions">
+            <a class="button" href="./join/#v1.eyJjYXJkIjoiaHR0cHM6Ly9rb2R5LXcuZ2l0aHViLmlvL2hpdmUtaHViL2FwaS9oaXZlLWh1Yi92MS9jYXJkcy9zaGEyNTYvNGEvNGE5ZDk4YWRmZDk4MTE4YTVmN2I0NThkM2FmNDEzNDA5NDRmOGViOTU3ZWYxOTkwZjZmOTZhNDAyZjIwZDcwMC5qc29uIiwic2hhMjU2IjoiNGE5ZDk4YWRmZDk4MTE4YTVmN2I0NThkM2FmNDEzNDA5NDRmOGViOTU3ZWYxOTkwZjZmOTZhNDAyZjIwZDcwMCIsInYiOjF9">Open verified join card</a>
+            <a class="text-link" href="https://kody-w.github.io/hive-hub/api/hive-hub/v1/records/sha256/sha256-80-bf/8a91f5821d2663ea6e106d9e1dea1c04238159a48a8f4f814f67d6f05662d1cd.json">Inspect immutable record JSON</a>
+          </div>
+        </div>
+        <figure class="qr-card">
+          <img src="../api/hive-hub/v1/cards/qr/softwarecoellc-vteam-hive.svg" width="320" height="320" alt="QR code locating the public AI join card for the example repository">
+          <figcaption>Locator-only QR. It carries no credential, authority, or access grant.</figcaption>
+        </figure>
+      </section>
+    </main>
+    <footer>
+      <p>Static snapshot: <time datetime="2026-09-18T19:16:11Z">2026-09-18T19:16:11Z</time>. <a href="../api/hive-hub/v1/status.json">Status document</a>.</p>
+    </footer>
+  </body>
+</html>

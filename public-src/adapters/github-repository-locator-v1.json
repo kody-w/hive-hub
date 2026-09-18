@@ -1,0 +1,26 @@
+{
+  "adapterId": "urn:hive-hub:adapter:github-repository-locator:1",
+  "conformanceId": "github-repository-locator-contract-v1",
+  "executable": false,
+  "kind": "adapter-declaration",
+  "mapping": {
+    "from": [
+      "repositoryUrl",
+      "revision"
+    ],
+    "preserves": [
+      "repository owner",
+      "repository name",
+      "exact Git commit",
+      "source access-control boundary"
+    ],
+    "to": [
+      "locator.repositoryUrl",
+      "locator.revision"
+    ]
+  },
+  "protocolId": "github-repository-v1",
+  "scope": "Exact GitHub repository locator normalization only.",
+  "semanticCompatibilityClaims": [],
+  "version": "1.0.0"
+}

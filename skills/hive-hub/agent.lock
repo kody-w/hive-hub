@@ -1,0 +1,106 @@
+{
+  "schema": "hive-hub-agent-lock/1",
+  "name": "hive-hub",
+  "version": "0.1.0",
+  "runner": {
+    "python": ">=3.11",
+    "isolated": true,
+    "stdlib_only": true
+  },
+  "limits": {
+    "card_bytes": 65536,
+    "dialbook_bytes": 4194304,
+    "dialbook_records": 4096,
+    "json_bytes": 1048576,
+    "json_depth": 32,
+    "json_nodes": 20000,
+    "git_output_bytes": 4194304,
+    "learning_items": 64,
+    "learning_item_bytes": 33554432,
+    "process_seconds": 600
+  },
+  "trusted_static_origins": [
+    "https://kody-w.github.io"
+  ],
+  "adapters": [
+    {
+      "id": "hive-hub.subscription/1",
+      "fingerprint": "eeec9b60a50126a874eadef47bd52b6f019870325e4d4e91ca7017594c2a81b6",
+      "contract": {
+        "schema": "hive-hub-adapter-contract/1",
+        "id": "hive-hub.subscription/1",
+        "input": "verified-hive-declaration",
+        "effect": "one-device-local-subscription",
+        "network_after_resolution": false,
+        "executes_downloaded_content": false,
+        "remote_write": false,
+        "reversible": true
+      },
+      "implementation": "local-subscription"
+    },
+    {
+      "id": "hive-hub.github-repository/1",
+      "fingerprint": "10767f352ccc9a901781ed53aa1a085968a85bc4c70c0b117ec83902611d75cb",
+      "contract": {
+        "schema": "hive-hub-adapter-contract/1",
+        "id": "hive-hub.github-repository/1",
+        "input": "verified-hive-declaration",
+        "source_adapter": "github-repository",
+        "source_fingerprint": "hive-hub-github-repository/1.0#sha256:9979236508e12c539d20b81d31161f29d3e2e5018a5eed1329a5cf9f9ccfa7c0",
+        "effect": "one-device-local-subscription",
+        "network_after_resolution": false,
+        "executes_downloaded_content": false,
+        "remote_write": false,
+        "reversible": true
+      },
+      "implementation": "local-subscription"
+    }
+  ],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "bytes": 5291,
+      "sha256": "548a374480ead1ee8227caffa8fde708e9d521f15de271995550c6f93bc57feb"
+    },
+    {
+      "path": "instructions/AI.md",
+      "bytes": 1816,
+      "sha256": "5acebd927da3530c6b41d8a3a7d0f142ad2d4fd7478427284bfcaca8d8aa3232"
+    },
+    {
+      "path": "instructions/HUMAN.md",
+      "bytes": 1621,
+      "sha256": "96958e494170b46a0395da135e5c6ed8ed16f8ca29a9536cb5b08d3cab641f5f"
+    },
+    {
+      "path": "registry/integrated-adapters.json",
+      "bytes": 3691,
+      "sha256": "7d6d20af067f607e885a7096507cdfc3fbb52b2067681fa1a20a804040ad85eb"
+    },
+    {
+      "path": "registry/public-dialbook.json",
+      "bytes": 482,
+      "sha256": "3f002c8f57ecf89529cd31f14f49b7febbc24eeca90e804cf6d5bb6cad605b4c"
+    },
+    {
+      "path": "schemas/core-ai-join-card.schema.json",
+      "bytes": 1945,
+      "sha256": "fd35f0677d913940cc0327c9501db94e3e11a0eb43eb01c924d75cdb7d081f24"
+    },
+    {
+      "path": "schemas/hive-declaration.schema.json",
+      "bytes": 948,
+      "sha256": "1f0a83e90d922f0d2a78e3355792b6cbec9e32a1a6cf9e444c5d36ed9a738019"
+    },
+    {
+      "path": "schemas/join-card.schema.json",
+      "bytes": 835,
+      "sha256": "4a4245af8fbc27cb320f71f368d98d4e21ca2f37950c3c65ed906950c32731c7"
+    },
+    {
+      "path": "scripts/run.py",
+      "bytes": 93584,
+      "sha256": "de22289116f1a883bef9a30a535ad274c0812efeb83e4f2c7eac98ec4380abaf"
+    }
+  ]
+}

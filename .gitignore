@@ -4,8 +4,10 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .venv/
+node_modules/
 build/
 dist/
+*.egg-info/
+site/
 .hive-hub/
 tests/.work/
-
