@@ -1,0 +1,10 @@
+include AGENTS.md
+include CHANGELOG.md
+include LICENSE
+include README.md
+include RELEASE_INVENTORY.md
+recursive-include docs *.md
+recursive-include examples *.json *.md *.py
+recursive-include scripts *.py
+recursive-include src/hive_hub/schema *.json
+recursive-include tests *.py
