@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "universes": [
+    {
+      "id": "temporal",
+      "dimensions": [
+        {
+          "id": "escape",
+          "path": "../../outside"
+        }
+      ]
+    }
+  ]
+}

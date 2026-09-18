@@ -1,0 +1,9 @@
+{
+  "schema": "hive-hub-rapp-delegate-conformance/1.0",
+  "accepted_tools": ["rapp-work", "rapp-hive"],
+  "ignored_legacy_tool": "rapp",
+  "read_only_operations": ["describe", "inspect", "learn", "probe", "read", "verify"],
+  "refused_operations": ["admit", "install", "join", "publish", "push", "write"],
+  "request_schema": "hive-hub-rapp-delegate-request/1.0",
+  "result_schema": "hive-hub-rapp-delegate-result/1.0"
+}

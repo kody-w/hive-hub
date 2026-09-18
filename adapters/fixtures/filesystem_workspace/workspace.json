@@ -1,0 +1,4 @@
+{
+  "schema": "hive-hub-local-workspace-fixture/1.0",
+  "purpose": "Existing local directory used only for access probing."
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "hive-hub-github-conformance/1.0",
+  "parse": [
+    {
+      "input": "Kody-W/Example.git",
+      "owner": "kody-w",
+      "repository": "example",
+      "branch": null,
+      "canonical_url": "https://github.com/kody-w/example",
+      "tree_url": null,
+      "display": "kody-w/example"
+    },
+    {
+      "input": "kody-w/example at feature/hive-hub",
+      "owner": "kody-w",
+      "repository": "example",
+      "branch": "feature/hive-hub",
+      "canonical_url": "https://github.com/kody-w/example",
+      "tree_url": "https://github.com/kody-w/example/tree/feature/hive-hub",
+      "display": "kody-w/example at feature/hive-hub"
+    },
+    {
+      "input": "https://github.com/kody-w/example/tree/release/v1",
+      "owner": "kody-w",
+      "repository": "example",
+      "branch": "release/v1",
+      "canonical_url": "https://github.com/kody-w/example",
+      "tree_url": "https://github.com/kody-w/example/tree/release/v1",
+      "display": "kody-w/example at release/v1"
+    },
+    {
+      "input": "kody-w/example/tree/feature/nested",
+      "owner": "kody-w",
+      "repository": "example",
+      "branch": "feature/nested",
+      "canonical_url": "https://github.com/kody-w/example",
+      "tree_url": "https://github.com/kody-w/example/tree/feature/nested",
+      "display": "kody-w/example at feature/nested"
+    },
+    {
+      "input": "git@github.com:kody-w/example.git",
+      "owner": "kody-w",
+      "repository": "example",
+      "branch": null,
+      "canonical_url": "https://github.com/kody-w/example",
+      "tree_url": null,
+      "display": "kody-w/example"
+    }
+  ],
+  "invalid": [
+    "",
+    "https://example.com/kody-w/example",
+    "kody_w/example",
+    "kody-w/example/issues/1",
+    "kody-w/example at ../main"
+  ],
+  "probe": {
+    "reachable_returncode": 0,
+    "unreachable_returncodes": [22, 128, 255],
+    "credential_mode": "ambient-caller-only",
+    "prompts_enabled": false,
+    "remote_writes": false
+  }
+}
