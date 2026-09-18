@@ -42,9 +42,9 @@ SAMPLE_CHANT = "jetty-gorse-grove-pond-marrow-otter-weir"
 assert derive_chant(SAMPLE_DIAL_ID) == SAMPLE_CHANT
 SOURCE_COMMITS = {
     "adapters": "243fdcbb6934f1989d1d2bd1e9a0e1ee34c5cef0",
-    "core": "dcbd22cb31f7f94e379799d7990b79ed6a71a222",
-    "skill": "95021bf27a868fd5e3a14b03094b4939be1add42",
-    "static_web": "b7ceeca7f9e0719faeffc23186cad90e0bf26c5f",
+    "core": "be580c9b0a8a0a46d8be2b4d0c59dda983835ba7",
+    "skill": "be580c9b0a8a0a46d8be2b4d0c59dda983835ba7",
+    "static_web": "be580c9b0a8a0a46d8be2b4d0c59dda983835ba7",
 }
 
 
