@@ -21,6 +21,61 @@ RUNNER = SKILL / "scripts" / "run.py"
 WORK = ROOT / "tests" / ".work"
 
 
+class MockWindowsFileApi:
+    def __init__(
+        self,
+        *,
+        number_of_links: int = 1,
+        attributes: int = 0,
+        create_success: bool = True,
+        information_success: bool = True,
+        close_success: bool = True,
+    ):
+        self.number_of_links = number_of_links
+        self.attributes = attributes
+        self.create_success = create_success
+        self.information_success = information_success
+        self.close_success = close_success
+        self.handle = 1234
+        self.create_calls = []
+        self.closed_handles = []
+
+    def CreateFileW(
+        self,
+        path,
+        desired_access,
+        share_mode,
+        _security_attributes,
+        creation_disposition,
+        flags_and_attributes,
+        _template_file,
+    ):
+        self.create_calls.append(
+            (
+                path,
+                desired_access,
+                share_mode,
+                creation_disposition,
+                flags_and_attributes,
+            )
+        )
+        if self.create_success:
+            return self.handle
+        return runner._INVALID_HANDLE_VALUE
+
+    def GetFileInformationByHandle(self, _handle, information_pointer):
+        if not self.information_success:
+            return 0
+        information = information_pointer._obj
+        information.dwFileAttributes = self.attributes
+        information.nNumberOfLinks = self.number_of_links
+        return 1
+
+    def CloseHandle(self, handle):
+        self.closed_handles.append(handle)
+        return int(self.close_success)
+
+
 def canonical(value: object) -> bytes:
     return json.dumps(
         value,
@@ -373,20 +428,43 @@ class HiveHubTests(unittest.TestCase):
         )
         self.assertTrue(imported.issubset(sys.stdlib_module_names | {"__future__"}))
 
-    def test_skill_link_count_policy_accepts_windows_zero_and_normal_one(self) -> None:
-        with mock.patch.object(runner, "_is_windows", return_value=True):
-            self.assertTrue(runner._safe_file_link_count(0))
-            self.assertTrue(runner._safe_file_link_count(1))
-            self.assertFalse(runner._safe_file_link_count(2))
-        with mock.patch.object(runner, "_is_windows", return_value=False):
-            self.assertFalse(runner._safe_file_link_count(0))
-            self.assertTrue(runner._safe_file_link_count(1))
-            self.assertFalse(runner._safe_file_link_count(2))
-
+    def test_skill_link_count_policy_uses_true_windows_metadata(self) -> None:
         ordinary = self.work / "ordinary.txt"
         ordinary.write_bytes(b"ordinary")
-        self.assertTrue(runner._safe_file_link_count(ordinary.stat().st_nlink))
         self.assertEqual(runner._read_regular(ordinary, 8), b"ordinary")
+        for api, accepted in (
+            (MockWindowsFileApi(number_of_links=1), True),
+            (MockWindowsFileApi(number_of_links=2), False),
+            (
+                MockWindowsFileApi(
+                    number_of_links=1,
+                    attributes=runner.FILE_ATTRIBUTE_REPARSE_POINT,
+                ),
+                False,
+            ),
+            (MockWindowsFileApi(create_success=False), False),
+            (MockWindowsFileApi(information_success=False), False),
+            (MockWindowsFileApi(close_success=False), False),
+        ):
+            with (
+                self.subTest(api=api, accepted=accepted),
+                mock.patch.object(runner, "_is_windows", return_value=True),
+                mock.patch.object(runner, "_windows_file_api", return_value=api),
+            ):
+                if accepted:
+                    self.assertEqual(runner._read_regular(ordinary, 8), b"ordinary")
+                    _, _, share_mode, disposition, flags = api.create_calls[0]
+                    self.assertEqual(
+                        share_mode,
+                        runner.FILE_SHARE_READ
+                        | runner.FILE_SHARE_WRITE
+                        | runner.FILE_SHARE_DELETE,
+                    )
+                    self.assertEqual(disposition, runner.OPEN_EXISTING)
+                    self.assertTrue(flags & runner.FILE_FLAG_OPEN_REPARSE_POINT)
+                else:
+                    with self.assertRaises(runner.ContractError):
+                        runner._read_regular(ordinary, 8)
 
     def test_skill_verification_rejects_real_hardlinks(self) -> None:
         copied = self.work / "hardlinked-skill"
@@ -439,6 +517,26 @@ class HiveHubTests(unittest.TestCase):
                 value = result_of(verified)
                 self.assertEqual(verified.returncode, 2)
                 self.assertEqual(value["blocker"]["code"], "skill-lock-invalid")
+
+    def test_skill_tree_rejects_symlinks_and_special_files(self) -> None:
+        copied = self.work / "unsafe-skill"
+        shutil.copytree(SKILL, copied)
+        target = copied / "SKILL.md"
+        target.unlink()
+        try:
+            target.symlink_to(SKILL / "SKILL.md")
+        except OSError as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        with self.assertRaises(runner.PackageError):
+            runner._tree_files(copied)
+
+        target.unlink()
+        try:
+            os.mkfifo(target)
+        except (AttributeError, OSError) as exc:
+            self.skipTest(f"special files unavailable: {exc}")
+        with self.assertRaises(runner.PackageError):
+            runner._tree_files(copied)
 
     def test_core_camera_ai_card_dials_and_joins_through_skill(self) -> None:
         hive = self.work / "camera-card-hive"

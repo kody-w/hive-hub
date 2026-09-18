@@ -35,6 +35,7 @@
 
 - `canonical.py`: bounded duplicate-safe JSON and SHA-256 addresses
 - `contracts.py`: typed closed contracts and semantic validation
+- `_windows_file.py`: no-follow Win32 handle metadata and true link counts
 - `filesystem.py`: no-follow, atomic no-replace, reversible storage
 - `store.py`: separated books, registry, indexes, and local state
 - `hub.py`: protocol learning, registration, dial, join, and bootstrap
@@ -57,8 +58,9 @@
 - Path: `skills/hive-hub/`
 - Version: `0.1.0`
 - Locked, stdlib-only Python 3.11+ runner
-- Cross-platform lock verification accepts file link counts `0|1` on Windows
-  and exactly `1` elsewhere while rejecting real hardlinks and byte/hash drift
+- Cross-platform lock verification uses no-follow Win32 handle metadata on
+  Windows and `st_nlink == 1` on POSIX while rejecting real hardlinks and
+  byte/hash drift
 - Accepts the core `ai-join-card` camera contract
 - Selects executable current-main behavior only by an exact verified join
   contract, never by repository name

@@ -28,8 +28,9 @@ locators—not authority.
 - No-follow reads, bounded traversal, regular-file checks, atomic no-replace
   writes, reversible subscription writes, and per-record interprocess
   transactions for private record/policy registration.
-- Locked skill files reject symlinks, special files, and real hardlinks while
-  accepting NTFS's ordinary-file link count of zero; byte counts and SHA-256
+- Locked skill files reject symlinks, special files, and real hardlinks.
+  Windows verification reads the true link count from a no-follow Win32 file
+  handle; every platform requires exactly one link, and byte counts and SHA-256
   hashes must still match exactly.
 - No downloaded protocol text, skill, or adapter is executed.
 - The universal skill never executes repository-provided setup or verification

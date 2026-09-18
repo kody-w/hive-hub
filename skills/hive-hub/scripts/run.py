@@ -51,6 +51,8 @@ del _sanitize_bootstrap_path
 import argparse
 import base64
 import binascii
+import ctypes
+import errno
 import hashlib
 import hmac
 import ipaddress
@@ -63,6 +65,7 @@ import ssl
 import stat
 import subprocess
 import sys
+from ctypes import wintypes
 from http.client import HTTPSConnection
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -170,6 +173,30 @@ DECLARATION_PATHS = (
     "hive.json",
     "HIVE.json",
 )
+FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
+FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+FILE_SHARE_READ = 0x00000001
+FILE_SHARE_WRITE = 0x00000002
+FILE_SHARE_DELETE = 0x00000004
+OPEN_EXISTING = 3
+_INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+_WINDOWS_FILE_API: Any | None = None
+
+
+class _ByHandleFileInformation(ctypes.Structure):
+    _fields_ = [
+        ("dwFileAttributes", wintypes.DWORD),
+        ("ftCreationTime", wintypes.FILETIME),
+        ("ftLastAccessTime", wintypes.FILETIME),
+        ("ftLastWriteTime", wintypes.FILETIME),
+        ("dwVolumeSerialNumber", wintypes.DWORD),
+        ("nFileSizeHigh", wintypes.DWORD),
+        ("nFileSizeLow", wintypes.DWORD),
+        ("nNumberOfLinks", wintypes.DWORD),
+        ("nFileIndexHigh", wintypes.DWORD),
+        ("nFileIndexLow", wintypes.DWORD),
+    ]
 
 
 class HubError(RuntimeError):
@@ -485,27 +512,95 @@ def _safe_relative(value: str) -> Path:
     return Path(*pure.parts)
 
 
-def _safe_file_link_count(
-    link_count: int,
-    *,
-    windows: bool | None = None,
-) -> bool:
-    if windows is None:
-        windows = _is_windows()
-    return link_count in (0, 1) if windows else link_count == 1
-
-
 def _is_windows() -> bool:
     return os.name == "nt"
 
 
+def _windows_error(operation: str, path: str | None = None) -> OSError:
+    get_last_error: Any = getattr(ctypes, "get_last_error", None)
+    code = int(get_last_error()) if callable(get_last_error) else 0
+    message = f"{operation} failed"
+    if path is None:
+        return OSError(code or errno.EIO, message)
+    return OSError(code or errno.EIO, message, path)
+
+
+def _windows_file_api() -> Any:
+    global _WINDOWS_FILE_API
+    if _WINDOWS_FILE_API is not None:
+        return _WINDOWS_FILE_API
+    loader: Any = getattr(ctypes, "WinDLL", None)
+    if loader is None:
+        raise OSError(errno.ENOSYS, "Windows file metadata is unavailable")
+    api = loader("kernel32", use_last_error=True)
+    api.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    api.CreateFileW.restype = wintypes.HANDLE
+    api.GetFileInformationByHandle.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(_ByHandleFileInformation),
+    ]
+    api.GetFileInformationByHandle.restype = wintypes.BOOL
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    api.CloseHandle.restype = wintypes.BOOL
+    _WINDOWS_FILE_API = api
+    return api
+
+
+def _windows_file_metadata(path: Path) -> tuple[int, int]:
+    absolute = os.path.abspath(os.fspath(path))
+    api = _windows_file_api()
+    handle = api.CreateFileW(
+        absolute,
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        None,
+        OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        None,
+    )
+    if handle is None or handle == _INVALID_HANDLE_VALUE:
+        raise _windows_error("CreateFileW", absolute)
+    information = _ByHandleFileInformation()
+    try:
+        if not api.GetFileInformationByHandle(handle, ctypes.byref(information)):
+            raise _windows_error("GetFileInformationByHandle", absolute)
+    except Exception:
+        api.CloseHandle(handle)
+        raise
+    if not api.CloseHandle(handle):
+        raise _windows_error("CloseHandle", absolute)
+    return int(information.nNumberOfLinks), int(information.dwFileAttributes)
+
+
+def _has_single_file_link(path: Path, information: os.stat_result) -> bool:
+    if not _is_windows():
+        return information.st_nlink == 1
+    try:
+        number_of_links, attributes = _windows_file_metadata(path)
+    except OSError:
+        return False
+    return (
+        number_of_links == 1
+        and not attributes & FILE_ATTRIBUTE_REPARSE_POINT
+    )
+
+
 def _matches_regular_file(
+    path: Path,
     information: os.stat_result,
     expected: os.stat_result,
 ) -> bool:
     return (
         stat.S_ISREG(information.st_mode)
-        and _safe_file_link_count(information.st_nlink)
+        and _has_single_file_link(path, information)
         and information.st_dev == expected.st_dev
         and information.st_ino == expected.st_ino
         and information.st_size == expected.st_size
@@ -518,7 +613,7 @@ def _read_regular(path: Path, maximum: int, *, storage: bool = False) -> bytes:
         information = path.lstat()
         if (
             not stat.S_ISREG(information.st_mode)
-            or not _safe_file_link_count(information.st_nlink)
+            or not _has_single_file_link(path, information)
             or information.st_size < 0
             or information.st_size > maximum
         ):
@@ -528,7 +623,7 @@ def _read_regular(path: Path, maximum: int, *, storage: bool = False) -> bytes:
         descriptor = os.open(path, flags)
         try:
             current = os.fstat(descriptor)
-            if not _matches_regular_file(current, information):
+            if not _matches_regular_file(path, current, information):
                 raise error()
             chunks: list[bytes] = []
             remaining = information.st_size
@@ -540,9 +635,9 @@ def _read_regular(path: Path, maximum: int, *, storage: bool = False) -> bytes:
                 remaining -= len(chunk)
             if os.read(descriptor, 1):
                 raise error()
-            if not _matches_regular_file(os.fstat(descriptor), information):
+            if not _matches_regular_file(path, os.fstat(descriptor), information):
                 raise error()
-            if not _matches_regular_file(path.lstat(), information):
+            if not _matches_regular_file(path, path.lstat(), information):
                 raise error()
             return b"".join(chunks)
         finally:
@@ -572,7 +667,7 @@ def _tree_files(root: Path) -> dict[str, os.stat_result]:
             if stat.S_ISDIR(information.st_mode):
                 visit(Path(entry.path), relative)
             elif stat.S_ISREG(information.st_mode):
-                if not _safe_file_link_count(information.st_nlink):
+                if not _has_single_file_link(Path(entry.path), information):
                     raise PackageError()
                 files[relative] = information
             else:

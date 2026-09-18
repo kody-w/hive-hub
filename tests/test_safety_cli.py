@@ -2,32 +2,119 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import socket
+import stat
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 from hive_hub import ConflictError, UnsafePathError
+from hive_hub import _windows_file as windows_file
+from hive_hub._windows_file import WindowsFileMetadata
 from hive_hub.cli import main
 from hive_hub.filesystem import (
     SafeFilesystem,
-    _safe_file_link_count,
+    _has_single_file_link,
     read_external_file,
 )
 
-from .helpers import WorkspaceTestCase, make_record, make_stack
+from .helpers import MockWindowsFileApi, WorkspaceTestCase, make_record, make_stack
 
 
 class SafetyAndCLITests(WorkspaceTestCase):
-    def test_core_link_count_policy_matches_windows_file_semantics(self) -> None:
-        with patch("hive_hub.filesystem._is_windows", return_value=True):
-            self.assertTrue(_safe_file_link_count(0))
-            self.assertTrue(_safe_file_link_count(1))
-            self.assertFalse(_safe_file_link_count(2))
+    def test_core_posix_link_policy_still_requires_exactly_one(self) -> None:
         with patch("hive_hub.filesystem._is_windows", return_value=False):
-            self.assertFalse(_safe_file_link_count(0))
-            self.assertTrue(_safe_file_link_count(1))
-            self.assertFalse(_safe_file_link_count(2))
+            for link_count, accepted in ((0, False), (1, True), (2, False)):
+                information = os.stat_result(
+                    (stat.S_IFREG, 1, 1, link_count, 0, 0, 0, 0, 0, 0)
+                )
+                with self.subTest(link_count=link_count):
+                    self.assertEqual(
+                        _has_single_file_link(self.work / "file", -1, information),
+                        accepted,
+                    )
+
+    def test_windows_path_metadata_uses_a_no_follow_handle(self) -> None:
+        api = MockWindowsFileApi(number_of_links=1)
+        target = self.work / "ordinary.txt"
+        with patch.object(windows_file, "_windows_file_api", return_value=api):
+            metadata = windows_file.windows_path_metadata(target)
+
+        self.assertEqual(metadata.number_of_links, 1)
+        self.assertFalse(metadata.is_reparse_point)
+        self.assertEqual(metadata.volume_serial_number, 17)
+        self.assertEqual(metadata.file_index, (1 << 32) | 2)
+        self.assertEqual(api.closed_handles, [api.handle])
+        self.assertEqual(len(api.create_calls), 1)
+        _, desired_access, share_mode, disposition, flags = api.create_calls[0]
+        self.assertEqual(desired_access, 0)
+        self.assertEqual(
+            share_mode,
+            windows_file.FILE_SHARE_READ
+            | windows_file.FILE_SHARE_WRITE
+            | windows_file.FILE_SHARE_DELETE,
+        )
+        self.assertEqual(disposition, windows_file.OPEN_EXISTING)
+        self.assertTrue(flags & windows_file.FILE_FLAG_OPEN_REPARSE_POINT)
+
+    def test_windows_path_metadata_api_failures_fail_closed(self) -> None:
+        for api in (
+            MockWindowsFileApi(create_success=False),
+            MockWindowsFileApi(information_success=False),
+            MockWindowsFileApi(close_success=False),
+        ):
+            with (
+                self.subTest(api=api),
+                patch.object(windows_file, "_windows_file_api", return_value=api),
+                self.assertRaises(OSError),
+            ):
+                windows_file.windows_path_metadata(self.work / "file.txt")
+
+    def test_core_link_count_uses_true_windows_handle_metadata(self) -> None:
+        target = self.work / "ordinary.txt"
+        target.write_bytes(b"ordinary")
+        descriptor = target.open("rb")
+        self.addCleanup(descriptor.close)
+        information = os.fstat(descriptor.fileno())
+        with (
+            patch("hive_hub.filesystem._is_windows", return_value=True),
+            patch(
+                "hive_hub.filesystem.windows_path_metadata",
+                return_value=WindowsFileMetadata(0, 1, 17, 18),
+            ),
+            patch(
+                "hive_hub.filesystem.windows_descriptor_metadata",
+                return_value=WindowsFileMetadata(0, 1, 17, 18),
+            ),
+        ):
+            self.assertTrue(
+                _has_single_file_link(target, descriptor.fileno(), information)
+            )
+        with (
+            patch("hive_hub.filesystem._is_windows", return_value=True),
+            patch(
+                "hive_hub.filesystem.windows_path_metadata",
+                return_value=WindowsFileMetadata(0, 2, 17, 18),
+            ),
+            patch(
+                "hive_hub.filesystem.windows_descriptor_metadata",
+                return_value=WindowsFileMetadata(0, 2, 17, 18),
+            ),
+        ):
+            self.assertFalse(
+                _has_single_file_link(target, descriptor.fileno(), information)
+            )
+        with (
+            patch("hive_hub.filesystem._is_windows", return_value=True),
+            patch(
+                "hive_hub.filesystem.windows_path_metadata",
+                side_effect=OSError("GetFileInformationByHandle failed"),
+            ),
+        ):
+            self.assertFalse(
+                _has_single_file_link(target, descriptor.fileno(), information)
+            )
 
     def test_atomic_no_replace_write_is_idempotent_and_collision_safe(self) -> None:
         filesystem = SafeFilesystem(self.work / "safe")

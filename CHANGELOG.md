@@ -19,3 +19,5 @@
   metadata, published core schemas, dual QR cards, and append-only receipts.
 - Added deterministic source inventory, privacy scanning, packaging checks, and
   Python/Node CI matrices.
+- Hardened Windows link verification with no-follow Win32 handle metadata so
+  ordinary files report one link and hardlinks fail closed.

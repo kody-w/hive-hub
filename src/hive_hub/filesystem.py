@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ._windows_file import windows_descriptor_metadata, windows_path_metadata
 from .canonical import content_address
 from .errors import ConflictError, LimitError, StorageError, UnsafePathError
 from .limits import MAX_FILES_PER_COLLECTION, MAX_JSON_BYTES, MAX_PATH_DEPTH
@@ -20,18 +21,31 @@ _THREAD_LOCKS_GUARD = threading.Lock()
 _THREAD_LOCKS: dict[str, threading.Lock] = {}
 
 
-def _safe_file_link_count(
-    link_count: int,
-    *,
-    windows: bool | None = None,
-) -> bool:
-    if windows is None:
-        windows = _is_windows()
-    return link_count in (0, 1) if windows else link_count == 1
-
-
 def _is_windows() -> bool:
     return os.name == "nt"
+
+
+def _has_single_file_link(
+    path: Path,
+    file_descriptor: int,
+    information: os.stat_result,
+) -> bool:
+    if not _is_windows():
+        return information.st_nlink == 1
+    try:
+        path_metadata = windows_path_metadata(path)
+        descriptor_metadata = windows_descriptor_metadata(file_descriptor)
+    except OSError:
+        return False
+    return (
+        path_metadata.number_of_links == 1
+        and descriptor_metadata.number_of_links == 1
+        and not path_metadata.is_reparse_point
+        and not descriptor_metadata.is_reparse_point
+        and path_metadata.volume_serial_number
+        == descriptor_metadata.volume_serial_number
+        and path_metadata.file_index == descriptor_metadata.file_index
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,8 +213,8 @@ class SafeFilesystem:
                 raise
             try:
                 information = os.fstat(lock_fd)
-                if not stat.S_ISREG(information.st_mode) or not _safe_file_link_count(
-                    information.st_nlink
+                if not stat.S_ISREG(information.st_mode) or not _has_single_file_link(
+                    self.root.joinpath(*parts), lock_fd, information
                 ):
                     raise UnsafePathError("transaction lock must be one regular file")
                 if information.st_size == 0:

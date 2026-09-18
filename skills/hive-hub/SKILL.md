@@ -113,8 +113,8 @@ guess.
   local trust.
 - Locked package files must be ordinary files with exact byte counts and
   SHA-256 hashes. Symlinks, special files, and real hardlinks are refused;
-  Windows may report an ordinary file link count of zero or one, while every
-  other platform requires exactly one.
+  Windows uses no-follow handle metadata for the true link count, and every
+  platform requires exactly one.
 - Results never contain credentials, unlock fragments, private local paths, or
   raw transport diagnostics.
 
