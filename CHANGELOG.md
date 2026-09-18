@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 - 2026-09-18
+
+- Added protocol-neutral `hive-hub-chant/1` with deterministic seven-word
+  locators derived from a complete `dial:sha256:` Dial Record ID.
+- Corrected the public sample chant while preserving the original 0.1.0 source
+  URLs, release object, schemas, and device-local dialbook compatibility.
+- Added a versioned `hive-hub-dialbook/2` profile that separates aliases from
+  chants and cryptographically binds locator and declaration references.
+
 ## 0.1.0 - 2026-09-18
 
 - Introduced the typed, standard-library-only `hive_hub` package and

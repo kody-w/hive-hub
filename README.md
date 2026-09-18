@@ -1,6 +1,6 @@
 # Hive Hub
 
-Hive Hub 0.1.0 is one protocol-neutral release containing a typed Python core,
+Hive Hub 0.1.1 is one protocol-neutral release containing a typed Python core,
 optional stdlib adapters, a universal Agent Skill, and a deterministic static
 API/Pages surface. The distribution imports as `hive_hub`, includes the
 separately importable `adapters` package, and installs the `hive-hub` command.
@@ -20,6 +20,9 @@ locators—not authority.
 - The public index builder opens only `<home>/books/public`; it cannot read or
   hash the private book.
 - Collision-preserving chant and URL candidate arrays.
+- Protocol-neutral `hive-hub-chant/1` derivation from the UTF-8 full Dial
+  Record ID. Canonical records carry exactly one derived seven-word chant;
+  the complete ID must still verify.
 - Plan-first local subscriptions. Clone, authentication, fetch, write, and
   execution effects remain explicit inert adapter plans requiring approval.
 - Existing source ACLs remain mandatory for private access.
@@ -61,7 +64,10 @@ hive-hub learn \
 hive-hub adapter register examples/generic/adapter-registration.json
 hive-hub register public examples/generic/public-dial-record.json
 
-hive-hub dial "firefly commons" --scope public
+hive-hub chant derive \
+  urn:hivehub:sha256:de1124a60f97f732ebd13fba183bcd109e4a506620a64e591e2bfc61c962b752
+hive-hub chant parse "VINE TRENCH SABLE OXBOW ATLAS ATLAS ESTER"
+hive-hub dial "VINE TRENCH SABLE OXBOW ATLAS ATLAS ESTER" --scope public
 hive-hub inspect "$(python - <<'PY'
 import json
 print(json.load(open("examples/generic/manifest.json"))["protocol_fingerprint"])
@@ -99,10 +105,14 @@ hive-hub schema show CONTRACT
 ## Python API
 
 ```python
-from hive_hub import HiveHub, Principal
+from hive_hub import HiveHub, Principal, derive_chant
 
 hub = HiveHub("state")
-result = hub.dial("firefly commons", scope="public")
+chant = derive_chant(
+    "urn:hivehub:sha256:"
+    "de1124a60f97f732ebd13fba183bcd109e4a506620a64e591e2bfc61c962b752"
+)
+result = hub.dial(chant, scope="public")
 card = hub.create_join_card(
     principal=Principal.create(kind="ai", identifier="agent:example"),
     locator=result.record.id,
@@ -111,7 +121,8 @@ planned = hub.plan_local_subscription(card)
 applied = hub.apply_subscription(planned.plan)
 ```
 
-`learn_protocol`, `register_adapter`, `register_local_record`,
+`derive_chant`, `normalize_chant`, `verify_chant`, `learn_protocol`,
+`register_adapter`, `register_local_record`,
 `register_public_record`, `register_private_record`, `dial`,
 `create_join_card`, `plan_local_subscription`, `apply_subscription`,
 `revert_subscription`, `inspect_protocol`, and `bootstrap_one` are the main
@@ -141,7 +152,7 @@ Locator-only QR remains the recommended default.
 - [Contract and addressing reference](docs/CONTRACTS.md)
 - [CLI and storage layout](docs/CLI.md)
 - [Security model](docs/SECURITY.md)
-- [0.1.0 release inventory](RELEASE_INVENTORY.md)
+- [0.1.1 release inventory](RELEASE_INVENTORY.md)
 - [Deterministic release manifest](release/release-manifest.json)
 - [Generic non-RAPP example](examples/README.md)
 
@@ -155,7 +166,7 @@ core package without importing any RAPP runtime:
 | GitHub repository locator/probe | `hive-hub-github-repository/1.0` |
 | Local filesystem workspace | `hive-hub-local-workspace/1.0` |
 | Installed RAPP Work/Hive delegate | `hive-hub-rapp-delegate/1.0` |
-| Seven-word RAPPID chant | `rappidex/1-summon-chant` |
+| Legacy RAPPID summon-chant compatibility | `rappidex/1-summon-chant` |
 | Payphone DoorRef/dial result | `rapp-payphone-dial/1.0` |
 | Historical Hub inspector | `legacy-rapp-hub/00ac2f73` |
 
@@ -171,11 +182,20 @@ same `unreachable` result, so an absent repository cannot be distinguished
 from one the caller cannot access. It never changes repository ACLs or remote
 state.
 
-The chant adapter carries the frozen 128-word vocabulary and hash
-`325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36`.
-Chants remain 49-bit locators; collision buckets retain all complete RAPPIDs.
-Payphone routing prefixes likewise never authorize: connection requires the
-exact full RAPPID.
+The generic core owns `hive-hub-chant/1`. It hashes the UTF-8 full canonical
+Dial Record ID with SHA-256 and maps the first seven digest bytes modulo the
+frozen 128-word vocabulary. Human input accepts case differences and spaces;
+canonical output is exactly seven lowercase hyphen-separated words. The
+vocabulary is reused byte-for-byte from
+`kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae`, with hash
+`325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36`,
+but the generic derivation requires no RAPP identity, adapter, or runtime.
+Chants remain collisionable 49-bit candidate locators, and candidate selection
+must verify the complete Dial Record ID.
+
+The optional RAPPID adapter retains its separate compatibility derivation over
+a full RAPPID. Payphone routing prefixes likewise never authorize: connection
+requires the exact full RAPPID.
 
 ## Conformance
 
@@ -232,6 +252,8 @@ source documents.
 - Chants, URLs, Git references, cards, and QR codes are candidate locators only.
 - A chant always maps to an array of candidates and never establishes unique
   authority.
+- Display/search aliases are indexed separately and are never accepted as
+  chants.
 - Every Dial Record binds an exact protocol declaration, learning bundle,
   conformance contract, and adapter by canonical JSON SHA-256.
 - Downloaded code, protocol text, skills, and adapters remain inert until
@@ -254,6 +276,11 @@ recursive self-hash.
 
 Federation unions candidate dialbooks and bucket indexes. It does not promote
 any peer, chant, or record into authority.
+
+The public SoftwareCo sample has full Dial Record ID
+`dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c`
+and derived chant `jetty-gorse-grove-pond-marrow-otter-weir`.
+`softwarecoellc-vteam-hive` remains only a display/search alias.
 
 ## Explicit public-only build
 
@@ -366,8 +393,10 @@ directory and ask it to:
 - scan a camera/QR Hive card
 
 It accepts a public or private GitHub URL, `owner/repo at branch`, a local path,
-a seven-word chant, a full Dial Record ID, or QR/AI join-card JSON. An optional
-workspace address can accompany any request.
+a `hive-hub-chant/1` seven-word chant, a full Dial Record ID, or QR/AI join-card
+JSON. An optional workspace address can accompany any request. Chant candidates
+are accepted only when their complete verified declaration carries the same
+Dial Record ID; repository slugs are not chants.
 
 The locked Python 3.11+ runner uses only the standard library and must run with
 isolated mode:

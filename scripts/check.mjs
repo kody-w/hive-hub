@@ -1,6 +1,12 @@
 import path from "node:path";
 
 import {
+  CHANT_PROTOCOL,
+  CHANT_VOCABULARY_SHA256,
+  deriveChant,
+  normalizeChant
+} from "./lib/chant.mjs";
+import {
   canonicalJson,
   digestFromRef,
   isMain,
@@ -304,8 +310,22 @@ export async function checkStaticSurface({ root, manifestPath }) {
 
   const dialbook = jsonDocuments.get(`${manifest.build.apiPath}/dialbook.json`);
   assert(dialbook.kind === "public-dialbook", "Dialbook kind is invalid");
+  assert(dialbook.chant.protocol === CHANT_PROTOCOL, "Dialbook chant protocol is invalid");
+  assert(
+    dialbook.chant.vocabularySha256 === CHANT_VOCABULARY_SHA256,
+    "Dialbook chant vocabulary hash is invalid"
+  );
+  assert(
+    dialbook.chant.fullDialIdVerificationRequired === true,
+    "Dialbook does not require full Dial Record ID verification"
+  );
   for (const [chant, candidates] of Object.entries(dialbook.chants)) {
     assert(Array.isArray(candidates) && candidates.length > 0, `Chant ${chant} is not a candidate array`);
+    assert(normalizeChant(chant) === chant, `Chant ${chant} is not canonical`);
+  }
+  for (const [alias, candidates] of Object.entries(dialbook.aliases)) {
+    assert(Array.isArray(candidates) && candidates.length > 0, `Alias ${alias} is not a candidate array`);
+    assert(!(alias in dialbook.chants), `Alias ${alias} was also published as a chant`);
   }
   assert(
     dialbook.candidateSemantics.includes("no candidate is unique authority"),
@@ -315,6 +335,21 @@ export async function checkStaticSurface({ root, manifestPath }) {
   const recordDescriptor = dialbook.records[0];
   const record = jsonDocuments.get(recordDescriptor.path);
   assert(record.kind === "dial-record" && record.visibility === "public", "Example record is not public");
+  assert(
+    record.dialId ===
+      "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c",
+    "Example record full Dial Record ID is incorrect"
+  );
+  assert(
+    record.chants.length === 1 &&
+      record.chants[0].value === deriveChant(record.dialId),
+    "Example record chant is not derived from its full Dial Record ID"
+  );
+  assert(
+    record.aliases.includes("softwarecoellc-vteam-hive") &&
+      record.chants[0].value !== "softwarecoellc-vteam-hive",
+    "Example repository slug is not isolated to display/search aliases"
+  );
   assert(
     record.locator.repositoryUrl ===
       "https://github.com/billwhalenmsft/softwarecoellc-vteam-hive",
@@ -335,6 +370,17 @@ export async function checkStaticSurface({ root, manifestPath }) {
     "Example does not use the generic GitHub repository protocol"
   );
   assert(record.protocolFingerprint === record.protocol.ref, "Protocol fingerprint is not exact");
+  const chantProtocol = jsonDocuments.get(record.chantProtocol.path);
+  assert(chantProtocol.protocolName === CHANT_PROTOCOL, "Record chant protocol is not exact");
+  assert(
+    chantProtocol.vocabulary.sha256 === CHANT_VOCABULARY_SHA256,
+    "Record chant protocol vocabulary hash is not exact"
+  );
+  assert(
+    chantProtocol.requires.rappIdentity === false &&
+      chantProtocol.requires.rappRuntime === false,
+    "Record chant protocol depends on a RAPP identity or runtime"
+  );
 
   const bucketDirectory = jsonDocuments.get(`${manifest.build.apiPath}/buckets/index.json`);
   assert(bucketDirectory.buckets.length >= 2, "Static API does not expose multiple buckets");
@@ -366,6 +412,9 @@ export async function checkStaticSurface({ root, manifestPath }) {
     const card = jsonDocuments.get(cardEntry.card.path);
     assert(card.classification === "public-locator-only", "Card is not locator-only");
     assertNoSensitiveCardFields(card, cardEntry.card.path);
+    assert(card.dialId === record.dialId, "Card full Dial Record ID is inconsistent");
+    assert(card.chant.value === deriveChant(card.dialId), "Card chant derivation failed");
+    assert(card.fullDialIdVerificationRequired === true, "Card weakens full ID verification");
     const coreCard = jsonDocuments.get(cardEntry.cameraAiCard.path);
     assert(
       coreCard.kind === "ai-join-card" &&
@@ -385,9 +434,17 @@ export async function checkStaticSurface({ root, manifestPath }) {
   assert(release.version === manifest.productVersion, "Integrated release version drifted");
   assert(release.adapters.optional === true, "Release makes adapters mandatory");
   assert(release.static.publicInputsOnly === true, "Release is not public-input-only");
+  assert(release.chant.protocol === CHANT_PROTOCOL, "Release chant protocol drifted");
+  assert(
+    release.chant.vocabularySha256 === CHANT_VOCABULARY_SHA256,
+    "Release chant vocabulary drifted"
+  );
   assert(
     release.publicSample.repository === "billwhalenmsft/softwarecoellc-vteam-hive" &&
-      release.publicSample.revision === "f66da3d879b53a439bc87de764d79f68ceec048a",
+      release.publicSample.revision === "f66da3d879b53a439bc87de764d79f68ceec048a" &&
+      release.publicSample.dialId ===
+        "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c" &&
+      release.publicSample.chant === deriveChant(release.publicSample.dialId),
     "Integrated release changed the only real public sample"
   );
   const coreSchemas = jsonDocuments.get(`${manifest.build.apiPath}/core-schemas/index.json`);

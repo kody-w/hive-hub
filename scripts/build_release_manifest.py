@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.file_integrity import FileIntegrityError, read_regular_bytes  # noqa: E402
 
 TARGET = ROOT / "release" / "release-manifest.json"
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 SOURCE_COMMITS = {
     "adapters": "243fdcbb6934f1989d1d2bd1e9a0e1ee34c5cef0",
     "core": "dcbd22cb31f7f94e379799d7990b79ed6a71a222",

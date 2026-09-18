@@ -128,10 +128,18 @@ export class OutputWriter {
 
   async write(relativePath, content) {
     const normalized = normalizeRelativePath(relativePath);
-    if (this.files.has(normalized)) {
-      throw new Error(`Duplicate output path: ${normalized}`);
-    }
     const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    const existing = this.files.get(normalized);
+    if (existing) {
+      if (!existing.equals(bytes)) {
+        throw new Error(`Conflicting duplicate output path: ${normalized}`);
+      }
+      return {
+        bytes: existing.length,
+        digest: sha256Bytes(existing),
+        path: normalized
+      };
+    }
     const target = resolveInside(this.root, normalized);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, bytes);

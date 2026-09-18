@@ -6,10 +6,17 @@ from collections.abc import Sequence
 from typing import Any, NoReturn, cast
 
 from .canonical import canonical_dumps, loads_json
+from .chant import (
+    CHANT_PROTOCOL,
+    CHANT_VOCABULARY_SHA256,
+    normalize_chant,
+    verify_chant,
+)
 from .contracts import (
     AdapterPlan,
     AdapterRegistration,
     AIJoinCard,
+    ChantLocator,
     DialRecord,
     LearningBundle,
     Principal,
@@ -34,7 +41,7 @@ def _parser() -> JSONArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version='{"kind":"hive-hub-version","schema_version":1,"version":"0.1.0"}',
+        version='{"kind":"hive-hub-version","schema_version":1,"version":"0.1.1"}',
     )
     parser.add_argument(
         "--home",
@@ -94,6 +101,19 @@ def _parser() -> JSONArgumentParser:
     dial.add_argument("--scope", choices=["auto", "local", "public", "private"], default="auto")
     dial.add_argument("--acl-authorized", action="store_true")
     dial.add_argument("--qr-fragment-stdin", action="store_true")
+
+    chant = subcommands.add_parser(
+        "chant",
+        help="derive, parse, or verify a protocol-neutral seven-word chant",
+    )
+    chant_subcommands = chant.add_subparsers(dest="chant_command", required=True)
+    chant_derive = chant_subcommands.add_parser("derive")
+    chant_derive.add_argument("dial_record_id")
+    chant_parse = chant_subcommands.add_parser("parse")
+    chant_parse.add_argument("value")
+    chant_verify = chant_subcommands.add_parser("verify")
+    chant_verify.add_argument("dial_record_id")
+    chant_verify.add_argument("value")
 
     join_card = subcommands.add_parser("join-card", help="create a human or AI join card")
     join_card.add_argument("--principal-kind", choices=["human", "ai"], required=True)
@@ -265,6 +285,19 @@ def _handle(args: argparse.Namespace) -> Any:
             acl_authorized=args.acl_authorized,
             qr_fragment=_read_qr_fragment(args.qr_fragment_stdin),
         ).to_dict()
+    if args.command == "chant":
+        if args.chant_command == "parse":
+            return {
+                "kind": "chant-parse-result",
+                "schema_version": 1,
+                "protocol": CHANT_PROTOCOL,
+                "chant": normalize_chant(args.value),
+                "vocabulary_sha256": CHANT_VOCABULARY_SHA256,
+                "candidate_locator_only": True,
+            }
+        if args.chant_command == "verify":
+            verify_chant(args.dial_record_id, args.value)
+        return ChantLocator.create(args.dial_record_id).to_dict()
     if args.command == "join-card":
         principal = Principal.create(
             kind=args.principal_kind,

@@ -3,6 +3,12 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from .chant import (
+    CHANT_PATTERN,
+    CHANT_PROTOCOL,
+    CHANT_VOCABULARY_SHA256,
+    DIAL_RECORD_ID_PATTERN,
+)
 from .errors import NotFoundError
 
 ADDRESS = {
@@ -10,6 +16,14 @@ ADDRESS = {
     "pattern": r"^urn:hivehub:sha256:[0-9a-f]{64}$",
 }
 NONEMPTY = {"type": "string", "minLength": 1, "maxLength": 4096}
+DIAL_RECORD_ID = {
+    "type": "string",
+    "pattern": DIAL_RECORD_ID_PATTERN,
+}
+CHANT = {
+    "type": "string",
+    "pattern": CHANT_PATTERN,
+}
 NULLABLE_ADDRESS = {"oneOf": [ADDRESS, {"type": "null"}]}
 HEADER = {
     "kind": {"type": "string"},
@@ -109,7 +123,12 @@ DIAL_INDEX_ENTRY = {
         "learning_bundle_address": ADDRESS,
         "adapter_registration_address": ADDRESS,
         "urls": {"type": "array", "maxItems": 256, "items": NONEMPTY},
-        "chants": {"type": "array", "maxItems": 256, "items": NONEMPTY},
+        "chants": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": True,
+            "items": NONEMPTY,
+        },
     },
 }
 CANDIDATE_SET = {
@@ -153,7 +172,12 @@ DIAL_RECORD = {
         "learning_bundle_address": ADDRESS,
         "adapter_registration_address": ADDRESS,
         "urls": {"type": "array", "maxItems": 256, "items": NONEMPTY},
-        "chants": {"type": "array", "maxItems": 256, "items": NONEMPTY},
+        "chants": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": True,
+            "items": NONEMPTY,
+        },
     },
 }
 LOCAL_SUBSCRIPTION = {
@@ -259,6 +283,33 @@ def _dialbook_schema(visibility: str) -> dict[str, Any]:
 
 
 SCHEMAS: dict[str, dict[str, Any]] = {
+    "chant-locator": _schema(
+        "chant-locator",
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "kind",
+                "schema_version",
+                "dial_record_id",
+                "chant",
+                "protocol",
+                "vocabulary_sha256",
+                "candidate_locator_only",
+                "full_dial_id_verification_required",
+            ],
+            "properties": {
+                **HEADER,
+                "kind": {"const": "chant-locator"},
+                "dial_record_id": DIAL_RECORD_ID,
+                "chant": CHANT,
+                "protocol": {"const": CHANT_PROTOCOL},
+                "vocabulary_sha256": {"const": CHANT_VOCABULARY_SHA256},
+                "candidate_locator_only": {"const": True},
+                "full_dial_id_verification_required": {"const": True},
+            },
+        },
+    ),
     "conformance-contract": _schema("conformance-contract", CONFORMANCE),
     "protocol-declaration": _schema(
         "protocol-declaration",

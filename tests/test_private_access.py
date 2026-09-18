@@ -36,7 +36,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Private Firefly",
             url="https://firefly.invalid/private/default",
-            chant="private default",
         )
         result = stack.hub.register_private_record(record)
         self.assertIsNotNone(result["policy_address"])
@@ -55,7 +54,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Vault Firefly",
             url="https://firefly.invalid/private/vault",
-            chant="vault firefly",
         )
         fragment = generate_qr_fragment()
         policy = PrivateAccessPolicy.create(
@@ -80,7 +78,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Other Vault Firefly",
             url="https://firefly.invalid/private/other-vault",
-            chant="other vault firefly",
         )
         self.assertNotEqual(
             policy.qr_commitment,
@@ -118,7 +115,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Strict Factor Firefly",
             url="https://firefly.invalid/private/strict-factor",
-            chant="strict factor firefly",
         )
         for weak in ("short", "A" * 42, "A" * 43 + "=", "B" * 43):
             with self.subTest(weak=weak), self.assertRaises((LimitError, ValidationError)):
@@ -135,7 +131,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Hidden Firefly",
             url="https://firefly.invalid/private/hidden",
-            chant="hidden firefly",
         )
         fragment = generate_qr_fragment()
         policy = PrivateAccessPolicy.create(
@@ -176,7 +171,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Never Project Me",
             url="https://firefly.invalid/private/never",
-            chant="never project me",
         )
         fragment = generate_qr_fragment()
         policy = PrivateAccessPolicy.create(
@@ -216,7 +210,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Transient Factor Firefly",
             url="https://firefly.invalid/private/transient",
-            chant="transient firefly",
         )
         fragment = generate_qr_fragment()
         policy = PrivateAccessPolicy.create(
@@ -251,7 +244,6 @@ class PrivateAccessTests(WorkspaceTestCase):
             visibility="private",
             name="Concurrent Firefly",
             url="https://firefly.invalid/private/concurrent",
-            chant="concurrent firefly",
         )
         first_policy = PrivateAccessPolicy.create(
             record_id=record.id,

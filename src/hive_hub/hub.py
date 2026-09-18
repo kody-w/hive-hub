@@ -616,7 +616,7 @@ class HiveHub:
         return {
             "kind": "hive-hub-status",
             "schema_version": 1,
-            "version": "0.1.0",
+            "version": "0.1.1",
             "home": str(self.home),
             "counts": counts,
             "network_used": False,

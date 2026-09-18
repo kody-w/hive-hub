@@ -75,7 +75,7 @@ def build_lock() -> dict[str, Any]:
     return {
         "schema": "hive-hub-agent-lock/1",
         "name": "hive-hub",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "runner": {
             "python": ">=3.11",
             "isolated": True,

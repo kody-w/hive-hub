@@ -14,11 +14,14 @@ const ALLOWED_KINDS = new Set([
   "conformance",
   "core-card",
   "core-schema",
+  "historical-object",
+  "historical-receipt",
   "learning-bundle",
   "protocol",
   "receipt",
   "release",
   "record",
+  "source-archive",
   "skill-declaration"
 ]);
 
@@ -58,8 +61,8 @@ function validateManifestShape(manifest) {
   if (manifest.sourceRoot !== "public-src") {
     throw new Error("Public build sourceRoot must be exactly public-src");
   }
-  if (manifest.productVersion !== "0.1.0") {
-    throw new Error("Public manifest must bind productVersion 0.1.0");
+  if (manifest.productVersion !== "0.1.1") {
+    throw new Error("Public manifest must bind productVersion 0.1.1");
   }
   assertObject(manifest.build, "manifest.build");
   if (manifest.build.apiPath !== "api/hive-hub/v1") {

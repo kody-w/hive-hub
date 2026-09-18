@@ -203,10 +203,42 @@ class SafetyAndCLITests(WorkspaceTestCase):
         self.assertEqual(code, 0)
         result = json.loads(stdout.getvalue())
         self.assertIn("private-access-policy", result["schemas"])
+        self.assertIn("chant-locator", result["schemas"])
+
+    def test_cli_derives_parses_and_verifies_generic_chants(self) -> None:
+        dial_id = (
+            "dial:sha256:"
+            "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+        )
+        expected = "jetty-gorse-grove-pond-marrow-otter-weir"
+        for arguments in (
+            ["chant", "derive", dial_id],
+            ["chant", "parse", expected.replace("-", " ").upper()],
+            ["chant", "verify", dial_id, expected],
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                code = main(["--home", str(self.work), *arguments])
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout.getvalue())["chant"], expected)
+
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            code = main(
+                [
+                    "--home",
+                    str(self.work),
+                    "chant",
+                    "parse",
+                    "softwarecoellc-vteam-hive",
+                ]
+            )
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(stderr.getvalue())["error"]["code"], "validation-error")
 
     def test_cli_version_matches_distribution(self) -> None:
         stdout = io.StringIO()
         with self.assertRaises(SystemExit) as exit_context, redirect_stdout(stdout):
             main(["--version"])
         self.assertEqual(exit_context.exception.code, 0)
-        self.assertEqual(json.loads(stdout.getvalue())["version"], "0.1.0")
+        self.assertEqual(json.loads(stdout.getvalue())["version"], "0.1.1")

@@ -65,6 +65,7 @@ import ssl
 import stat
 import subprocess
 import sys
+import unicodedata
 from ctypes import wintypes
 from http.client import HTTPSConnection
 from pathlib import Path, PurePosixPath
@@ -83,7 +84,8 @@ LOCK_SCHEMA = "hive-hub-agent-lock/1"
 RESULT_SCHEMA = "hive-hub-result/1"
 PLAN_SCHEMA = "hive-hub-plan/1"
 DECLARATION_SCHEMA = "hive-hub-declaration/1"
-DIALBOOK_SCHEMA = "hive-hub-dialbook/1"
+DIALBOOK_SCHEMA = "hive-hub-dialbook/2"
+LEGACY_DIALBOOK_SCHEMA = "hive-hub-dialbook/1"
 CARD_SCHEMAS = frozenset(
     {
         "hive-hub-join-card/1",
@@ -103,6 +105,161 @@ RAPPID_RE = re.compile(
     r"[a-z0-9]+(?:-[a-z0-9]+)*:[0-9a-f]{64}$"
 )
 CHANT_WORD_RE = re.compile(r"^[a-z]{1,32}$")
+CHANT_PROTOCOL = "hive-hub-chant/1"
+CHANT_VOCABULARY_SHA256 = (
+    "325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36"
+)
+CHANT_VOCABULARY_PROVENANCE = (
+    "kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae"
+)
+CHANT_WORDS = (
+    "ember",
+    "hollow",
+    "quartz",
+    "tidal",
+    "vessel",
+    "marrow",
+    "lantern",
+    "thicket",
+    "basalt",
+    "cinder",
+    "willow",
+    "fathom",
+    "granite",
+    "sable",
+    "harbor",
+    "kestrel",
+    "amber",
+    "furrow",
+    "lichen",
+    "brindle",
+    "aspen",
+    "bramble",
+    "cobalt",
+    "drift",
+    "eddy",
+    "fenlark",
+    "gully",
+    "heron",
+    "inkcap",
+    "juniper",
+    "knoll",
+    "loam",
+    "mica",
+    "nettle",
+    "osprey",
+    "petrel",
+    "quill",
+    "rushes",
+    "shale",
+    "tarn",
+    "umber",
+    "vale",
+    "wren",
+    "yarrow",
+    "zephyr",
+    "alder",
+    "briar",
+    "cairn",
+    "dune",
+    "elm",
+    "flint",
+    "gorse",
+    "hazel",
+    "iris",
+    "jetty",
+    "kelp",
+    "larch",
+    "moss",
+    "north",
+    "otter",
+    "pine",
+    "quarry",
+    "reed",
+    "spruce",
+    "thorn",
+    "upland",
+    "vetch",
+    "wharf",
+    "yew",
+    "arbor",
+    "birch",
+    "cedar",
+    "delta",
+    "ester",
+    "fjord",
+    "glade",
+    "heath",
+    "islet",
+    "jasper",
+    "karst",
+    "ledge",
+    "mesa",
+    "nadir",
+    "oxbow",
+    "prairie",
+    "quiver",
+    "ridge",
+    "steppe",
+    "trench",
+    "ursa",
+    "verge",
+    "wold",
+    "xenia",
+    "yonder",
+    "zenith",
+    "anvil",
+    "bluff",
+    "crag",
+    "dell",
+    "ebb",
+    "ford",
+    "grove",
+    "hearth",
+    "ivy",
+    "jade",
+    "kiln",
+    "lark",
+    "mire",
+    "nook",
+    "orchid",
+    "pond",
+    "quay",
+    "rill",
+    "sedge",
+    "tor",
+    "usher",
+    "vine",
+    "weir",
+    "xylem",
+    "yield",
+    "zeal",
+    "atlas",
+    "beacon",
+    "cove",
+    "dusk",
+    "frost",
+    "gale",
+    "haven",
+)
+CHANT_WORD_SET = frozenset(CHANT_WORDS)
+CHANT_DIALBOOK_CONTRACT = {
+    "protocol": CHANT_PROTOCOL,
+    "algorithm": "sha256(utf8(full-canonical-dial-record-id))[0:7] mod 128",
+    "address_bits": 49,
+    "vocabulary_sha256": CHANT_VOCABULARY_SHA256,
+    "vocabulary_provenance": CHANT_VOCABULARY_PROVENANCE,
+    "candidate_locator_only": True,
+    "full_dial_id_verification_required": True,
+    "requires_rapp_identity": False,
+    "requires_rapp_runtime": False,
+}
+assert len(CHANT_WORDS) == 128
+assert len(CHANT_WORD_SET) == 128
+assert (
+    hashlib.sha256("\n".join(CHANT_WORDS).encode("utf-8")).hexdigest()
+    == CHANT_VOCABULARY_SHA256
+)
 GITHUB_OWNER_RE = re.compile(
     r"^(?=.{1,39}$)(?!-)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$"
 )
@@ -692,7 +849,7 @@ def _validate_lock_shape(lock: dict[str, Any]) -> None:
     if (
         lock.get("schema") != LOCK_SCHEMA
         or lock.get("name") != "hive-hub"
-        or lock.get("version") != "0.1.0"
+        or lock.get("version") != "0.1.1"
         or lock.get("runner")
         != {
             "python": ">=3.11",
@@ -913,10 +1070,36 @@ def parse_github_address(raw: str) -> dict[str, str]:
 def normalize_chant(raw: str) -> str:
     if not isinstance(raw, str) or len(raw.encode("utf-8")) > 512:
         raise InputError()
-    words = raw.strip().lower().replace("-", " ").split()
-    if len(words) != 7 or any(CHANT_WORD_RE.fullmatch(word) is None for word in words):
+    normalized = unicodedata.normalize("NFKC", raw).casefold().strip()
+    if "-" in normalized:
+        if any(character.isspace() for character in normalized):
+            raise InputError()
+        words = normalized.split("-")
+    else:
+        words = normalized.split()
+    if (
+        len(words) != 7
+        or any(CHANT_WORD_RE.fullmatch(word) is None for word in words)
+        or any(word not in CHANT_WORD_SET for word in words)
+    ):
         raise InputError()
     return "-".join(words)
+
+
+def derive_chant(dial_record_id: str) -> str:
+    if not isinstance(dial_record_id, str) or DIAL_ID_RE.fullmatch(dial_record_id) is None:
+        raise InputError()
+    digest_bytes = hashlib.sha256(dial_record_id.encode("utf-8")).digest()
+    return "-".join(CHANT_WORDS[byte % 128] for byte in digest_bytes[:7])
+
+
+def normalize_legacy_chant(raw: str) -> str:
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > 512:
+        raise InputError()
+    normalized = " ".join(unicodedata.normalize("NFKC", raw).casefold().split())
+    if not normalized or len(normalized.encode("utf-8")) > 512:
+        raise InputError()
+    return normalized
 
 
 def _looks_like_local_path(raw: str) -> bool:
@@ -1568,7 +1751,12 @@ def parse_request_input(
 
 
 def _dial_record_body(record: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in record.items() if key != "id"}
+    body = {key: value for key, value in record.items() if key != "id"}
+    if "aliases" in body:
+        aliases = body.pop("aliases")
+        body.pop("chants", None)
+        body["chants"] = aliases
+    return body
 
 
 def dial_record_id(record: dict[str, Any]) -> str:
@@ -1587,7 +1775,16 @@ def load_dialbook(path: Path, limits: dict[str, int]) -> list[dict[str, Any]]:
         )
     except (ValueError, HubError):
         raise StorageError() from None
-    if set(value) != {"schema", "records"} or value.get("schema") != DIALBOOK_SCHEMA:
+    schema = value.get("schema")
+    legacy = schema == LEGACY_DIALBOOK_SCHEMA
+    if legacy:
+        if set(value) != {"schema", "records"}:
+            raise StorageError()
+    elif (
+        schema != DIALBOOK_SCHEMA
+        or set(value) != {"schema", "chant", "records"}
+        or value.get("chant") != CHANT_DIALBOOK_CONTRACT
+    ):
         raise StorageError()
     records = value.get("records")
     if not isinstance(records, list) or len(records) > limits["dialbook_records"]:
@@ -1595,17 +1792,17 @@ def load_dialbook(path: Path, limits: dict[str, int]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     seen: set[str] = set()
     for record in records:
-        if not isinstance(record, dict) or set(record) not in (
-            {"id", "chants", "locator"},
-            {"id", "chants", "locator", "workspace_address"},
-            {"id", "chants", "locator", "declaration"},
-            {
-                "id",
-                "chants",
-                "locator",
-                "workspace_address",
-                "declaration",
-            },
+        optional = {"workspace_address", "declaration"}
+        required = {"id", "chants", "locator"} if legacy else {
+            "id",
+            "aliases",
+            "chants",
+            "locator",
+        }
+        if (
+            not isinstance(record, dict)
+            or not required.issubset(record)
+            or set(record) - required - optional
         ):
             raise StorageError()
         record_id = record.get("id")
@@ -1623,14 +1820,36 @@ def load_dialbook(path: Path, limits: dict[str, int]) -> list[dict[str, Any]]:
             or any(not isinstance(item, str) for item in chants)
         ):
             raise StorageError()
-        try:
-            normalized_chants = sorted({normalize_chant(item) for item in chants})
-        except InputError:
-            raise StorageError() from None
+        if legacy:
+            try:
+                aliases = sorted({normalize_legacy_chant(item) for item in chants})
+            except InputError:
+                raise StorageError() from None
+            normalized_chants = [derive_chant(record_id)]
+        else:
+            raw_aliases = record.get("aliases")
+            if (
+                not isinstance(raw_aliases, list)
+                or len(raw_aliases) > 16
+                or any(not isinstance(item, str) for item in raw_aliases)
+            ):
+                raise StorageError()
+            try:
+                aliases = sorted(
+                    {normalize_legacy_chant(item) for item in raw_aliases}
+                )
+                normalized_chants = sorted(
+                    {normalize_chant(item) for item in chants}
+                )
+            except InputError:
+                raise StorageError() from None
+            if normalized_chants != [derive_chant(record_id)]:
+                raise StorageError()
         locator = record.get("locator")
         if not isinstance(locator, str) or not locator or len(locator.encode()) > 2048:
             raise StorageError()
         item = dict(record)
+        item["aliases"] = aliases
         item["chants"] = normalized_chants
         if "declaration" in item:
             try:
@@ -1651,7 +1870,7 @@ def resolve_dial_locator(
     dialbook: Path,
     limits: dict[str, int],
     cwd: Path,
-) -> tuple[dict[str, Any], str | None, Any]:
+) -> tuple[dict[str, Any], str | None, Any, str, bool]:
     records = load_dialbook(dialbook, limits)
     if descriptor["kind"] == "dial-id":
         matches = [item for item in records if item["id"] == descriptor["value"]]
@@ -1669,11 +1888,38 @@ def resolve_dial_locator(
         )
     record = matches[0]
     if "declaration" in record:
-        return descriptor, record.get("workspace_address"), record["declaration"]
+        return (
+            descriptor,
+            record.get("workspace_address"),
+            record["declaration"],
+            record["id"],
+            True,
+        )
     nested = classify_locator(record["locator"], cwd)
     if nested["kind"] in {"dial-id", "chant"}:
         raise StorageError()
-    return nested, record.get("workspace_address"), record.get("declaration")
+    return (
+        nested,
+        record.get("workspace_address"),
+        record.get("declaration"),
+        record["id"],
+        False,
+    )
+
+
+def verify_dial_expectation(
+    declaration: dict[str, Any],
+    *,
+    expected_dial_id: str | None,
+    queried_chant: str | None,
+    record_reference_bound: bool,
+) -> None:
+    if expected_dial_id is None:
+        return
+    if not record_reference_bound and declaration.get("id") != expected_dial_id:
+        raise ContractError()
+    if queried_chant is not None and derive_chant(expected_dial_id) != queried_chant:
+        raise ContractError()
 
 
 def _safe_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
@@ -2902,6 +3148,12 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
         }
     request = parse_request_input(args, limits=lock["limits"], cwd=cwd)
     descriptor = request["locator_descriptor"]
+    queried_chant = (
+        descriptor["value"] if descriptor["kind"] == "chant" else None
+    )
+    expected_dial_id = (
+        descriptor["value"] if descriptor["kind"] == "dial-id" else None
+    )
     if args.operation == "decode":
         if args.apply is not None or args.device_root is not None or args.dialbook is not None:
             raise InputError()
@@ -2910,13 +3162,20 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
         return 0, _decode_result("decode", request)
     dialbook_hint = None
     dialbook_workspace = None
+    record_reference_bound = False
     direct_static_id = (
         descriptor["kind"] == "dial-id"
         and isinstance(request.get("declaration_hint"), dict)
         and "url" in request["declaration_hint"]
     )
     if descriptor["kind"] in {"dial-id", "chant"} and not direct_static_id:
-        descriptor, dialbook_workspace, dialbook_hint = resolve_dial_locator(
+        (
+            descriptor,
+            dialbook_workspace,
+            dialbook_hint,
+            expected_dial_id,
+            record_reference_bound,
+        ) = resolve_dial_locator(
             descriptor,
             dialbook=_dialbook_path(args.dialbook, cwd),
             limits=lock["limits"],
@@ -2942,6 +3201,12 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
             lock=lock,
             hint=request["declaration_hint"],
             workspace=workspace,
+        )
+        verify_dial_expectation(
+            resolution["declaration"],
+            expected_dial_id=expected_dial_id,
+            queried_chant=queried_chant,
+            record_reference_bound=record_reference_bound,
         )
     elif descriptor["kind"] == "github":
         remote_kind = "github"
@@ -2996,6 +3261,12 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
                     timeout=args.timeout,
                     target_sha256=target_sha256,
                 )
+            verify_dial_expectation(
+                resolution["declaration"],
+                expected_dial_id=expected_dial_id,
+                queried_chant=queried_chant,
+                record_reference_bound=record_reference_bound,
+            )
             _save_resolution(root, target_sha256, resolution)
             declaration = resolution["declaration"]
             _check_factor(declaration, request.get("unlock"))
@@ -3013,6 +3284,12 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
     assert resolution is not None
     declaration = validate_declaration(
         resolution["declaration"], limits=lock["limits"]
+    )
+    verify_dial_expectation(
+        declaration,
+        expected_dial_id=expected_dial_id,
+        queried_chant=queried_chant,
+        record_reference_bound=record_reference_bound,
     )
     _check_factor(declaration, request.get("unlock"))
     request["unlock"] = None

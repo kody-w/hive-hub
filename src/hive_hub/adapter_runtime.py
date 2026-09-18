@@ -16,7 +16,7 @@ from .contracts import (
 )
 from .errors import NotFoundError
 
-ADAPTER_RELEASE_VERSION = "0.1.0"
+ADAPTER_RELEASE_VERSION = "0.1.1"
 
 
 @dataclass(frozen=True, slots=True)

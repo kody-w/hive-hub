@@ -13,6 +13,14 @@ from typing import Any, ClassVar, Literal, TypeVar, cast
 from urllib.parse import parse_qsl, urlsplit
 
 from .canonical import canonical_bytes, content_address, validate_address
+from .chant import (
+    CHANT_PROTOCOL,
+    CHANT_VOCABULARY_SHA256,
+    derive_chant,
+    normalize_chant,
+    validate_dial_record_id,
+    verify_chant,
+)
 from .errors import LimitError, ValidationError
 from .limits import (
     MAX_ARRAY_ITEMS,
@@ -190,7 +198,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def normalize_chant(value: Any) -> str:
+def normalize_record_chant(value: Any) -> str:
     text = _string(value, field="chant", maximum_bytes=512)
     if _QR_RE.fullmatch(text.strip()) is not None:
         raise ValidationError("a QR factor cannot be used as a chant")
@@ -911,6 +919,63 @@ class AdapterRegistrationReceipt:
 
 
 @dataclass(frozen=True, slots=True)
+class ChantLocator:
+    kind: ClassVar[str] = "chant-locator"
+    dial_record_id: str
+    chant: str
+    protocol: str = CHANT_PROTOCOL
+    vocabulary_sha256: str = CHANT_VOCABULARY_SHA256
+    candidate_locator_only: bool = True
+    full_dial_id_verification_required: bool = True
+
+    @classmethod
+    def create(cls, dial_record_id: str) -> ChantLocator:
+        canonical_id = validate_dial_record_id(dial_record_id)
+        return cls(dial_record_id=canonical_id, chant=derive_chant(canonical_id))
+
+    @classmethod
+    def from_dict(cls, value: Any) -> ChantLocator:
+        obj = _fixed_header(
+            value,
+            cls.kind,
+            {
+                "dial_record_id",
+                "chant",
+                "protocol",
+                "vocabulary_sha256",
+                "candidate_locator_only",
+                "full_dial_id_verification_required",
+            },
+        )
+        dial_record_id = validate_dial_record_id(obj["dial_record_id"])
+        chant = verify_chant(dial_record_id, obj["chant"])
+        if obj["protocol"] != CHANT_PROTOCOL:
+            raise ValidationError(f"chant protocol must be {CHANT_PROTOCOL}")
+        if obj["vocabulary_sha256"] != CHANT_VOCABULARY_SHA256:
+            raise ValidationError("chant vocabulary hash does not match the frozen vocabulary")
+        if not _boolean(obj["candidate_locator_only"], field="candidate locator only"):
+            raise ValidationError("a chant must remain a candidate locator only")
+        if not _boolean(
+            obj["full_dial_id_verification_required"],
+            field="full dial id verification required",
+        ):
+            raise ValidationError("the full Dial Record ID must be verified")
+        return cls(dial_record_id=dial_record_id, chant=chant)
+
+    def to_dict(self) -> JsonObject:
+        return {
+            "kind": self.kind,
+            "schema_version": SCHEMA_VERSION,
+            "dial_record_id": self.dial_record_id,
+            "chant": self.chant,
+            "protocol": self.protocol,
+            "vocabulary_sha256": self.vocabulary_sha256,
+            "candidate_locator_only": self.candidate_locator_only,
+            "full_dial_id_verification_required": self.full_dial_id_verification_required,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class DialRecord:
     kind: ClassVar[str] = "dial-record"
     id: str
@@ -964,7 +1029,9 @@ class DialRecord:
         normalized_urls = tuple(
             sorted(set(validate_locator(item, field="dial URL") for item in urls))
         )
-        normalized_chants = tuple(sorted(set(normalize_chant(item) for item in chants)))
+        normalized_chants = tuple(
+            sorted(set(normalize_record_chant(item) for item in chants))
+        )
         if not normalized_urls and not normalized_chants:
             raise ValidationError("dial record requires at least one URL or chant")
         body = cls._body(
@@ -1023,7 +1090,10 @@ class DialRecord:
         )
         urls = _sorted_unique_strings(obj["urls"], field="dial URLs")
         urls = tuple(validate_locator(item, field="dial URL") for item in urls)
-        chants = _sorted_unique_strings(obj["chants"], field="chants", normalize=True)
+        chants = tuple(
+            normalize_record_chant(item)
+            for item in _sorted_unique_strings(obj["chants"], field="chants")
+        )
         if not urls and not chants:
             raise ValidationError("dial record requires at least one URL or chant")
         name = _string(obj["name"], field="record name")
@@ -1073,7 +1143,6 @@ class DialRecord:
             "urls": list(self.urls),
             "chants": list(self.chants),
         }
-
 
 def generate_qr_fragment() -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode("ascii")
@@ -1611,9 +1680,13 @@ class DialIndexEntry:
             validate_locator(item, field="dial URL")
             for item in _sorted_unique_strings(obj["urls"], field="dial URLs")
         )
-        chants = _sorted_unique_strings(obj["chants"], field="chants", normalize=True)
+        chants = tuple(
+            normalize_record_chant(item)
+            for item in _sorted_unique_strings(obj["chants"], field="chants")
+        )
+        record_id = validate_address(obj["id"], field="index record id")
         return cls(
-            id=validate_address(obj["id"], field="index record id"),
+            id=record_id,
             name=_string(obj["name"], field="index record name"),
             protocol_fingerprint=validate_address(
                 obj["protocol_fingerprint"], field="protocol fingerprint"
@@ -2079,6 +2152,7 @@ CONTRACT_TYPES: dict[str, type[Any]] = {
     AdapterRegistration.kind: AdapterRegistration,
     AdapterPlan.kind: AdapterPlan,
     AdapterRegistrationReceipt.kind: AdapterRegistrationReceipt,
+    ChantLocator.kind: ChantLocator,
     DialRecord.kind: DialRecord,
     PrivateAccessPolicy.kind: PrivateAccessPolicy,
     AIJoinCard.kind: AIJoinCard,

@@ -4,7 +4,7 @@ description: "Safely dial or join a declared Hive from a GitHub address, local p
 license: "MIT"
 compatibility: "Requires Python 3.11+; Git is required only for GitHub targets. Run with Python isolated mode (-I). Uses existing Git credentials without prompting and stores approved device-local state under ~/.agent-storage/hive-hub/v1 unless an absolute device root is supplied."
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
   lock: "agent.lock"
   runner: "scripts/run.py"
 allowed-tools: "Bash Read Camera"
@@ -41,7 +41,7 @@ Accepted locators are:
 - canonical public or private GitHub HTTPS repository URLs;
 - `owner/repository at exact/branch`;
 - an explicit local file or directory path;
-- a normalized seven-word chant;
+- a `hive-hub-chant/1` seven-word chant derived from the full Dial Record ID;
 - a full `dial:sha256:<64 lowercase hex>` Dial Record ID; or
 - bounded QR/AI join-card JSON.
 
@@ -86,11 +86,21 @@ commitment is bound to the record, policy scope, and epoch.
 
 ## Dialbooks
 
+`hive-hub-chant/1` hashes the UTF-8 full canonical Dial Record ID with SHA-256
+and maps the first seven digest bytes modulo the frozen 128-word vocabulary.
+The vocabulary is byte-exact from
+`kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae`, with SHA-256
+`325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36`;
+the derivation requires no RAPP identity or runtime. Human input may vary case
+and use spaces, while canonical output is seven lowercase hyphen-separated
+words.
+
 Chants and Dial Record IDs are locators, never proof. They resolve against the
-locked empty public dialbook or one exact device-local dialbook selected with
+locked public dialbook or one exact device-local dialbook selected with
 `--dialbook /absolute/path/to/dialbook.json`. The runner never scans for a
-dialbook. A chant collision returns every full candidate ID and refuses to
-guess.
+dialbook. Every candidate's complete Dial Record ID must match its verified
+declaration. A chant collision returns every full candidate ID and refuses to
+guess. Repository slugs and other display/search aliases are not chants.
 
 ## Safety boundary
 

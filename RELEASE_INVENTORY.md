@@ -1,4 +1,4 @@
-# Hive Hub 0.1.0 release inventory
+# Hive Hub 0.1.1 release inventory
 
 ## Python distribution
 
@@ -20,6 +20,7 @@
 - `adapter-registration-receipt.schema.json`
 - `ai-join-card.schema.json`
 - `bootstrap-result.schema.json`
+- `chant-locator.schema.json`
 - `conformance-contract.schema.json`
 - `dial-record.schema.json`
 - `learning-bundle.schema.json`
@@ -34,6 +35,8 @@
 ## Core modules
 
 - `canonical.py`: bounded duplicate-safe JSON and SHA-256 addresses
+- `chant.py`: protocol-neutral `hive-hub-chant/1` derivation, parsing,
+  vocabulary provenance, and full-ID verification
 - `contracts.py`: typed closed contracts and semantic validation
 - `_windows_file.py`: no-follow Win32 handle metadata and true link counts
 - `filesystem.py`: no-follow, atomic no-replace, reversible storage
@@ -53,10 +56,24 @@
 - Payphone `connected|unreachable` resolution
 - inert historical Hub inspection
 
+## Generic chant contract
+
+- Protocol: `hive-hub-chant/1`
+- Input: full canonical Dial Record ID
+- Derivation: SHA-256 over the UTF-8 full ID; first seven digest bytes modulo
+  the frozen 128-word vocabulary
+- Vocabulary SHA-256:
+  `325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36`
+- Provenance:
+  `kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae`
+- Runtime/identity dependency on RAPP: none
+- Semantics: collisionable candidate locator only; complete Dial Record ID
+  verification is mandatory
+
 ## Universal skill
 
 - Path: `skills/hive-hub/`
-- Version: `0.1.0`
+- Version: `0.1.1`
 - Locked, stdlib-only Python 3.11+ runner
 - Cross-platform lock verification uses no-follow Win32 handle metadata on
   Windows and `st_nlink == 1` on POSIX while rejecting real hardlinks and
@@ -77,6 +94,14 @@
 - Browser-free AI instructions: `/hub/join/ai.json` and `/llms.txt`
 - Only real sample:
   `billwhalenmsft/softwarecoellc-vteam-hive@f66da3d879b53a439bc87de764d79f68ceec048a`
+- Sample Dial Record ID:
+  `dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c`
+- Sample chant: `jetty-gorse-grove-pond-marrow-otter-weir`
+- Display/search alias only: `softwarecoellc-vteam-hive`
+- Receipt sequence 2 records the chant correction while sequence 1 and every
+  immutable object it references remain byte-for-byte available.
+- The superseded immutable sequence-1 objects preserve their historical bytes;
+  no active card, record, dialbook, or skill chant indexes the repository slug.
 
 ## Deterministic source inventory
 

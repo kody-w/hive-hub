@@ -37,15 +37,31 @@ are opened with no-follow semantics and must be regular files.
    closed receipt.
 3. `register SCOPE RECORD` validates all exact references. Private registration
    also writes a one-to-one private policy.
-4. `dial QUERY` resolves a full id, exact URL, or normalized chant.
-5. `join-card` creates a human/AI bootstrap intent.
-6. `subscribe plan CARD` performs no mutation.
-7. `subscribe apply PLAN` saves only local state and inert adapter effects.
-8. `subscribe revert PLAN` removes only the exact subscription bytes described
+4. `chant derive DIAL_ID` derives `hive-hub-chant/1`; `chant parse CHANT`
+   accepts case/spaces and emits canonical lowercase hyphens; `chant verify`
+   checks the binding to the full ID.
+5. `dial QUERY` resolves a full id, exact URL, or canonical derived chant.
+6. `join-card` creates a human/AI bootstrap intent.
+7. `subscribe plan CARD` performs no mutation.
+8. `subscribe apply PLAN` saves only local state and inert adapter effects.
+9. `subscribe revert PLAN` removes only the exact subscription bytes described
    by that plan.
 
 `bootstrap CARD` combines dial and planning for one card. Add `--apply` to save
 the local subscription. It never performs an adapter effect.
+
+```bash
+hive-hub chant derive \
+  dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c
+hive-hub chant parse "JETTY GORSE GROVE POND MARROW OTTER WEIR"
+hive-hub chant verify \
+  dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c \
+  jetty-gorse-grove-pond-marrow-otter-weir
+```
+
+A chant is only a collisionable candidate locator. Dialing still verifies the
+complete Dial Record ID. Display/search aliases such as repository slugs are
+not parsed as chants.
 
 ## Optional built-in adapter contracts
 

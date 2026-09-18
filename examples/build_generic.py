@@ -78,7 +78,6 @@ def main() -> None:
         learning_bundle_address=bundle.address,
         adapter_registration_address=adapter.address,
         urls=["https://firefly.invalid/hives/commons"],
-        chants=["firefly commons"],
     )
     adapter_plan = AdapterPlan.create(
         adapter_registration_address=adapter.address,

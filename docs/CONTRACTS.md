@@ -14,6 +14,10 @@ urn:hivehub:sha256:<lowercase SHA-256 of canonical bytes>
 Dial records, join cards, subscriptions, plans, and receipts contain an
 identity address computed from a documented body that omits the identity field.
 Other documents use the SHA-256 address of their complete canonical document.
+Generic core Dial Record version 1 retains its original identity body,
+including any legacy local chant labels. The separate `hive-hub-chant/1`
+contract derives only from canonical `dial:sha256:` IDs and does not rewrite
+existing local/public/private core records.
 
 The authoritative JSON Schemas are packaged under `hive_hub/schema/` and
 available through `hive_hub.get_schema(name)`. Every object schema sets
@@ -68,12 +72,29 @@ does not perform any effect.
 
 ## Dial and join
 
+### `chant-locator`
+
+Implements `hive-hub-chant/1`. The derivation is
+`SHA-256(UTF-8 full canonical Dial Record ID)`, selecting the first seven digest
+bytes modulo 128 and mapping them through the frozen vocabulary. Human parsing
+accepts case differences and either spaces or canonical hyphens; output is
+exactly seven lowercase hyphen-separated words.
+
+The vocabulary is byte-exact from
+`kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae`, with SHA-256
+`325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36`.
+That provenance does not create a RAPP identity or runtime dependency. A chant
+is a collisionable 49-bit candidate locator, never authority, and its complete
+Dial Record ID must verify.
+
 ### `dial-record`
 
 Contains an addressed identity, display text, one visibility
 (`local`/`public`/`private`), exact protocol/bundle/adapter addresses, sorted
-absolute URLs, and normalized chants. At least one URL or chant is required.
-URL fragments and embedded URL credentials are forbidden.
+absolute URLs, and exactly one `hive-hub-chant/1` value derived from its full
+identity. URL fragments and embedded URL credentials are forbidden. A caller
+may omit the chant when creating a record; if supplied, it must equal the
+derivation.
 
 ### `public-dialbook-index` and `private-dialbook-index`
 
