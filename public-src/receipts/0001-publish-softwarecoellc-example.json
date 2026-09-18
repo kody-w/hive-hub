@@ -1,0 +1,18 @@
+{
+  "actor": "urn:hive-hub:publisher:repository-maintainers",
+  "event": "publish-record",
+  "kind": "receipt-source",
+  "ledger": "public-dialbook",
+  "occurredAt": "2026-09-18T19:16:11Z",
+  "operation": {
+    "boundedTo": [
+      "one public Dial Record",
+      "its declared protocol documents",
+      "one locator-only public join card"
+    ],
+    "planFirst": true,
+    "reversibleBy": "Append a later withdrawal receipt while retaining immutable history."
+  },
+  "recordId": "softwarecoellc-vteam-hive-main-f66da3d",
+  "sequence": 1
+}

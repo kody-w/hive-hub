@@ -1,0 +1,1 @@
+{"$schema":"https://kody-w.github.io/hive-hub/api/hive-hub/v1/schemas/bucket-index.schema.json","algorithm":"sha256","bucketId":"sha256-00-3f","kind":"bucket-index","range":{"maximum":"3f","minimum":"00"},"records":[]}
