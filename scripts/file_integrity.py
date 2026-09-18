@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from hive_hub._windows_file import windows_path_metadata  # noqa: E402
 
 
 class FileIntegrityError(RuntimeError):
@@ -15,20 +21,24 @@ def _is_windows() -> bool:
     return os.name == "nt"
 
 
-def safe_file_link_count(link_count: int, *, windows: bool | None = None) -> bool:
-    """Accept NTFS's zero sentinel without permitting actual hardlinks."""
-    if windows is None:
-        windows = _is_windows()
-    return link_count in (0, 1) if windows else link_count == 1
+def _has_single_file_link(path: Path, information: os.stat_result) -> bool:
+    if not _is_windows():
+        return information.st_nlink == 1
+    try:
+        metadata = windows_path_metadata(path)
+    except OSError:
+        return False
+    return metadata.number_of_links == 1 and not metadata.is_reparse_point
 
 
 def _matches_regular_file(
+    path: Path,
     information: os.stat_result,
     expected: os.stat_result,
 ) -> bool:
     return (
         stat.S_ISREG(information.st_mode)
-        and safe_file_link_count(information.st_nlink)
+        and _has_single_file_link(path, information)
         and information.st_dev == expected.st_dev
         and information.st_ino == expected.st_ino
         and information.st_size == expected.st_size
@@ -41,7 +51,7 @@ def read_regular_bytes(path: Path, *, maximum: int | None = None) -> bytes:
         expected = path.lstat()
         if (
             not stat.S_ISREG(expected.st_mode)
-            or not safe_file_link_count(expected.st_nlink)
+            or not _has_single_file_link(path, expected)
             or expected.st_size < 0
             or (maximum is not None and expected.st_size > maximum)
         ):
@@ -50,7 +60,7 @@ def read_regular_bytes(path: Path, *, maximum: int | None = None) -> bytes:
         flags |= getattr(os, "O_NOFOLLOW", 0)
         descriptor = os.open(path, flags)
         try:
-            if not _matches_regular_file(os.fstat(descriptor), expected):
+            if not _matches_regular_file(path, os.fstat(descriptor), expected):
                 raise FileIntegrityError(f"release file changed before read: {path}")
             chunks: list[bytes] = []
             remaining = expected.st_size
@@ -62,10 +72,10 @@ def read_regular_bytes(path: Path, *, maximum: int | None = None) -> bytes:
                 remaining -= len(chunk)
             if os.read(descriptor, 1):
                 raise FileIntegrityError(f"release file size drifted: {path}")
-            if not _matches_regular_file(os.fstat(descriptor), expected):
+            if not _matches_regular_file(path, os.fstat(descriptor), expected):
                 raise FileIntegrityError(f"release file changed during read: {path}")
             current = path.lstat()
-            if not _matches_regular_file(current, expected):
+            if not _matches_regular_file(path, current, expected):
                 raise FileIntegrityError(f"release file changed during read: {path}")
             return b"".join(chunks)
         finally:
@@ -96,7 +106,7 @@ def regular_files(root: Path) -> list[Path]:
             if stat.S_ISDIR(information.st_mode):
                 visit(path)
             elif stat.S_ISREG(information.st_mode):
-                if not safe_file_link_count(information.st_nlink):
+                if not _has_single_file_link(path, information):
                     raise FileIntegrityError(f"release tree contains a hardlink: {path}")
                 files.append(path)
             else:

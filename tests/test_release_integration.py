@@ -5,11 +5,13 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from unittest import mock
 
 from hive_hub import AIJoinCard
+from hive_hub import _windows_file as windows_file
 from hive_hub.adapter_runtime import builtin_adapter_contracts
 from scripts import (
     build_release_manifest,
@@ -19,7 +21,7 @@ from scripts import (
 )
 from scripts.file_integrity import FileIntegrityError
 
-from .helpers import PROJECT_ROOT, WorkspaceTestCase
+from .helpers import PROJECT_ROOT, MockWindowsFileApi, WorkspaceTestCase
 
 
 def canonical(value: object) -> bytes:
@@ -33,15 +35,46 @@ def canonical(value: object) -> bytes:
 
 
 class ReleaseIntegrationTests(WorkspaceTestCase):
-    def test_release_file_link_policy_accepts_only_platform_safe_counts(self) -> None:
-        with mock.patch.object(file_integrity, "_is_windows", return_value=True):
-            self.assertTrue(file_integrity.safe_file_link_count(0))
-            self.assertTrue(file_integrity.safe_file_link_count(1))
-            self.assertFalse(file_integrity.safe_file_link_count(2))
+    def test_release_posix_link_policy_still_requires_exactly_one(self) -> None:
         with mock.patch.object(file_integrity, "_is_windows", return_value=False):
-            self.assertFalse(file_integrity.safe_file_link_count(0))
-            self.assertTrue(file_integrity.safe_file_link_count(1))
-            self.assertFalse(file_integrity.safe_file_link_count(2))
+            for link_count, accepted in ((0, False), (1, True), (2, False)):
+                information = os.stat_result(
+                    (stat.S_IFREG, 1, 1, link_count, 0, 0, 0, 0, 0, 0)
+                )
+                with self.subTest(link_count=link_count):
+                    self.assertEqual(
+                        file_integrity._has_single_file_link(
+                            self.work / "file",
+                            information,
+                        ),
+                        accepted,
+                    )
+
+    def test_release_file_link_policy_uses_true_windows_metadata(self) -> None:
+        source = self.work / "source.txt"
+        source.write_bytes(b"ordinary")
+        for api, accepted in (
+            (MockWindowsFileApi(number_of_links=1), True),
+            (MockWindowsFileApi(number_of_links=2), False),
+            (
+                MockWindowsFileApi(
+                    number_of_links=1,
+                    attributes=windows_file.FILE_ATTRIBUTE_REPARSE_POINT,
+                ),
+                False,
+            ),
+            (MockWindowsFileApi(information_success=False), False),
+        ):
+            with (
+                self.subTest(api=api, accepted=accepted),
+                mock.patch.object(file_integrity, "_is_windows", return_value=True),
+                mock.patch.object(windows_file, "_windows_file_api", return_value=api),
+            ):
+                if accepted:
+                    self.assertEqual(file_integrity.read_regular_bytes(source), b"ordinary")
+                else:
+                    with self.assertRaises(FileIntegrityError):
+                        file_integrity.read_regular_bytes(source)
 
     def test_release_privacy_and_package_verifiers_reject_hardlinks(self) -> None:
         source = self.work / "source.txt"
@@ -77,6 +110,28 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
             self.assertRaises(FileIntegrityError),
         ):
             update_agent_lock.build_lock()
+
+    def test_release_verifiers_keep_symlink_and_special_file_checks(self) -> None:
+        source = self.work / "source.txt"
+        source.write_bytes(b"ordinary")
+        symlink = self.work / "symlink.txt"
+        try:
+            symlink.symlink_to(source)
+        except OSError as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        with self.assertRaises(FileIntegrityError):
+            file_integrity.read_regular_bytes(symlink)
+        with self.assertRaises(FileIntegrityError):
+            file_integrity.regular_files(self.work)
+
+        symlink.unlink()
+        special = self.work / "special"
+        try:
+            os.mkfifo(special)
+        except (AttributeError, OSError) as exc:
+            self.skipTest(f"special files unavailable: {exc}")
+        with self.assertRaises(FileIntegrityError):
+            file_integrity.regular_files(self.work)
 
     def test_public_camera_card_is_an_exact_core_contract(self) -> None:
         card_path = (

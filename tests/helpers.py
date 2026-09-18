@@ -6,6 +6,7 @@ import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from hive_hub import (
     AdapterRegistration,
@@ -21,6 +22,70 @@ from hive_hub import (
 PROJECT_ROOT = Path(__file__).parents[1]
 WORK_ROOT = PROJECT_ROOT / "tests" / ".work"
 FIXED_TIME = "2026-09-18T19:16:11Z"
+
+
+class MockWindowsFileApi:
+    def __init__(
+        self,
+        *,
+        number_of_links: int = 1,
+        attributes: int = 0,
+        create_success: bool = True,
+        information_success: bool = True,
+        close_success: bool = True,
+    ) -> None:
+        self.number_of_links = number_of_links
+        self.attributes = attributes
+        self.create_success = create_success
+        self.information_success = information_success
+        self.close_success = close_success
+        self.handle = 1234
+        self.create_calls: list[tuple[str, int, int, int, int]] = []
+        self.closed_handles: list[int] = []
+
+    def CreateFileW(
+        self,
+        path: str,
+        desired_access: int,
+        share_mode: int,
+        _security_attributes: object,
+        creation_disposition: int,
+        flags_and_attributes: int,
+        _template_file: object,
+    ) -> int:
+        self.create_calls.append(
+            (
+                path,
+                desired_access,
+                share_mode,
+                creation_disposition,
+                flags_and_attributes,
+            )
+        )
+        if self.create_success:
+            return self.handle
+        import ctypes
+
+        return int(ctypes.c_void_p(-1).value or -1)
+
+    def GetFileInformationByHandle(
+        self,
+        _handle: int,
+        information_pointer: Any,
+    ) -> int:
+        if not self.information_success:
+            return 0
+        information = information_pointer._obj
+        information.dwFileAttributes = self.attributes
+        information.dwVolumeSerialNumber = 17
+        information.nNumberOfLinks = self.number_of_links
+        information.nFileIndexHigh = 1
+        information.nFileIndexLow = 2
+        return 1
+
+    def CloseHandle(self, handle: int) -> int:
+        self.closed_handles.append(handle)
+        return int(self.close_success)
 
 
 class WorkspaceTestCase(unittest.TestCase):
