@@ -6,9 +6,14 @@ import hashlib
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.file_integrity import FileIntegrityError, read_regular_bytes  # noqa: E402
+
 SAFE_DENY_DIGESTS = frozenset(
     {
         "18bd7d72c25c6360e675996cf605328e499729c72c6035d55a4cbaf05992327c",
@@ -54,12 +59,12 @@ def tracked_paths() -> list[str]:
         text=True,
     )
     return sorted(
-        path for path in output.splitlines() if path and (ROOT / path).is_file()
+        path for path in output.splitlines() if path
     )
 
 
 def text(path: Path) -> str | None:
-    data = path.read_bytes()
+    data = read_regular_bytes(path)
     if b"\0" in data:
         return None
     try:
@@ -96,7 +101,11 @@ def check() -> list[str]:
     failures: list[str] = []
     denied = deny_digests()
     for relative in tracked_paths():
-        content = text(ROOT / relative)
+        try:
+            content = text(ROOT / relative)
+        except FileIntegrityError as exc:
+            failures.append(f"{relative}: {exc}")
+            continue
         if content is None:
             continue
         if contains_denied_identifier(content, denied):

@@ -28,6 +28,9 @@ locators—not authority.
 - No-follow reads, bounded traversal, regular-file checks, atomic no-replace
   writes, reversible subscription writes, and per-record interprocess
   transactions for private record/policy registration.
+- Locked skill files reject symlinks, special files, and real hardlinks while
+  accepting NTFS's ordinary-file link count of zero; byte counts and SHA-256
+  hashes must still match exactly.
 - No downloaded protocol text, skill, or adapter is executed.
 - The universal skill never executes repository-provided setup or verification
   code. Joining saves a subscription and returns an inert typed adapter plan;

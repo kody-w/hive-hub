@@ -373,6 +373,73 @@ class HiveHubTests(unittest.TestCase):
         )
         self.assertTrue(imported.issubset(sys.stdlib_module_names | {"__future__"}))
 
+    def test_skill_link_count_policy_accepts_windows_zero_and_normal_one(self) -> None:
+        with mock.patch.object(runner, "_is_windows", return_value=True):
+            self.assertTrue(runner._safe_file_link_count(0))
+            self.assertTrue(runner._safe_file_link_count(1))
+            self.assertFalse(runner._safe_file_link_count(2))
+        with mock.patch.object(runner, "_is_windows", return_value=False):
+            self.assertFalse(runner._safe_file_link_count(0))
+            self.assertTrue(runner._safe_file_link_count(1))
+            self.assertFalse(runner._safe_file_link_count(2))
+
+        ordinary = self.work / "ordinary.txt"
+        ordinary.write_bytes(b"ordinary")
+        self.assertTrue(runner._safe_file_link_count(ordinary.stat().st_nlink))
+        self.assertEqual(runner._read_regular(ordinary, 8), b"ordinary")
+
+    def test_skill_verification_rejects_real_hardlinks(self) -> None:
+        copied = self.work / "hardlinked-skill"
+        shutil.copytree(SKILL, copied)
+        target = copied / "scripts" / "run.py"
+        shared = self.work / "shared-run.py"
+        shutil.copy2(target, shared)
+        target.unlink()
+        try:
+            os.link(shared, target)
+        except OSError as exc:
+            self.skipTest(f"hardlinks unavailable: {exc}")
+        self.assertGreaterEqual(target.stat().st_nlink, 2)
+
+        verified = subprocess.run(
+            [sys.executable, "-I", "-B", str(target), "verify"],
+            cwd=self.work,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        value = result_of(verified)
+        self.assertEqual(verified.returncode, 2)
+        self.assertEqual(value["blocker"]["code"], "skill-lock-invalid")
+
+    def test_skill_verification_rejects_hash_and_size_drift(self) -> None:
+        for drift in ("hash", "size"):
+            with self.subTest(drift=drift):
+                copied = self.work / f"{drift}-drift"
+                shutil.copytree(SKILL, copied)
+                target = copied / "SKILL.md"
+                data = target.read_bytes()
+                if drift == "hash":
+                    target.write_bytes(bytes([data[0] ^ 1]) + data[1:])
+                else:
+                    target.write_bytes(data + b"\n")
+                verified = subprocess.run(
+                    [
+                        sys.executable,
+                        "-I",
+                        "-B",
+                        str(copied / "scripts" / "run.py"),
+                        "verify",
+                    ],
+                    cwd=self.work,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                value = result_of(verified)
+                self.assertEqual(verified.returncode, 2)
+                self.assertEqual(value["blocker"]["code"], "skill-lock-invalid")
+
     def test_core_camera_ai_card_dials_and_joins_through_skill(self) -> None:
         hive = self.work / "camera-card-hive"
         self.fixture.declaration(hive, name="Camera Card Hive")

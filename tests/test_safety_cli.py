@@ -9,12 +9,26 @@ from unittest.mock import patch
 
 from hive_hub import ConflictError, UnsafePathError
 from hive_hub.cli import main
-from hive_hub.filesystem import SafeFilesystem, read_external_file
+from hive_hub.filesystem import (
+    SafeFilesystem,
+    _safe_file_link_count,
+    read_external_file,
+)
 
 from .helpers import WorkspaceTestCase, make_record, make_stack
 
 
 class SafetyAndCLITests(WorkspaceTestCase):
+    def test_core_link_count_policy_matches_windows_file_semantics(self) -> None:
+        with patch("hive_hub.filesystem._is_windows", return_value=True):
+            self.assertTrue(_safe_file_link_count(0))
+            self.assertTrue(_safe_file_link_count(1))
+            self.assertFalse(_safe_file_link_count(2))
+        with patch("hive_hub.filesystem._is_windows", return_value=False):
+            self.assertFalse(_safe_file_link_count(0))
+            self.assertTrue(_safe_file_link_count(1))
+            self.assertFalse(_safe_file_link_count(2))
+
     def test_atomic_no_replace_write_is_idempotent_and_collision_safe(self) -> None:
         filesystem = SafeFilesystem(self.work / "safe")
         first = filesystem.plan_write("documents/one.json", b'{"one":1}')

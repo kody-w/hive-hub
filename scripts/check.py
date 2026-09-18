@@ -10,6 +10,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.file_integrity import read_regular_bytes  # noqa: E402
+
 SKILL = ROOT / "skills" / "hive-hub"
 RUNNER = SKILL / "scripts" / "run.py"
 SIX_FIELDS = {
@@ -38,7 +42,7 @@ def frontmatter_fields(text: str) -> set[str]:
 
 
 def main() -> int:
-    skill_text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    skill_text = read_regular_bytes(SKILL / "SKILL.md").decode("utf-8")
     if frontmatter_fields(skill_text) != SIX_FIELDS:
         fail("SKILL.md does not use exactly the six Agent Skills fields")
     lowered = skill_text.casefold()
@@ -50,7 +54,7 @@ def main() -> int:
     ):
         if phrase not in lowered:
             fail(f"SKILL.md is missing trigger phrase {phrase!r}")
-    tree = ast.parse(RUNNER.read_text(encoding="utf-8"), filename=str(RUNNER))
+    tree = ast.parse(read_regular_bytes(RUNNER).decode("utf-8"), filename=str(RUNNER))
     imported = {
         alias.name.split(".", 1)[0]
         for node in ast.walk(tree)
@@ -65,7 +69,7 @@ def main() -> int:
     non_stdlib = sorted(imported - sys.stdlib_module_names - {"__future__"})
     if non_stdlib:
         fail("runner imports non-stdlib modules: " + ", ".join(non_stdlib))
-    lock = json.loads((SKILL / "agent.lock").read_text(encoding="utf-8"))
+    lock = json.loads(read_regular_bytes(SKILL / "agent.lock").decode("utf-8"))
     if lock.get("schema") != "hive-hub-agent-lock/1":
         fail("agent.lock schema is not recognized")
     commands = [

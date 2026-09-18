@@ -7,12 +7,18 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "hive-hub"
 sys.path.insert(0, str(ROOT))
 
 from adapters.github import GITHUB_FINGERPRINT  # noqa: E402
+from scripts.file_integrity import (  # noqa: E402
+    FileIntegrityError,
+    read_regular_bytes,
+    regular_files,
+)
 
 
 def canonical(value: object) -> bytes:
@@ -53,12 +59,12 @@ GITHUB_SUBSCRIPTION_CONTRACT = {
     "reversible": True,
 }
 
-def build_lock() -> dict[str, object]:
+def build_lock() -> dict[str, Any]:
     files = []
-    for path in sorted(item for item in SKILL.rglob("*") if item.is_file()):
+    for path in regular_files(SKILL):
         if path.name == "agent.lock":
             continue
-        data = path.read_bytes()
+        data = read_regular_bytes(path)
         files.append(
             {
                 "path": path.relative_to(SKILL).as_posix(),
@@ -123,7 +129,11 @@ def main(argv: list[str] | None = None) -> int:
     expected = encoded_lock()
     target = SKILL / "agent.lock"
     if arguments == ["--check"]:
-        if not target.is_file() or target.read_text(encoding="utf-8") != expected:
+        try:
+            current = read_regular_bytes(target).decode("utf-8")
+        except (FileIntegrityError, UnicodeDecodeError):
+            current = None
+        if current != expected:
             print("agent.lock is out of date", file=sys.stderr)
             return 1
         print("agent.lock is current")
