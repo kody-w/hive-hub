@@ -1,7 +1,7 @@
 {
   "schema": "hive-hub-agent-lock/1",
   "name": "hive-hub",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "runner": {
     "python": ">=3.11",
     "isolated": true,
@@ -36,13 +36,30 @@
       "implementation": "local-subscription"
     },
     {
-      "id": "hive-hub.microsol-current-main/1",
-      "fingerprint": "4eadc5655096df4d7ff55ec9adc89c8281b2e6a110b231db2eca2a001a73f4f3",
+      "id": "hive-hub.github-repository/1",
+      "fingerprint": "10767f352ccc9a901781ed53aa1a085968a85bc4c70c0b117ec83902611d75cb",
       "contract": {
         "schema": "hive-hub-adapter-contract/1",
-        "id": "hive-hub.microsol-current-main/1",
+        "id": "hive-hub.github-repository/1",
+        "input": "verified-hive-declaration",
+        "source_adapter": "github-repository",
+        "source_fingerprint": "hive-hub-github-repository/1.0#sha256:9979236508e12c539d20b81d31161f29d3e2e5018a5eed1329a5cf9f9ccfa7c0",
+        "effect": "one-device-local-subscription",
+        "network_after_resolution": false,
+        "executes_downloaded_content": false,
+        "remote_write": false,
+        "reversible": true
+      },
+      "implementation": "local-subscription"
+    },
+    {
+      "id": "hive-hub.verified-current-main/1",
+      "fingerprint": "30a80e5d5585a9e8666f98d65803d4bfa438887ef86c01ab6eace4512eb1f900",
+      "contract": {
+        "schema": "hive-hub-adapter-contract/1",
+        "id": "hive-hub.verified-current-main/1",
         "input": "verified-microsol-any-ai-setup/2",
-        "repository": "kody-w/microsol-organization",
+        "selection": "exact-verified-join-contract",
         "tooling": "verified-current-main",
         "workspace": "detached-requested-branch",
         "existing_acl_only": true,
@@ -51,12 +68,11 @@
         "main_push": false,
         "executes_downloaded_learning": false
       },
-      "implementation": "microsol-current-main"
+      "implementation": "verified-current-main"
     }
   ],
-  "microsol": {
-    "repository": "kody-w/microsol-organization",
-    "contract_sha256": "15aedab16f0cd7bc1fd49c3fc1f82be4d7d61ccce589560809111d8cfea7a247",
+  "verified_join": {
+    "contract_sha256": "a8f2abea01abda078dc5190fa364c2d06eef42e179771e6d753cc7d861eb8bfb",
     "contract": {
       "blocked": {
         "can_post": false,
@@ -75,7 +91,7 @@
       "historical_update": {
         "in_place_schema_mutation": false,
         "preserve_original_in_place": true,
-        "source_lineage": "kody-w-fresh-device-onboarding",
+        "source_lineage": "requested-source-lineage",
         "unknown_state": "quarantine-or-refuse"
       },
       "host_dependencies": {
@@ -174,23 +190,33 @@
   "files": [
     {
       "path": "SKILL.md",
-      "bytes": 4830,
-      "sha256": "ed8d246964847cc30e4cb1a44730d0cc6ffef33cb4d5f9e11ad0bd3226df3384"
+      "bytes": 4910,
+      "sha256": "27035a61acc2d95e75c212e07ecc2dc3ab42eae615bfcb8f8e8e91ac1a7f4eed"
     },
     {
       "path": "instructions/AI.md",
-      "bytes": 1477,
-      "sha256": "e147fcbafbcb9bf732c6003be10e0a2dd60f89f2791246bdfcb671509196a82e"
+      "bytes": 1671,
+      "sha256": "7745ad1d9679fda6d77dc2fcf58338dbe9e0d043bf691e89723f6f23ed3244a5"
     },
     {
       "path": "instructions/HUMAN.md",
-      "bytes": 1328,
-      "sha256": "e2594db64e69fe97dc9a334871f643003a29ffd399e1336822a1e2400050eb3a"
+      "bytes": 1490,
+      "sha256": "7e15b1cfee0e63f203839a3f4204555fae6120a73217e47ac05a9b41e4d6980d"
+    },
+    {
+      "path": "registry/integrated-adapters.json",
+      "bytes": 3691,
+      "sha256": "7d6d20af067f607e885a7096507cdfc3fbb52b2067681fa1a20a804040ad85eb"
     },
     {
       "path": "registry/public-dialbook.json",
-      "bytes": 55,
-      "sha256": "7afbab309e46e4af26068a7a8e8ed54e0085616ed5f1246b95c33ababdbd0671"
+      "bytes": 482,
+      "sha256": "3f002c8f57ecf89529cd31f14f49b7febbc24eeca90e804cf6d5bb6cad605b4c"
+    },
+    {
+      "path": "schemas/core-ai-join-card.schema.json",
+      "bytes": 1945,
+      "sha256": "fd35f0677d913940cc0327c9501db94e3e11a0eb43eb01c924d75cdb7d081f24"
     },
     {
       "path": "schemas/hive-declaration.schema.json",
@@ -204,8 +230,8 @@
     },
     {
       "path": "scripts/run.py",
-      "bytes": 100429,
-      "sha256": "ccb6079759600d7808eb950c697f54f745bcdeee6c56d4f02407c610473fda5e"
+      "bytes": 102874,
+      "sha256": "59b1feaefa9f9b1cb08d0bfa0885ae08a921465398d6597465a5c2db6eb53359"
     }
   ]
 }

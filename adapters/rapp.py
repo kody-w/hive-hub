@@ -90,7 +90,10 @@ RAPP_DELEGATE_DECLARATION = AdapterDeclaration(
             "stderr-never-returned",
         ),
     ),
-    authority_model="Installed RAPP Work/RAPP Hive tooling remains the sole authority implementation.",
+    authority_model=(
+        "Installed RAPP Work/RAPP Hive tooling remains the sole authority "
+        "implementation."
+    ),
 )
 
 

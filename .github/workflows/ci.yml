@@ -1,0 +1,110 @@
+name: Hive Hub release matrix
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - release/v0.1.0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Core and integrated adapter contracts
+        env:
+          PYTHONPATH: src:.
+        run: >-
+          python -B -m unittest -v
+          tests.test_contracts
+          tests.test_hub
+          tests.test_private_access
+          tests.test_safety_cli
+          tests.test_adapter_runtime
+          tests.test_release_integration
+      - name: Adapter conformance
+        run: python -B -m unittest discover -s adapters/tests -t . -v
+
+  skill:
+    name: Skill Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -B -m unittest tests.test_hive_hub -v
+      - run: python -B scripts/check.py
+      - run: python -B scripts/prove.py
+
+  node-static:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20.18.1", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run verify
+      - name: Browser-free local HTTP smoke
+        run: |
+          mkdir -p .hive-hub
+          python -m http.server 8123 --bind 127.0.0.1 >.hive-hub/http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            curl -fsS http://127.0.0.1:8123/.well-known/hive-hub.json >/dev/null && break
+            sleep 1
+          done
+          node scripts/smoke-http.mjs --base http://127.0.0.1:8123/
+
+  release:
+    name: Release, privacy, and packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Deterministic inventories and privacy
+        run: |
+          python -B scripts/sync_integrated_release.py --check
+          python -B scripts/update_agent_lock.py --check
+          python -B scripts/build_release_manifest.py --check
+          python -B scripts/check_public_release.py
+          git diff --check
+      - name: Build and clean-install wheel and sdist
+        run: |
+          python -m pip install build
+          SOURCE_DATE_EPOCH=1789758971 python -m build
+          python scripts/normalize_sdist.py dist/hive_hub-0.1.0.tar.gz
+          python -m venv .hive-hub/ci-install
+          .hive-hub/ci-install/bin/python -m pip install --no-deps dist/hive_hub-0.1.0-py3-none-any.whl
+          .hive-hub/ci-install/bin/hive-hub --version
+          .hive-hub/ci-install/bin/python -c "import adapters, hive_hub; assert hive_hub.__version__ == '0.1.0'"

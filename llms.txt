@@ -6,6 +6,8 @@ Canonical Pages API index: https://kody-w.github.io/hive-hub/api/hive-hub/v1/ind
 Raw Git API index: https://raw.githubusercontent.com/kody-w/hive-hub/main/api/hive-hub/v1/index.json
 Public dialbook: https://kody-w.github.io/hive-hub/api/hive-hub/v1/dialbook.json
 Machine join instructions: https://kody-w.github.io/hive-hub/hub/join/ai.json
+Integrated 0.1.0 release: https://kody-w.github.io/hive-hub/api/hive-hub/v1/releases/sha256/04/04a4eee6ac2b2b13924828ab1be868557f61053012d7e586dad97f97ed7f5d15.json (sha256:04a4eee6ac2b2b13924828ab1be868557f61053012d7e586dad97f97ed7f5d15)
+Core camera-AI join card: https://kody-w.github.io/hive-hub/api/hive-hub/v1/cards/core/sha256/6d/6d991eeaea3fe68e34d060176390f71d1672fd469e91e2fa9b7c9c0e904b4c29.json (sha256:6d991eeaea3fe68e34d060176390f71d1672fd469e91e2fa9b7c9c0e904b4c29)
 Example immutable Dial Record: https://kody-w.github.io/hive-hub/api/hive-hub/v1/records/sha256/sha256-80-bf/8a91f5821d2663ea6e106d9e1dea1c04238159a48a8f4f814f67d6f05662d1cd.json
 Example Dial Record fingerprint: sha256:8a91f5821d2663ea6e106d9e1dea1c04238159a48a8f4f814f67d6f05662d1cd
 

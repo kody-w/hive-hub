@@ -19,8 +19,7 @@ def run(command: list[str], *, cwd: Path = ROOT) -> subprocess.CompletedProcess[
         command,
         cwd=cwd,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
         check=False,
     )
@@ -37,9 +36,7 @@ def main() -> int:
             "-B",
             "-m",
             "unittest",
-            "discover",
-            "-s",
-            "tests",
+            "tests.test_hive_hub",
             "-v",
         ]
     )
@@ -85,4 +82,4 @@ if __name__ == "__main__":
     except RuntimeError as exc:
         shutil.rmtree(WORK, ignore_errors=True)
         print(f"FAIL prove: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

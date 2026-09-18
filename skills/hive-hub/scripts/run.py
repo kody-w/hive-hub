@@ -75,6 +75,9 @@ CARD_SCHEMAS = frozenset(
         "hive-hub-ai-join-card/1",
     }
 )
+CORE_AI_CARD_KIND = "ai-join-card"
+CORE_AI_CARD_SCHEMA_VERSION = 1
+CORE_ADDRESS_RE = re.compile(r"^urn:hivehub:sha256:([0-9a-f]{64})$")
 OPERATIONS = ("verify", "decode", "dial", "join")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -138,11 +141,10 @@ ACTIVE_SUFFIXES = frozenset(
         ".zsh",
     }
 )
-MICROSOL_REPOSITORY = "kody-w/microsol-organization"
-MICROSOL_CONTRACT_START = "<!-- microsol-any-ai-setup:start -->"
-MICROSOL_CONTRACT_END = "<!-- microsol-any-ai-setup:end -->"
-MICROSOL_COMMAND = ["python3", "-B", "microsol.py", "setup"]
-MICROSOL_REQUIRED_FILES = frozenset(
+VERIFIED_JOIN_CONTRACT_START = "<!-- microsol-any-ai-setup:start -->"
+VERIFIED_JOIN_CONTRACT_END = "<!-- microsol-any-ai-setup:end -->"
+VERIFIED_JOIN_COMMAND = ["python3", "-B", "microsol.py", "setup"]
+VERIFIED_JOIN_REQUIRED_FILES = frozenset(
     {
         ".github/skills/microsol/SKILL.md",
         "HOME.md",
@@ -498,14 +500,14 @@ def _validate_lock_shape(lock: dict[str, Any]) -> None:
         "runner",
         "limits",
         "adapters",
-        "microsol",
+        "verified_join",
         "files",
     }:
         raise PackageError()
     if (
         lock.get("schema") != LOCK_SCHEMA
         or lock.get("name") != "hive-hub"
-        or lock.get("version") != "1.0.0"
+        or lock.get("version") != "0.1.0"
         or lock.get("runner")
         != {
             "python": ">=3.11",
@@ -561,29 +563,27 @@ def _validate_lock_shape(lock: dict[str, Any]) -> None:
             or adapter["id"] in seen
             or not isinstance(adapter.get("contract"), dict)
             or adapter.get("implementation")
-            not in {"local-subscription", "microsol-current-main"}
+                not in {"local-subscription", "verified-current-main"}
             or digest(adapter["contract"]) != adapter["fingerprint"]
         ):
             raise PackageError()
         seen.add(adapter["id"])
-    microsol = lock.get("microsol")
+    verified_join = lock.get("verified_join")
     if (
-        not isinstance(microsol, dict)
-        or set(microsol)
+        not isinstance(verified_join, dict)
+        or set(verified_join)
         != {
-            "repository",
             "contract_sha256",
             "contract",
             "required_files",
         }
-        or microsol.get("repository") != MICROSOL_REPOSITORY
-        or SHA256_RE.fullmatch(str(microsol.get("contract_sha256"))) is None
-        or not isinstance(microsol.get("contract"), dict)
-        or digest(microsol["contract"]) != microsol["contract_sha256"]
-        or microsol["contract"].get("schema") != "microsol-any-ai-setup/2"
-        or microsol["contract"].get("command") != MICROSOL_COMMAND
-        or not isinstance(microsol.get("required_files"), list)
-        or set(microsol["required_files"]) != MICROSOL_REQUIRED_FILES
+        or SHA256_RE.fullmatch(str(verified_join.get("contract_sha256"))) is None
+        or not isinstance(verified_join.get("contract"), dict)
+        or digest(verified_join["contract"]) != verified_join["contract_sha256"]
+        or verified_join["contract"].get("schema") != "microsol-any-ai-setup/2"
+        or verified_join["contract"].get("command") != VERIFIED_JOIN_COMMAND
+        or not isinstance(verified_join.get("required_files"), list)
+        or set(verified_join["required_files"]) != VERIFIED_JOIN_REQUIRED_FILES
     ):
         raise PackageError()
 
@@ -1037,7 +1037,7 @@ def validate_declaration(
         raise ContractError()
     kind = join.get("kind")
     next_step = _text(join.get("next_step"), maximum=2048)
-    if kind not in {"subscription", "microsol-current-main"}:
+    if kind not in {"subscription", "verified-current-main"}:
         raise ContractError()
     if SECRET_VALUE_RE.search(next_step):
         raise ContractError()
@@ -1099,6 +1099,61 @@ def _validate_static_reference(value: Any, limits: dict[str, int]) -> dict[str, 
     return {"url": url, "sha256": checksum, "bytes": size}
 
 
+def _parse_core_ai_join_card(card: dict[str, Any]) -> dict[str, Any]:
+    expected_keys = {
+        "kind",
+        "schema_version",
+        "card_id",
+        "principal",
+        "locator",
+        "expected_record_id",
+        "expected_protocol_fingerprint",
+        "adapter_plan",
+        "issued_at",
+    }
+    if (
+        set(card) != expected_keys
+        or card.get("kind") != CORE_AI_CARD_KIND
+        or card.get("schema_version") != CORE_AI_CARD_SCHEMA_VERSION
+        or card.get("adapter_plan") is not None
+        or card.get("expected_record_id") is not None
+        or card.get("expected_protocol_fingerprint") is not None
+    ):
+        raise InputError()
+    principal = card.get("principal")
+    if (
+        not isinstance(principal, dict)
+        or set(principal) != {"kind", "id"}
+        or principal.get("kind") not in {"human", "ai"}
+    ):
+        raise InputError()
+    principal_id = _text(principal.get("id"), maximum=512)
+    locator = _text(card.get("locator"), maximum=4096)
+    issued_at = _text(card.get("issued_at"), maximum=32, ascii_only=True)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", issued_at) is None:
+        raise InputError()
+    body = {
+        "kind": "ai-join-card-body",
+        "schema_version": CORE_AI_CARD_SCHEMA_VERSION,
+        "principal": {"kind": principal["kind"], "id": principal_id},
+        "locator": locator,
+        "expected_record_id": None,
+        "expected_protocol_fingerprint": None,
+        "adapter_plan": None,
+        "issued_at": issued_at,
+    }
+    if card.get("card_id") != "urn:hivehub:sha256:" + digest(body):
+        raise InputError()
+    card.clear()
+    return {
+        "locator": locator,
+        "workspace_address": None,
+        "declaration_hint": None,
+        "unlock": None,
+        "source": "core-ai-join-card",
+    }
+
+
 def parse_card(
     raw: bytes,
     *,
@@ -1115,6 +1170,8 @@ def parse_card(
         )
     except ValueError:
         raise InputError() from None
+    if card.get("kind") == CORE_AI_CARD_KIND:
+        return _parse_core_ai_join_card(card)
     allowed = {
         "schema",
         "locator",
@@ -1284,6 +1341,14 @@ def load_dialbook(path: Path, limits: dict[str, int]) -> list[dict[str, Any]]:
             raise StorageError()
         item = dict(record)
         item["chants"] = normalized_chants
+        if "declaration" in item:
+            try:
+                item["declaration"] = _validate_static_reference(
+                    item["declaration"],
+                    limits,
+                )
+            except HubError:
+                raise StorageError() from None
         normalized.append(item)
         seen.add(record_id)
     return normalized
@@ -1312,6 +1377,8 @@ def resolve_dial_locator(
             details={"candidate_ids": sorted(item["id"] for item in matches)}
         )
     record = matches[0]
+    if "declaration" in record:
+        return descriptor, record.get("workspace_address"), record["declaration"]
     nested = classify_locator(record["locator"], cwd)
     if nested["kind"] in {"dial-id", "chant"}:
         raise StorageError()
@@ -1545,12 +1612,12 @@ def _join_plan(
             },
             {
                 "kind": "local-execute",
-                "command": MICROSOL_COMMAND,
+                "command": VERIFIED_JOIN_COMMAND,
                 "downloaded_learning_executed": False,
                 "remote_write": False,
             },
         ]
-        intent = "join-microsol-with-current-main"
+        intent = "join-with-verified-current-main"
     return _plan(
         intent=intent,
         target_sha256=target_sha256,
@@ -2075,19 +2142,24 @@ def _extract_contract_from_skill(raw: bytes, maximum: int) -> dict[str, Any] | N
         text = raw.decode("utf-8")
     except UnicodeError:
         raise ContractError() from None
-    if MICROSOL_CONTRACT_START not in text and MICROSOL_CONTRACT_END not in text:
+    if (
+        VERIFIED_JOIN_CONTRACT_START not in text
+        and VERIFIED_JOIN_CONTRACT_END not in text
+    ):
         return None
     if (
-        text.count(MICROSOL_CONTRACT_START) != 1
-        or text.count(MICROSOL_CONTRACT_END) != 1
+        text.count(VERIFIED_JOIN_CONTRACT_START) != 1
+        or text.count(VERIFIED_JOIN_CONTRACT_END) != 1
     ):
         raise ContractError()
-    body = text.split(MICROSOL_CONTRACT_START, 1)[1].split(
-        MICROSOL_CONTRACT_END, 1
+    body = text.split(VERIFIED_JOIN_CONTRACT_START, 1)[1].split(
+        VERIFIED_JOIN_CONTRACT_END, 1
     )[0]
     commands = re.findall(r"```sh[ \t]*\n(.*?)```", body, re.DOTALL)
     contracts = re.findall(r"```json[ \t]*\n(.*?)```", body, re.DOTALL)
-    if len(commands) != 1 or commands[0].strip() != " ".join(MICROSOL_COMMAND):
+    if len(commands) != 1 or commands[0].strip() != " ".join(
+        VERIFIED_JOIN_COMMAND
+    ):
         raise ContractError()
     if len(contracts) != 1:
         raise ContractError()
@@ -2101,14 +2173,14 @@ def _extract_contract_from_skill(raw: bytes, maximum: int) -> dict[str, Any] | N
         raise ContractError() from None
 
 
-def _microsol_contract_from_git(
+def _verified_join_contract_from_git(
     cache: Path,
     main_oid: str,
     *,
     lock: dict[str, Any],
     timeout: int,
     helpers: list[str],
-) -> tuple[dict[str, Any], dict[str, bytes]]:
+) -> tuple[dict[str, Any], dict[str, bytes]] | None:
     files: dict[str, bytes] = {}
     contract_raw = _git_blob(
         cache,
@@ -2116,9 +2188,11 @@ def _microsol_contract_from_git(
         "join-contract.json",
         maximum=lock["limits"]["json_bytes"],
         timeout=timeout,
+        optional=True,
         helpers=helpers,
     )
-    assert contract_raw is not None
+    if contract_raw is None:
+        return None
     files["join-contract.json"] = contract_raw
     try:
         contract = parse_json_object(
@@ -2128,8 +2202,10 @@ def _microsol_contract_from_git(
         )
     except ValueError:
         raise ContractError() from None
-    if canonical_bytes(contract) != canonical_bytes(lock["microsol"]["contract"]):
-        raise ContractError()
+    if canonical_bytes(contract) != canonical_bytes(
+        lock["verified_join"]["contract"]
+    ):
+        return None
     for relative in (
         "SKILL.md",
         ".github/skills/microsol/SKILL.md",
@@ -2168,14 +2244,13 @@ def _microsol_contract_from_git(
     return contract, files
 
 
-def _microsol_declaration(
+def _verified_join_declaration(
     *,
     lock: dict[str, Any],
+    repository: str,
     main_oid: str,
     files: dict[str, bytes],
 ) -> dict[str, Any]:
-    repository = lock["microsol"]["repository"]
-
     def artifact(role: str, relative: str, media_type: str) -> dict[str, Any]:
         data = files[relative]
         return {
@@ -2203,9 +2278,9 @@ def _microsol_declaration(
     adapter = next(
         item
         for item in lock["adapters"]
-        if item["implementation"] == "microsol-current-main"
+        if item["implementation"] == "verified-current-main"
     )
-    protocol_sha = lock["microsol"]["contract_sha256"]
+    protocol_sha = lock["verified_join"]["contract_sha256"]
     value = {
         "schema": DECLARATION_SCHEMA,
         "id": "dial:sha256:"
@@ -2216,7 +2291,7 @@ def _microsol_declaration(
                 "contract": protocol_sha,
             }
         ),
-        "name": "MicroSOL Hive",
+        "name": "Verified current-main Hive",
         "access": {"visibility": "private", "mode": "acl-only"},
         "protocol": {
             "id": "microsol-any-ai-setup/2",
@@ -2232,11 +2307,11 @@ def _microsol_declaration(
             "sha256": digest(learning_body),
         },
         "conformance": {
-            "id": "microsol-release-lock/1",
+            "id": "verified-release-lock/1",
             "artifact_sha256": artifacts[3]["sha256"],
         },
         "join": {
-            "kind": "microsol-current-main",
+            "kind": "verified-current-main",
             "next_step": "Use verified current-main tooling against the preserved requested branch.",
         },
     }
@@ -2314,16 +2389,18 @@ def _resolve_github(
         maximum=lock["limits"]["git_output_bytes"],
         helpers=helpers,
     )
-    if descriptor["repository"] == MICROSOL_REPOSITORY:
-        _, files = _microsol_contract_from_git(
-            cache,
-            advertised["main"],
+    verified_join = _verified_join_contract_from_git(
+        cache,
+        advertised["main"],
+        lock=lock,
+        timeout=timeout,
+        helpers=helpers,
+    )
+    if verified_join is not None:
+        _, files = verified_join
+        declaration = _verified_join_declaration(
             lock=lock,
-            timeout=timeout,
-            helpers=helpers,
-        )
-        declaration = _microsol_declaration(
-            lock=lock,
+            repository=descriptor["repository"],
             main_oid=advertised["main"],
             files=files,
         )
@@ -2407,11 +2484,6 @@ def _resolve_static(
         limits=lock["limits"],
         timeout=timeout,
     )
-    if (
-        descriptor.get("kind") == "dial-id"
-        and declaration["id"] != descriptor.get("value")
-    ):
-        raise ContractError()
     return {
         "schema": "hive-hub-resolution/1",
         "target_sha256": target_digest(descriptor, None),
@@ -2567,7 +2639,7 @@ def _verify_release_file(root: Path, relative: str, record: dict[str, Any]) -> N
         raise ContractError()
 
 
-def _verify_microsol_release(root: Path, lock: dict[str, Any]) -> None:
+def _verify_join_release(root: Path, lock: dict[str, Any]) -> None:
     listed_raw = _read_regular(
         root / "RELEASE-FILES.txt", lock["limits"]["git_output_bytes"]
     )
@@ -2582,7 +2654,7 @@ def _verify_microsol_release(root: Path, lock: dict[str, Any]) -> None:
         not listed
         or len(listed) > 10_000
         or listed != sorted(set(listed))
-        or not MICROSOL_REQUIRED_FILES.issubset(listed)
+        or not VERIFIED_JOIN_REQUIRED_FILES.issubset(listed)
     ):
         raise ContractError()
     actual: list[str] = []
@@ -2636,7 +2708,9 @@ def _verify_microsol_release(root: Path, lock: dict[str, Any]) -> None:
         )
     except ValueError:
         raise ContractError() from None
-    if canonical_bytes(contract) != canonical_bytes(lock["microsol"]["contract"]):
+    if canonical_bytes(contract) != canonical_bytes(
+        lock["verified_join"]["contract"]
+    ):
         raise ContractError()
 
 
@@ -2761,7 +2835,7 @@ def _safe_user_summary(value: Any) -> dict[str, Any]:
     return value
 
 
-def _microsol_environment(root: Path) -> dict[str, str]:
+def _verified_join_environment(root: Path) -> dict[str, str]:
     environment = _git_environment(network=False)
     state = root / "state"
     _private_directory(state, create=True)
@@ -2774,7 +2848,7 @@ def _microsol_environment(root: Path) -> dict[str, str]:
     return environment
 
 
-def _apply_microsol(
+def _apply_verified_join(
     *,
     root: Path,
     descriptor: dict[str, Any],
@@ -2787,9 +2861,8 @@ def _apply_microsol(
     source = resolution["source"]
     if (
         descriptor.get("kind") != "github"
-        or descriptor.get("repository") != MICROSOL_REPOSITORY
         or source.get("kind") != "github"
-        or source.get("repository") != MICROSOL_REPOSITORY
+        or source.get("repository") != descriptor.get("repository")
         or source.get("branch") != descriptor.get("branch")
         or COMMIT_RE.fullmatch(str(source.get("main_oid"))) is None
         or COMMIT_RE.fullmatch(str(source.get("source_oid"))) is None
@@ -2818,8 +2891,8 @@ def _apply_microsol(
         maximum=lock["limits"]["git_output_bytes"],
         helpers=helpers,
     )
-    _verify_microsol_release(main, lock)
-    environment = _microsol_environment(root)
+    _verify_join_release(main, lock)
+    environment = _verified_join_environment(root)
     python = sys.executable
     verify_code, verification = _run_json_process(
         [python, "-B", str(main / "microsol.py"), "verify"],
@@ -2857,9 +2930,9 @@ def _apply_microsol(
     )
     if before or after:
         raise ExecutionError()
-    ready_contract = lock["microsol"]["contract"]["ready"]
+    ready_contract = lock["verified_join"]["contract"]["ready"]
     if returncode != 0 or any(result.get(key) != value for key, value in ready_contract.items()):
-        prerequisites = lock["microsol"]["contract"]["prerequisites"]
+        prerequisites = lock["verified_join"]["contract"]["prerequisites"]
         if all(result.get(key) == value for key, value in prerequisites.items()):
             raise ExecutionError(
                 details={"reason": "prerequisites-required"}
@@ -3112,8 +3185,8 @@ def execute(args: argparse.Namespace, lock: dict[str, Any]) -> tuple[int, dict[s
             binding_sha256=binding_sha256,
             operation=args.operation,
         )
-    if adapter["implementation"] == "microsol-current-main":
-        return 0, _apply_microsol(
+    if adapter["implementation"] == "verified-current-main":
+        return 0, _apply_verified_join(
             root=root,
             descriptor=descriptor,
             resolution=resolution,

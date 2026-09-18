@@ -90,7 +90,7 @@ class RappDelegateTests(unittest.TestCase):
 
         def which(name: str) -> str | None:
             seen.append(name)
-            return "/Users/example/.local/bin/rapp" if name == "rapp" else None
+            return "/opt/example/bin/rapp" if name == "rapp" else None
 
         adapter = RappDelegatingAdapter.discover(which=which)
         self.assertEqual(adapter.available(), ())

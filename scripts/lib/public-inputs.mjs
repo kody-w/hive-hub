@@ -12,10 +12,14 @@ import {
 const ALLOWED_KINDS = new Set([
   "adapter",
   "conformance",
+  "core-card",
+  "core-schema",
   "learning-bundle",
   "protocol",
   "receipt",
-  "record"
+  "release",
+  "record",
+  "skill-declaration"
 ]);
 
 const FORBIDDEN_SOURCE_SEGMENTS = new Set([
@@ -53,6 +57,9 @@ function validateManifestShape(manifest) {
   }
   if (manifest.sourceRoot !== "public-src") {
     throw new Error("Public build sourceRoot must be exactly public-src");
+  }
+  if (manifest.productVersion !== "0.1.0") {
+    throw new Error("Public manifest must bind productVersion 0.1.0");
   }
   assertObject(manifest.build, "manifest.build");
   if (manifest.build.apiPath !== "api/hive-hub/v1") {
@@ -228,6 +235,7 @@ export async function loadPublicInputs(manifestPath, options = {}) {
     }
     assertObject(document, `Public input ${normalized}`);
     entries.push({
+      bytes,
       declaration,
       digest,
       document,

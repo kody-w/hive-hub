@@ -69,8 +69,7 @@ def command(
         env=env,
         input=input_text,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
 
@@ -101,10 +100,10 @@ class Fixture:
             for item in self.lock["adapters"]
             if item["implementation"] == "local-subscription"
         )
-        self.microsol = next(
+        self.verified_join = next(
             item
             for item in self.lock["adapters"]
-            if item["implementation"] == "microsol-current-main"
+            if item["implementation"] == "verified-current-main"
         )
 
     def declaration(
@@ -201,8 +200,8 @@ class Fixture:
             },
             "join": {
                 "kind": (
-                    "microsol-current-main"
-                    if adapter["implementation"] == "microsol-current-main"
+                    "verified-current-main"
+                    if adapter["implementation"] == "verified-current-main"
                     else "subscription"
                 ),
                 "next_step": next_step,
@@ -269,16 +268,16 @@ class Fixture:
         )
         return remote, main_oid, source_oid
 
-    def microsol_repository(self) -> tuple[Path, str, str, str]:
-        source = self.root / "microsol-source"
-        remote = self.root / "microsol.git"
-        branch = "kody-w-fresh-device-onboarding"
+    def verified_join_repository(self) -> tuple[Path, str, str, str]:
+        source = self.root / "verified-organism-source"
+        remote = self.root / "verified-organism.git"
+        branch = "historical/source-v1"
         source.mkdir(parents=True)
-        contract = self.lock["microsol"]["contract"]
+        contract = self.lock["verified_join"]["contract"]
         contract_text = json.dumps(contract, ensure_ascii=True, sort_keys=True, indent=2)
         block = textwrap.dedent(
             f"""\
-            {runner.MICROSOL_CONTRACT_START}
+            {runner.VERIFIED_JOIN_CONTRACT_START}
             ## Provider-neutral setup contract
 
             ```sh
@@ -288,7 +287,7 @@ class Fixture:
             ```json
             {contract_text}
             ```
-            {runner.MICROSOL_CONTRACT_END}
+            {runner.VERIFIED_JOIN_CONTRACT_END}
             """
         )
         skill = ("# MicroSOL\n\n" + block).encode()
@@ -435,8 +434,7 @@ class Fixture:
             cwd=cwd,
             env=self._environment(),
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=True,
         )
 
@@ -505,6 +503,81 @@ class HiveHubTests(unittest.TestCase):
             if isinstance(node, ast.ImportFrom) and node.module
         )
         self.assertTrue(imported.issubset(sys.stdlib_module_names | {"__future__"}))
+
+    def test_core_camera_ai_card_dials_and_joins_through_skill(self) -> None:
+        hive = self.work / "camera-card-hive"
+        self.fixture.declaration(hive, name="Camera Card Hive")
+        issued_at = "2026-09-18T19:37:51Z"
+        body = {
+            "kind": "ai-join-card-body",
+            "schema_version": 1,
+            "principal": {"kind": "ai", "id": "camera:fixture"},
+            "locator": str(hive),
+            "expected_record_id": None,
+            "expected_protocol_fingerprint": None,
+            "adapter_plan": None,
+            "issued_at": issued_at,
+        }
+        card = {
+            "kind": "ai-join-card",
+            "schema_version": 1,
+            "card_id": "urn:hivehub:sha256:" + digest(body),
+            "principal": body["principal"],
+            "locator": body["locator"],
+            "expected_record_id": None,
+            "expected_protocol_fingerprint": None,
+            "adapter_plan": None,
+            "issued_at": issued_at,
+        }
+        encoded = json.dumps(card, separators=(",", ":"))
+        decoded = result_of(command("decode", "--card-json", encoded))
+        self.assertEqual(decoded["card_source"], "core-ai-join-card")
+        device = self.work / "camera-device"
+        planned = result_of(
+            command(
+                "join",
+                "--card-json",
+                encoded,
+                "--device-root",
+                str(device),
+            )
+        )
+        self.assertEqual(planned["plan"]["intent"], "save-subscription")
+        ready = result_of(
+            command(
+                "join",
+                "--card-json",
+                encoded,
+                "--device-root",
+                str(device),
+                "--apply",
+                planned["plan_digest"],
+            )
+        )
+        self.assertTrue(ready["ready"])
+        self.assertTrue((device / "subscriptions").is_dir())
+
+    def test_published_camera_card_uses_locked_public_declaration(self) -> None:
+        encoded = (
+            ROOT
+            / "public-src"
+            / "cards"
+            / "softwarecoellc-vteam-hive-core.json"
+        ).read_text(encoding="utf-8")
+        decoded = result_of(command("decode", "--card-json", encoded))
+        self.assertEqual(decoded["card_source"], "core-ai-join-card")
+        self.assertEqual(decoded["locator"]["kind"], "dial-id")
+        planned = result_of(
+            command(
+                "dial",
+                "--card-json",
+                encoded,
+                "--device-root",
+                str(self.work / "published-card-device"),
+            )
+        )
+        self.assertEqual(planned["plan"]["intent"], "resolve-hive")
+        self.assertEqual(planned["plan"]["effects"][0]["transport"], "pinned-static-json")
 
     def test_human_non_rapp_ai_and_camera_qr_bootstrap_decode(self) -> None:
         human = result_of(
@@ -668,13 +741,15 @@ class HiveHubTests(unittest.TestCase):
         self.assertEqual(response.maximum, len(raw) + 1)
         changed = dict(reference)
         changed["sha256"] = "0" * 64
-        with mock.patch.object(runner, "build_opener", return_value=opener):
-            with self.assertRaises(runner.ContractError):
-                runner._fetch_pinned_json(
-                    changed,
-                    limits=self.fixture.lock["limits"],
-                    timeout=5,
-                )
+        with (
+            mock.patch.object(runner, "build_opener", return_value=opener),
+            self.assertRaises(runner.ContractError),
+        ):
+            runner._fetch_pinned_json(
+                changed,
+                limits=self.fixture.lock["limits"],
+                timeout=5,
+            )
 
     def test_chant_collision_never_guesses_and_full_dial_id_resolves(self) -> None:
         first = self.work / "first"
@@ -866,10 +941,10 @@ class HiveHubTests(unittest.TestCase):
         self.assertEqual(outputs[0]["blocker"]["code"], "target-unreachable")
         self.assertEqual(count_key(outputs[0], "blocker"), 1)
 
-    def test_microsol_uses_current_main_against_preserved_historical_branch(self) -> None:
+    def test_verified_join_contract_uses_current_main_and_preserves_source(self) -> None:
         if shutil.which("git") is None:
             self.skipTest("Git is unavailable")
-        remote, main_oid, source_oid, branch = self.fixture.microsol_repository()
+        remote, main_oid, source_oid, branch = self.fixture.verified_join_repository()
         env = os.environ.copy()
         env.update(
             {
@@ -877,8 +952,8 @@ class HiveHubTests(unittest.TestCase):
                 "HIVE_HUB_TEST_GIT_REMOTE": str(remote),
             }
         )
-        device = self.work / "microsol-device"
-        locator = f"kody-w/microsol-organization at {branch}"
+        device = self.work / "verified-organism-device"
+        locator = f"fixture-org/fixture-organism at {branch}"
         resolve_plan = result_of(
             command(
                 "join",
@@ -901,7 +976,7 @@ class HiveHubTests(unittest.TestCase):
                 env=env,
             )
         )
-        self.assertEqual(join_plan["plan"]["intent"], "join-microsol-with-current-main")
+        self.assertEqual(join_plan["plan"]["intent"], "join-with-verified-current-main")
         ready_process = command(
             "join",
             "--locator",
@@ -935,7 +1010,7 @@ class HiveHubTests(unittest.TestCase):
         self.assertIn(f"{source_oid} refs/heads/{branch}", refs)
 
     def test_credentials_and_unlocks_never_reach_output(self) -> None:
-        credential = "ghp_abcdefghijklmnopqrstuvwxyz123456"
+        credential = "credential-fixture-value"
         process = command(
             "join",
             "--locator",
@@ -956,10 +1031,10 @@ class HiveHubTests(unittest.TestCase):
         self.assertNotIn("must-not-be-on-command-line", unsafe.stdout)
 
     def test_cross_platform_storage_parts_and_paths_with_spaces(self) -> None:
-        windows = PureWindowsPath("C:/Users/Ada") / ".agent-storage" / "hive-hub" / "v1"
+        windows = PureWindowsPath("C:/Device/Ada") / ".agent-storage" / "hive-hub" / "v1"
         self.assertEqual(
             windows.as_posix(),
-            "C:/Users/Ada/.agent-storage/hive-hub/v1",
+            "C:/Device/Ada/.agent-storage/hive-hub/v1",
         )
         home = self.work / "Home With Spaces"
         self.assertEqual(
@@ -1021,8 +1096,7 @@ class HiveHubTests(unittest.TestCase):
             [sys.executable, "-I", "-B", str(copied / "scripts" / "run.py"), "verify"],
             cwd=self.work,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
         )
         self.assertEqual(result_of(verify)["status"], "verified")
@@ -1038,8 +1112,7 @@ class HiveHubTests(unittest.TestCase):
             ],
             cwd=self.work,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
         )
         self.assertEqual(result_of(decoded)["status"], "decoded")

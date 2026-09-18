@@ -2,9 +2,9 @@
 name: "hive-hub"
 description: "Safely dial or join a declared Hive from a GitHub address, local path, seven-word chant, full Dial Record ID, or camera/QR/AI join card. Use when someone says “dial this hive”, “join this hive on this device and tell me when you are ready”, or asks to scan a Hive QR code. The locked runner is protocol-neutral, plans every external effect first, uses existing access, never executes downloaded learning material, and returns one actionable blocker when it cannot continue."
 license: "MIT"
-compatibility: "Requires Python 3.11+; Git is required only for GitHub targets and recognized MicroSOL joining. Run with Python isolated mode (-I). Uses existing Git credentials without prompting and stores approved device-local state under ~/.agent-storage/hive-hub/v1 unless an absolute device root is supplied."
+compatibility: "Requires Python 3.11+; Git is required only for GitHub targets and exact verified current-main join contracts. Run with Python isolated mode (-I). Uses existing Git credentials without prompting and stores approved device-local state under ~/.agent-storage/hive-hub/v1 unless an absolute device root is supplied."
 metadata:
-  version: "1.0.0"
+  version: "0.1.0"
   lock: "agent.lock"
   runner: "scripts/run.py"
 allowed-tools: "Bash Read Camera"
@@ -103,9 +103,10 @@ guess.
   inert. Unknown adapters are never imported or executed.
 - Generic joins save one reversible local subscription and return the
   declaration's inert next step.
-- Recognized MicroSOL joins use verified current-`main` tooling against a
-  detached checkout of the exact requested branch. They do not rewrite
-  history, change ACLs, copy keys, or push any branch.
+- An exact locked join contract may select verified current-`main` tooling
+  against a detached checkout of the requested source. Selection is by contract
+  bytes, never by repository name. It does not rewrite history, change ACLs,
+  copy keys, or push any branch.
 - Results never contain credentials, unlock fragments, private local paths, or
   raw transport diagnostics.
 

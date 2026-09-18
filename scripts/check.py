@@ -77,8 +77,7 @@ def main() -> int:
             command,
             cwd=ROOT,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             check=False,
         )
@@ -93,4 +92,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except RuntimeError as exc:
         print(f"FAIL check: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

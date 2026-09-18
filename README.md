@@ -1,13 +1,15 @@
 # Hive Hub
 
-`hive-hub` 0.1.0 is a typed, standard-library-only Python core for discovering,
-learning, dialing, and joining protocol-neutral Hives. The distribution imports
-as `hive_hub` and installs the `hive-hub` command.
+Hive Hub 0.1.0 is one protocol-neutral release containing a typed Python core,
+optional stdlib adapters, a universal Agent Skill, and a deterministic static
+API/Pages surface. The distribution imports as `hive_hub`, includes the
+separately importable `adapters` package, and installs the `hive-hub` command.
 
-The core has no RAPP, GitHub, adapter runtime, or network dependency. A Hive
-declares its exact protocol fingerprint, content-addressed learning bundle,
-conformance contract, and inert adapter registration. Chants, URLs, QR codes,
-repositories, and static APIs are locators—not authority.
+Importing the core does not import or require an adapter, RAPP tool, GitHub
+client, or network runtime. A Hive declares its exact protocol fingerprint,
+content-addressed learning bundle, conformance contract, and inert adapter
+registration. Chants, URLs, QR codes, repositories, and static APIs are
+locators—not authority.
 
 ## Guarantees
 
@@ -26,6 +28,8 @@ repositories, and static APIs are locators—not authority.
 - No-follow reads, bounded traversal, regular-file checks, atomic no-replace
   writes, and reversible subscription writes.
 - No downloaded protocol text, skill, or adapter is executed.
+- Built-in adapter contracts are loaded lazily; unavailable RAPP tooling remains
+  inert and never becomes a core requirement.
 
 ## Install
 
@@ -57,7 +61,13 @@ PY
 hive-hub subscribe plan examples/generic/ai-join-card.json
 hive-hub bootstrap examples/generic/ai-join-card.json --apply
 hive-hub status
+hive-hub adapter builtin list
+hive-hub adapter builtin show github-repository
 ```
+
+Installing built-in adapter contracts is plan-first. The first command returns
+an exact plan id; repeat with `--apply <plan-id>` to store only inert local
+contracts and a receipt. It does not execute the adapter.
 
 Every success and failure is one JSON object. Failures use
 `{"ok":false,"error":{"code":"...","message":"..."}}` without a traceback or
@@ -123,6 +133,7 @@ Locator-only QR remains the recommended default.
 - [CLI and storage layout](docs/CLI.md)
 - [Security model](docs/SECURITY.md)
 - [0.1.0 release inventory](RELEASE_INVENTORY.md)
+- [Deterministic release manifest](release/release-manifest.json)
 - [Generic non-RAPP example](examples/README.md)
 
 ## Neutral adapter package
@@ -198,6 +209,8 @@ The committed public surface is:
 - `/.well-known/hive-hub.json`
 - `/llms.txt`
 - `/api/hive-hub/v1/`
+- `/api/hive-hub/v1/core-schemas/`
+- `/api/hive-hub/v1/release.json`
 - `/hub/`
 - `/hub/join/`
 
@@ -327,8 +340,10 @@ isolation, exact example revision, and byte-for-byte reproducibility.
 
 ## Universal Agent Skill
 
-`skills/hive-hub/` is a complete Agent Skill for a person or any AI. Copy that
-folder into a tool's skills directory and ask it to:
+`skills/hive-hub/` is a complete Agent Skill for a person or any AI. It accepts
+the core `ai-join-card` contract used by the generated camera-AI card as well
+as its compact locator-card formats. Copy that folder into a tool's skills
+directory and ask it to:
 
 - “dial this hive”
 - “join this hive on this device and tell me when you are ready”
@@ -356,12 +371,21 @@ content-addressed learning bundle.
 
 ## Verify
 
-All validation is local and dependency-free:
+The core, adapters, skill, generated static surface, release inventory, and
+privacy boundary are checked together:
 
 ```bash
-python3 -B -m unittest discover -s tests -v
+PYTHONPATH=src:. python3 -B -m unittest \
+  tests.test_contracts tests.test_hub tests.test_private_access \
+  tests.test_safety_cli tests.test_adapter_runtime -v
+python3 -B -m unittest discover -s adapters/tests -t . -v
+python3 -B -m unittest tests.test_hive_hub -v
 python3 scripts/check.py
 python3 scripts/prove.py
+npm ci --ignore-scripts
+npm run verify
+python3 scripts/check_public_release.py
+python3 scripts/build_release_manifest.py --check
 ```
 
 `prove.py` also copies the skill to a path with spaces and verifies that the

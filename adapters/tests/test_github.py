@@ -43,7 +43,7 @@ class GitHubAdapterTests(unittest.TestCase):
         token = "fixture-token-must-never-be-logged"
         adapter = GitHubRepositoryAdapter(runner=runner)
         result = adapter.probe(
-            "kody-w/example at main",
+            "fixture-org/example at main",
             environment={"GITHUB_TOKEN": token},
         )
         self.assertEqual(result.outcome, AccessOutcome.REACHABLE)
@@ -64,7 +64,7 @@ class GitHubAdapterTests(unittest.TestCase):
         self.assertNotIn(token, repr(result))
 
     def test_absent_and_unauthorized_are_indistinguishable(self) -> None:
-        address = "kody-w/private-hive at main"
+        address = "fixture-org/private-candidate at main"
 
         def result_for(return_code: int) -> dict[str, object]:
             adapter = GitHubRepositoryAdapter(

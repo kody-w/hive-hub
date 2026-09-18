@@ -31,6 +31,12 @@ const REQUIRED_ENTRY_KINDS = new Set([
   "receipt",
   "record"
 ]);
+const OPTIONAL_ENTRY_KINDS = new Set([
+  "core-card",
+  "core-schema",
+  "release",
+  "skill-declaration"
+]);
 
 function assert(condition, message) {
   if (!condition) {
@@ -91,7 +97,7 @@ function assertNoSensitivePublicFields(value, location = "$") {
 
 function groupEntries(entries) {
   const grouped = new Map();
-  for (const kind of REQUIRED_ENTRY_KINDS) {
+  for (const kind of [...REQUIRED_ENTRY_KINDS, ...OPTIONAL_ENTRY_KINDS]) {
     grouped.set(kind, []);
   }
   for (const entry of entries) {
@@ -103,6 +109,23 @@ function groupEntries(entries) {
     assert(grouped.get(kind).length > 0, `Public manifest has no ${kind} entry`);
   }
   return grouped;
+}
+
+async function writeRawContentObject(writer, {
+  apiPath,
+  category,
+  document,
+  siteBaseUrl
+}) {
+  const bytes = Buffer.from(canonicalJson(document));
+  const digest = sha256Bytes(bytes);
+  const outputPath = `${apiPath}/${category}/sha256/${digest.slice(0, 2)}/${digest}.json`;
+  await writer.write(outputPath, bytes);
+  return {
+    descriptor: descriptorFor(outputPath, digest, siteBaseUrl),
+    digest,
+    document
+  };
 }
 
 function descriptorFor(pathValue, digest, siteBaseUrl) {
@@ -222,6 +245,59 @@ function validateRecord(document) {
   assert(document.security?.credentialsIncluded === false, "Public record cannot contain credentials");
 }
 
+function validateRelease(document, manifest) {
+  assert(document.kind === "hive-hub-release", "Release input has the wrong kind");
+  assert(document.version === manifest.productVersion, "Release version does not match manifest");
+  assert(document.core?.version === manifest.productVersion, "Core release version is inconsistent");
+  assert(document.skill?.version === manifest.productVersion, "Skill release version is inconsistent");
+  assert(document.adapters?.optional === true, "Adapter package must remain optional");
+  assert(document.static?.publicInputsOnly === true, "Static release must be public-input-only");
+  assert(
+    document.publicSample?.repository === "billwhalenmsft/softwarecoellc-vteam-hive" &&
+      document.publicSample?.revision === "f66da3d879b53a439bc87de764d79f68ceec048a",
+    "Release metadata does not bind the allowed public sample"
+  );
+}
+
+function validateSkillDeclaration(document) {
+  assert(document.schema === "hive-hub-declaration/1", "Skill declaration has the wrong schema");
+  assert(/^dial:sha256:[a-f0-9]{64}$/.test(document.id), "Skill declaration id is invalid");
+  assert(document.access?.visibility === "public", "Skill declaration must be public");
+  assert(document.access?.mode === "acl-only", "Skill declaration must use acl-only");
+  assert(document.join?.kind === "subscription", "Public skill declaration must remain inert");
+  assert(document.extensions?.authority === false, "Skill declaration must not claim authority");
+}
+
+function validateCoreCard(document) {
+  const keys = Object.keys(document).sort().join(",");
+  assert(
+    keys ===
+      "adapter_plan,card_id,expected_protocol_fingerprint,expected_record_id,issued_at,kind,locator,principal,schema_version",
+    "Core AI join card is not a closed contract"
+  );
+  assert(document.kind === "ai-join-card" && document.schema_version === 1, "Core card kind is invalid");
+  assert(document.adapter_plan === null, "Public camera card cannot carry adapter effects");
+  assert(
+    document.expected_record_id === null && document.expected_protocol_fingerprint === null,
+    "Public camera card cannot claim undeclared core identities"
+  );
+  const body = {
+    kind: "ai-join-card-body",
+    schema_version: 1,
+    principal: document.principal,
+    locator: document.locator,
+    expected_record_id: null,
+    expected_protocol_fingerprint: null,
+    adapter_plan: null,
+    issued_at: document.issued_at
+  };
+  const bodyDigest = sha256Bytes(Buffer.from(canonicalJson(body).trimEnd()));
+  assert(
+    document.card_id === `urn:hivehub:sha256:${bodyDigest}`,
+    "Core AI join card id does not match its canonical body"
+  );
+}
+
 async function writeContentObject(writer, {
   apiPath,
   category,
@@ -300,6 +376,94 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   const { apiPath, generatedAt, rawBaseUrl, siteBaseUrl } = manifest.build;
   const objects = new Map();
   const immutableObjects = [];
+
+  for (const entry of loaded.entries) {
+    await writer.writeJson(`${apiPath}/source/${entry.path}`, entry.document);
+  }
+
+  const coreSchemaDescriptors = [];
+  for (const entry of grouped.get("core-schema")) {
+    assert(
+      entry.document.$schema === "https://json-schema.org/draft/2020-12/schema",
+      `${entry.path} is not a core JSON Schema`
+    );
+    const name = path.posix.basename(entry.path);
+    const outputPath = `${apiPath}/core-schemas/${name}`;
+    const stored = await writer.write(outputPath, entry.bytes);
+    coreSchemaDescriptors.push({
+      name,
+      ...descriptorFor(outputPath, stored.digest, siteBaseUrl)
+    });
+  }
+  coreSchemaDescriptors.sort((left, right) => left.name.localeCompare(right.name));
+  const coreSchemasIndex = await writeStableJson(
+    writer,
+    `${apiPath}/core-schemas/index.json`,
+    {
+      kind: "core-schema-index",
+      productVersion: manifest.productVersion,
+      schemas: coreSchemaDescriptors
+    },
+    siteBaseUrl
+  );
+
+  assert(grouped.get("release").length === 1, "Public build requires one integrated release");
+  const releaseEntry = grouped.get("release")[0];
+  validateRelease(releaseEntry.document, manifest);
+  const releaseStored = await writeRawContentObject(writer, {
+    apiPath,
+    category: "releases",
+    document: releaseEntry.document,
+    siteBaseUrl
+  });
+  const releaseObject = contentObject(
+    "release",
+    releaseEntry.declaration.id,
+    releaseStored
+  );
+  immutableObjects.push(releaseObject);
+  const releaseIndex = await writeStableJson(
+    writer,
+    `${apiPath}/release.json`,
+    {
+      current: releaseObject.descriptor,
+      kind: "release-index",
+      version: manifest.productVersion
+    },
+    siteBaseUrl
+  );
+
+  const skillDeclarations = new Map();
+  for (const entry of grouped.get("skill-declaration")) {
+    validateSkillDeclaration(entry.document);
+    const stored = await writeRawContentObject(writer, {
+      apiPath,
+      category: "declarations",
+      document: entry.document,
+      siteBaseUrl
+    });
+    const object = contentObject(
+      "skill-declaration",
+      entry.declaration.id,
+      stored
+    );
+    skillDeclarations.set(object.id, object);
+    immutableObjects.push(object);
+  }
+
+  const coreCards = new Map();
+  for (const entry of grouped.get("core-card")) {
+    validateCoreCard(entry.document);
+    const stored = await writeRawContentObject(writer, {
+      apiPath,
+      category: "cards/core",
+      document: entry.document,
+      siteBaseUrl
+    });
+    const object = contentObject("core-card", entry.declaration.id, stored);
+    coreCards.set(object.id, object);
+    immutableObjects.push(object);
+  }
 
   const schemas = createSchemas(publicUrl(siteBaseUrl, `${apiPath}/schemas`));
   const schemaDescriptors = [];
@@ -495,10 +659,22 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     assert(!cardIds.has(declaration.cardId), `Duplicate card id ${declaration.cardId}`);
     cardIds.add(declaration.cardId);
     assert(
-      Object.keys(declaration).sort().join(",") === "cardId,chant,recordId,slug,title",
+      Object.keys(declaration).sort().join(",") ===
+        "cardId,chant,coreCardId,recordId,skillDeclarationId,skillDialId,slug,title",
       `Public card ${declaration.cardId} contains unsupported fields`
     );
     const record = assertReference(objects, declaration.recordId, "record", declaration.cardId);
+    const coreCard = coreCards.get(declaration.coreCardId);
+    const skillDeclaration = skillDeclarations.get(declaration.skillDeclarationId);
+    assert(coreCard, `Card ${declaration.cardId} references an unknown core card`);
+    assert(
+      skillDeclaration,
+      `Card ${declaration.cardId} references an unknown skill declaration`
+    );
+    assert(
+      coreCard.document.locator === declaration.skillDialId,
+      `Card ${declaration.cardId} core locator does not match its locked skill Dial ID`
+    );
     assert(
       record.document.chants.some((chant) => chant.value === declaration.chant),
       `Card ${declaration.cardId} chant is not declared by its record`
@@ -512,6 +688,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         offlineSeed: publicUrl(siteBaseUrl, `${apiPath}/offline-seed.json`)
       },
       cardId: declaration.cardId,
+      cameraAiCard: coreCard.descriptor,
       chant: {
         semantics: "candidate-array-locator-only",
         value: declaration.chant
@@ -522,6 +699,8 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       learningBundle: record.document.learningBundle,
       protocol: record.document.protocol,
       record: record.descriptor,
+      release: releaseObject.descriptor,
+      skillDeclaration: skillDeclaration.descriptor,
       steps: [
         "Verify this card and every referenced object with SHA-256.",
         "Read the exact protocol declaration, learning bundle, conformance contract, and adapter.",
@@ -553,6 +732,18 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     const qrSvg = createQrSvg(qrUrl, "M");
     const qrPath = `${apiPath}/cards/qr/${declaration.slug}.svg`;
     const qrResult = await writer.write(qrPath, qrSvg);
+    const cameraEnvelope = {
+      card: coreCard.descriptor.url,
+      sha256: coreCard.digest,
+      v: 1
+    };
+    const cameraQrFragment = `#v1.${base64url(canonicalJson(cameraEnvelope).trimEnd())}`;
+    const cameraQrUrl = `${siteBaseUrl.replace(/\/+$/, "")}/hub/join/${cameraQrFragment}`;
+    const cameraQrPath = `${apiPath}/cards/qr/${declaration.slug}-camera-ai.svg`;
+    const cameraQrResult = await writer.write(
+      cameraQrPath,
+      createQrSvg(cameraQrUrl, "M")
+    );
     const object = {
       ...contentObject("card", declaration.cardId, stored),
       qr: {
@@ -560,6 +751,14 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         sha256: qrResult.digest,
         url: publicUrl(siteBaseUrl, qrPath)
       },
+      cameraAiCard: coreCard,
+      cameraQr: {
+        path: cameraQrPath,
+        sha256: cameraQrResult.digest,
+        url: publicUrl(siteBaseUrl, cameraQrPath)
+      },
+      cameraQrFragment,
+      cameraQrUrl,
       qrFragment,
       qrUrl,
       record
@@ -689,6 +888,8 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     {
       cards: cards.map((card) => ({
         card: card.descriptor,
+        cameraAiCard: card.cameraAiCard.descriptor,
+        cameraQr: card.cameraQr,
         classification: "public-locator-only",
         qr: card.qr,
         record: card.record.descriptor
@@ -771,6 +972,8 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         adapters: grouped.get("adapter").length,
         buckets: bucketIndexes.length,
         cards: cards.length,
+        coreCards: coreCards.size,
+        coreSchemas: coreSchemaDescriptors.length,
         records: records.length,
         receipts: receipts.length
       },
@@ -810,6 +1013,8 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
 
   const joinAiDocument = {
     apiIndex: publicUrl(siteBaseUrl, `${apiPath}/index.json`),
+    cameraAiCard: cards[0].cameraAiCard.descriptor,
+    coreSchemas: coreSchemasIndex.descriptor,
     interpretation: [
       "Decode #v1.<base64url JSON> locally and replace browser history before network access.",
       "Accept envelope keys card, sha256, and v only.",
@@ -819,8 +1024,9 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     ],
     kind: "ai-join-instructions",
     llms: publicUrl(siteBaseUrl, "llms.txt"),
+    release: releaseObject.descriptor,
     runtimeDependencies: [],
-    version: "1.0.0"
+    version: manifest.productVersion
   };
   const joinAi = await writeStableJson(
     writer,
@@ -844,12 +1050,15 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         url: publicUrl(siteBaseUrl, `${apiPath}/hashes.json`)
       },
       offlineSeed: offlineSeed.descriptor,
+      coreSchemas: coreSchemasIndex.descriptor,
+      release: releaseIndex.descriptor,
       receipts: receiptsIndex.descriptor,
       schemas: schemasIndex.descriptor,
       status: status.descriptor
     },
     generatedAt,
     kind: "hive-hub-index",
+    productVersion: manifest.productVersion,
     objectStores: {
       adapters: {
         addressing: "sha256",
@@ -859,6 +1068,10 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         addressing: "sha256",
         pathPattern: `${apiPath}/cards/sha256/{first-byte}/{digest}.json`
       },
+      coreCards: {
+        addressing: "sha256",
+        pathPattern: `${apiPath}/cards/core/sha256/{first-byte}/{digest}.json`
+      },
       conformance: {
         addressing: "sha256",
         pathPattern: `${apiPath}/conformance/sha256/{first-byte}/{digest}.json`
@@ -866,6 +1079,10 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       learningBundles: {
         addressing: "sha256",
         pathPattern: `${apiPath}/learning-bundles/sha256/{first-byte}/{digest}.json`
+      },
+      skillDeclarations: {
+        addressing: "sha256",
+        pathPattern: `${apiPath}/declarations/sha256/{first-byte}/{digest}.json`
       },
       protocols: {
         addressing: "sha256",
@@ -896,10 +1113,12 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
 
   await writer.writeJson(".well-known/hive-hub.json", {
     apiVersion: "1.0.0",
+    coreSchemas: coreSchemasIndex.descriptor,
     join: publicUrl(siteBaseUrl, "hub/join/"),
     kind: "hive-hub-well-known",
     llms: publicUrl(siteBaseUrl, "llms.txt"),
     pagesIndex: apiIndex.descriptor,
+    release: releaseObject.descriptor,
     rawIndex: publicUrl(rawBaseUrl, indexPath)
   });
 
@@ -907,7 +1126,9 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     apiIndexUrl: apiIndex.descriptor.url,
     dialbookUrl: dialbook.descriptor.url,
     exampleRecord: records[0].descriptor,
+    cameraAiCard: cards[0].cameraAiCard.descriptor,
     joinAiUrl: joinAi.descriptor.url,
+    release: releaseObject.descriptor,
     rawIndexUrl: publicUrl(rawBaseUrl, indexPath)
   });
   await writer.write("llms.txt", llmsText);
@@ -975,6 +1196,14 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         sha256: card.digest,
         v: 1
       },
+      cameraAiCard: card.cameraAiCard.descriptor,
+      cameraEnvelope: {
+        card: card.cameraAiCard.descriptor.url,
+        sha256: card.cameraAiCard.digest,
+        v: 1
+      },
+      cameraQrFragment: card.cameraQrFragment,
+      cameraQrPath: card.cameraQr.path,
       qrFragment: card.qrFragment,
       qrPath: card.qr.path,
       qrUrl: card.qrUrl

@@ -46,6 +46,24 @@ are opened with no-follow semantics and must be regular files.
 `bootstrap CARD` combines dial and planning for one card. Add `--apply` to save
 the local subscription. It never performs an adapter effect.
 
+## Optional built-in adapter contracts
+
+The integrated adapter package is loaded only when a built-in adapter command
+is selected:
+
+```bash
+hive-hub adapter builtin list
+hive-hub adapter builtin show github-repository
+hive-hub adapter builtin install github-repository
+hive-hub adapter builtin install github-repository --apply PLAN_ID
+```
+
+The first install invocation returns a content-addressed local-write plan.
+Applying its exact id stores only the protocol declaration, inert learning
+bundle, adapter registration, and receipt. It does not probe a source or
+execute an adapter. If the optional adapter package is absent, the core and all
+other commands continue to work.
+
 ## Private input
 
 The core does not authenticate against a source. An adapter must first evaluate

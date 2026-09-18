@@ -10,6 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "hive-hub"
+sys.path.insert(0, str(ROOT))
+
+from adapters.github import GITHUB_FINGERPRINT  # noqa: E402
 
 
 def canonical(value: object) -> bytes:
@@ -37,11 +40,24 @@ SUBSCRIPTION_CONTRACT = {
     "reversible": True,
 }
 
-MICROSOL_ADAPTER_CONTRACT = {
+GITHUB_SUBSCRIPTION_CONTRACT = {
     "schema": "hive-hub-adapter-contract/1",
-    "id": "hive-hub.microsol-current-main/1",
+    "id": "hive-hub.github-repository/1",
+    "input": "verified-hive-declaration",
+    "source_adapter": "github-repository",
+    "source_fingerprint": GITHUB_FINGERPRINT.value,
+    "effect": "one-device-local-subscription",
+    "network_after_resolution": False,
+    "executes_downloaded_content": False,
+    "remote_write": False,
+    "reversible": True,
+}
+
+VERIFIED_JOIN_ADAPTER_CONTRACT = {
+    "schema": "hive-hub-adapter-contract/1",
+    "id": "hive-hub.verified-current-main/1",
     "input": "verified-microsol-any-ai-setup/2",
-    "repository": "kody-w/microsol-organization",
+    "selection": "exact-verified-join-contract",
     "tooling": "verified-current-main",
     "workspace": "detached-requested-branch",
     "existing_acl_only": True,
@@ -51,7 +67,7 @@ MICROSOL_ADAPTER_CONTRACT = {
     "executes_downloaded_learning": False,
 }
 
-MICROSOL_CONTRACT = {
+VERIFIED_JOIN_CONTRACT = {
     "blocked": {
         "can_post": False,
         "ok": False,
@@ -64,7 +80,7 @@ MICROSOL_CONTRACT = {
     "historical_update": {
         "in_place_schema_mutation": False,
         "preserve_original_in_place": True,
-        "source_lineage": "kody-w-fresh-device-onboarding",
+        "source_lineage": "requested-source-lineage",
         "unknown_state": "quarantine-or-refuse",
     },
     "host_dependencies": {
@@ -160,7 +176,7 @@ def build_lock() -> dict[str, object]:
     return {
         "schema": "hive-hub-agent-lock/1",
         "name": "hive-hub",
-        "version": "1.0.0",
+        "version": "0.1.0",
         "runner": {
             "python": ">=3.11",
             "isolated": True,
@@ -186,16 +202,21 @@ def build_lock() -> dict[str, object]:
                 "implementation": "local-subscription",
             },
             {
-                "id": MICROSOL_ADAPTER_CONTRACT["id"],
-                "fingerprint": digest(MICROSOL_ADAPTER_CONTRACT),
-                "contract": MICROSOL_ADAPTER_CONTRACT,
-                "implementation": "microsol-current-main",
+                "id": GITHUB_SUBSCRIPTION_CONTRACT["id"],
+                "fingerprint": digest(GITHUB_SUBSCRIPTION_CONTRACT),
+                "contract": GITHUB_SUBSCRIPTION_CONTRACT,
+                "implementation": "local-subscription",
+            },
+            {
+                "id": VERIFIED_JOIN_ADAPTER_CONTRACT["id"],
+                "fingerprint": digest(VERIFIED_JOIN_ADAPTER_CONTRACT),
+                "contract": VERIFIED_JOIN_ADAPTER_CONTRACT,
+                "implementation": "verified-current-main",
             },
         ],
-        "microsol": {
-            "repository": "kody-w/microsol-organization",
-            "contract_sha256": digest(MICROSOL_CONTRACT),
-            "contract": MICROSOL_CONTRACT,
+        "verified_join": {
+            "contract_sha256": digest(VERIFIED_JOIN_CONTRACT),
+            "contract": VERIFIED_JOIN_CONTRACT,
             "required_files": sorted(
                 {
                     ".github/skills/microsol/SKILL.md",

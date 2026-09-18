@@ -56,9 +56,9 @@ test("generated surface passes links, hashes, security, and accessibility gates"
     manifestPath,
     root: buildA
   });
-  assert.equal(result.inputCount, 6);
-  assert.ok(result.immutableObjectCount >= 6);
-  assert.equal(result.qrCount, 1);
+  assert.equal(result.inputCount, 24);
+  assert.ok(result.immutableObjectCount >= 9);
+  assert.equal(result.qrCount, 2);
 });
 
 test("example record is exact and grants no authority or semantic compatibility", async () => {
@@ -121,6 +121,7 @@ test("public build input reader never scans adjacent private books", async () =>
     ],
     federation: { members: [] },
     manifestVersion: "1.0.0",
+    productVersion: "0.1.0",
     sourceRoot: "public-src"
   };
   await writeFile(fixtureManifestPath, canonicalJson(fixtureManifest));
@@ -147,6 +148,10 @@ test("public QR envelope is locator-only and sensitive cards stay local", async 
   const publicEnvelope = resultA.cards[0].envelope;
   assert.deepEqual(Object.keys(publicEnvelope).sort(), ["card", "sha256", "v"]);
   assert.equal(publicEnvelope.v, 1);
+  const cameraEnvelope = resultA.cards[0].cameraEnvelope;
+  assert.deepEqual(Object.keys(cameraEnvelope).sort(), ["card", "sha256", "v"]);
+  assert.equal(cameraEnvelope.v, 1);
+  assert.match(resultA.cards[0].cameraQrFragment, /^#v1\.[A-Za-z0-9_-]+$/);
 
   const localOut = path.join(work, "sensitive");
   const local = await generateSensitiveCard({

@@ -63,6 +63,18 @@ def _parser() -> JSONArgumentParser:
         "--scope", choices=["local", "public", "private"], default="local"
     )
     adapter_register.add_argument("--registered-at")
+    builtin = adapter_subcommands.add_parser(
+        "builtin",
+        help="inspect or install optional built-in adapter contracts",
+    )
+    builtin_subcommands = builtin.add_subparsers(dest="builtin_command", required=True)
+    builtin_subcommands.add_parser("list")
+    builtin_show = builtin_subcommands.add_parser("show")
+    builtin_show.add_argument("adapter_id")
+    builtin_install = builtin_subcommands.add_parser("install")
+    builtin_install.add_argument("adapter_id")
+    builtin_install.add_argument("--apply")
+    builtin_install.add_argument("--registered-at")
 
     register = subcommands.add_parser("register", help="register a dial record")
     register.add_argument("scope", choices=["local", "public", "private"])
@@ -180,6 +192,50 @@ def _handle(args: argparse.Namespace) -> Any:
             scope=args.scope,
             registered_at=args.registered_at,
         ).to_dict()
+    if args.command == "adapter" and args.adapter_command == "builtin":
+        from .adapter_runtime import (
+            builtin_adapter_contracts,
+            builtin_install_plan,
+            get_builtin_adapter,
+        )
+
+        if args.builtin_command == "list":
+            return {
+                "kind": "builtin-adapter-list",
+                "schema_version": 1,
+                "adapters": [
+                    item.summary() for item in builtin_adapter_contracts()
+                ],
+                "adapter_execution": False,
+            }
+        contracts = get_builtin_adapter(args.adapter_id)
+        if args.builtin_command == "show":
+            return contracts.to_dict()
+        builtin_plan = builtin_install_plan(contracts)
+        if args.apply is None:
+            return builtin_plan
+        if args.apply != builtin_plan["plan_id"]:
+            raise ValidationError("built-in adapter approval does not match the current plan")
+        learning = hub.learn_protocol(
+            contracts.declaration,
+            contracts.learning_bundle,
+        )
+        receipt = hub.register_adapter(
+            contracts.registration,
+            registered_at=args.registered_at,
+        )
+        return {
+            "kind": "builtin-adapter-install-result",
+            "schema_version": 1,
+            "status": "installed",
+            "adapter_id": contracts.adapter_id,
+            "plan_id": contracts.plan_id,
+            "protocol_fingerprint": learning["protocol_fingerprint"],
+            "learning_bundle_address": learning["learning_bundle_address"],
+            "adapter_registration_address": contracts.registration.address,
+            "receipt": receipt.to_dict(),
+            "adapter_execution": False,
+        }
     if args.command == "register":
         record = DialRecord.from_dict(_read_document(args.record))
         if record.visibility != args.scope:

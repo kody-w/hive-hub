@@ -2,32 +2,32 @@
   "schema": "rapp-payphone-dial-conformance/1.0",
   "vectors": [
     {
-      "rappid": "rappid:@kody-w/echo-brainstem:15461d6259ec49bdaf8ea032571b3f0315461d6259ec49bdaf8ea032571b3f03",
+      "rappid": "rappid:@fixture/example:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
       "door_ref": {
         "schema": "rapp-door-ref/1.0",
-        "rappid": "rappid:@kody-w/echo-brainstem:15461d6259ec49bdaf8ea032571b3f0315461d6259ec49bdaf8ea032571b3f03",
-        "owner": "kody-w",
-        "repo": "echo-brainstem",
-        "door_id": "15461d6259ec49bdaf8ea032571b3f0315461d6259ec49bdaf8ea032571b3f03",
+        "rappid": "rappid:@fixture/example:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "owner": "fixture",
+        "repo": "example",
+        "door_id": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
         "tethers": {
           "webrtc": {
             "channel": "5a-tether",
-            "peer_id": "rapp-door-15461d6259ec49bdaf8ea032571b3f03"
+            "peer_id": "rapp-door-abcdef0123456789abcdef0123456789"
           },
           "issues": {
             "channel": "5b-issues",
-            "repo": "kody-w/echo-brainstem",
-            "label": "rapp-dial/15461d6259ec49bd"
+            "repo": "fixture/example",
+            "label": "rapp-dial/abcdef0123456789"
           },
           "pr": {
             "channel": "5b-pr",
-            "repo": "kody-w/echo-brainstem",
+            "repo": "fixture/example",
             "base": "main",
             "head_prefix": "rapp-dial/"
           },
           "raw": {
             "channel": "5a-raw",
-            "base": "https://raw.githubusercontent.com/kody-w/echo-brainstem/main/.neighborhood/"
+            "base": "https://raw.githubusercontent.com/fixture/example/main/.neighborhood/"
           }
         }
       }

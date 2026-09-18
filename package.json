@@ -1,6 +1,6 @@
 {
   "name": "hive-hub-static-web",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -14,7 +14,9 @@
     "check:receipts": "node scripts/check-receipts.mjs --manifest public-manifest.json",
     "pin:public": "node scripts/pin-public-inputs.mjs --manifest public-manifest.json",
     "test": "node --test",
-    "verify": "npm run build && npm run check && npm test && npm run check:generated && npm run check:receipts"
+    "sync:release": "python3 -B scripts/sync_integrated_release.py && python3 -B scripts/update_agent_lock.py && node scripts/pin-public-inputs.mjs --manifest public-manifest.json",
+    "check:release": "python3 -B scripts/sync_integrated_release.py --check && python3 -B scripts/update_agent_lock.py --check",
+    "verify": "npm run check:release && npm run build && npm run check && npm test && npm run check:generated && npm run check:receipts"
   },
   "devDependencies": {
     "qrcode-generator": "1.4.4"

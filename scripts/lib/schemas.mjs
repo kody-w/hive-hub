@@ -281,6 +281,7 @@ export function createSchemas(schemaBaseUrl) {
         "entries",
         "federation",
         "manifestVersion",
+        "productVersion",
         "sourceRoot"
       ],
       {
@@ -305,6 +306,7 @@ export function createSchemas(schemaBaseUrl) {
         },
         federation: { type: "object" },
         manifestVersion: { const: "1.0.0" },
+        productVersion: { const: "0.1.0" },
         sourceRoot: { const: "public-src" }
       }
     ),

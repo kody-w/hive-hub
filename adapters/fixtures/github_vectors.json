@@ -2,57 +2,57 @@
   "schema": "hive-hub-github-conformance/1.0",
   "parse": [
     {
-      "input": "Kody-W/Example.git",
-      "owner": "kody-w",
+      "input": "Fixture-Org/Example.git",
+      "owner": "fixture-org",
       "repository": "example",
       "branch": null,
-      "canonical_url": "https://github.com/kody-w/example",
+      "canonical_url": "https://github.com/fixture-org/example",
       "tree_url": null,
-      "display": "kody-w/example"
+      "display": "fixture-org/example"
     },
     {
-      "input": "kody-w/example at feature/hive-hub",
-      "owner": "kody-w",
+      "input": "fixture-org/example at feature/hive-hub",
+      "owner": "fixture-org",
       "repository": "example",
       "branch": "feature/hive-hub",
-      "canonical_url": "https://github.com/kody-w/example",
-      "tree_url": "https://github.com/kody-w/example/tree/feature/hive-hub",
-      "display": "kody-w/example at feature/hive-hub"
+      "canonical_url": "https://github.com/fixture-org/example",
+      "tree_url": "https://github.com/fixture-org/example/tree/feature/hive-hub",
+      "display": "fixture-org/example at feature/hive-hub"
     },
     {
-      "input": "https://github.com/kody-w/example/tree/release/v1",
-      "owner": "kody-w",
+      "input": "https://github.com/fixture-org/example/tree/release/v1",
+      "owner": "fixture-org",
       "repository": "example",
       "branch": "release/v1",
-      "canonical_url": "https://github.com/kody-w/example",
-      "tree_url": "https://github.com/kody-w/example/tree/release/v1",
-      "display": "kody-w/example at release/v1"
+      "canonical_url": "https://github.com/fixture-org/example",
+      "tree_url": "https://github.com/fixture-org/example/tree/release/v1",
+      "display": "fixture-org/example at release/v1"
     },
     {
-      "input": "kody-w/example/tree/feature/nested",
-      "owner": "kody-w",
+      "input": "fixture-org/example/tree/feature/nested",
+      "owner": "fixture-org",
       "repository": "example",
       "branch": "feature/nested",
-      "canonical_url": "https://github.com/kody-w/example",
-      "tree_url": "https://github.com/kody-w/example/tree/feature/nested",
-      "display": "kody-w/example at feature/nested"
+      "canonical_url": "https://github.com/fixture-org/example",
+      "tree_url": "https://github.com/fixture-org/example/tree/feature/nested",
+      "display": "fixture-org/example at feature/nested"
     },
     {
-      "input": "git@github.com:kody-w/example.git",
-      "owner": "kody-w",
+      "input": "git@github.com:fixture-org/example.git",
+      "owner": "fixture-org",
       "repository": "example",
       "branch": null,
-      "canonical_url": "https://github.com/kody-w/example",
+      "canonical_url": "https://github.com/fixture-org/example",
       "tree_url": null,
-      "display": "kody-w/example"
+      "display": "fixture-org/example"
     }
   ],
   "invalid": [
     "",
-    "https://example.com/kody-w/example",
+    "https://example.com/fixture-org/example",
     "kody_w/example",
-    "kody-w/example/issues/1",
-    "kody-w/example at ../main"
+    "fixture-org/example/issues/1",
+    "fixture-org/example at ../main"
   ],
   "probe": {
     "reachable_returncode": 0,

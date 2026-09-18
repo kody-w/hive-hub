@@ -1,10 +1,23 @@
 include AGENTS.md
 include CHANGELOG.md
 include LICENSE
+include package.json
+include package-lock.json
+include public-manifest.json
 include README.md
 include RELEASE_INVENTORY.md
+include llms.txt
+include .nojekyll
+recursive-include .github *.yml
+recursive-include .well-known *.json
+recursive-include api *.json *.svg
 recursive-include docs *.md
 recursive-include examples *.json *.md *.py
-recursive-include scripts *.py
+recursive-include adapters *.json *.md *.py py.typed
+recursive-include hub *.css *.html *.js *.json
+recursive-include public-src *.json
+recursive-include release *.json
+recursive-include scripts *.mjs *.py
+recursive-include skills/hive-hub *.json *.md *.py
 recursive-include src/hive_hub/schema *.json
 recursive-include tests *.py

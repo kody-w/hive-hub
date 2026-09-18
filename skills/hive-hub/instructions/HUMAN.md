@@ -9,6 +9,10 @@ Give your AI any one of these:
 - a full Dial Record ID; or
 - a camera/QR/AI join card.
 
+The public camera-AI card uses the same closed `ai-join-card` contract as the
+Python core. The skill verifies its content-addressed id before using its
+locator.
+
 Useful phrases include:
 
 - “dial this hive”

@@ -203,9 +203,11 @@ export async function checkStaticSurface({ root, manifestPath }) {
     "api/hive-hub/v1/federation/index.json",
     "api/hive-hub/v1/federation/buckets.json",
     "api/hive-hub/v1/cards/index.json",
+    "api/hive-hub/v1/core-schemas/index.json",
     "api/hive-hub/v1/hashes.json",
     "api/hive-hub/v1/offline-seed.json",
     "api/hive-hub/v1/receipts/index.json",
+    "api/hive-hub/v1/release.json",
     "api/hive-hub/v1/status.json",
     "hub/index.html",
     "hub/join/index.html",
@@ -364,7 +366,36 @@ export async function checkStaticSurface({ root, manifestPath }) {
     const card = jsonDocuments.get(cardEntry.card.path);
     assert(card.classification === "public-locator-only", "Card is not locator-only");
     assertNoSensitiveCardFields(card, cardEntry.card.path);
+    const coreCard = jsonDocuments.get(cardEntry.cameraAiCard.path);
+    assert(
+      coreCard.kind === "ai-join-card" &&
+        coreCard.schema_version === 1 &&
+        coreCard.adapter_plan === null,
+      "Camera AI card does not use the integrated core contract"
+    );
+    assert(
+      card.cameraAiCard.ref === cardEntry.cameraAiCard.ref,
+      "Web card and card index disagree about the camera AI card"
+    );
+    assert(files.has(cardEntry.cameraQr.path), "Camera AI QR SVG is missing");
   }
+
+  const releaseIndex = jsonDocuments.get(`${manifest.build.apiPath}/release.json`);
+  const release = jsonDocuments.get(releaseIndex.current.path);
+  assert(release.version === manifest.productVersion, "Integrated release version drifted");
+  assert(release.adapters.optional === true, "Release makes adapters mandatory");
+  assert(release.static.publicInputsOnly === true, "Release is not public-input-only");
+  assert(
+    release.publicSample.repository === "billwhalenmsft/softwarecoellc-vteam-hive" &&
+      release.publicSample.revision === "f66da3d879b53a439bc87de764d79f68ceec048a",
+    "Integrated release changed the only real public sample"
+  );
+  const coreSchemas = jsonDocuments.get(`${manifest.build.apiPath}/core-schemas/index.json`);
+  assert(coreSchemas.productVersion === manifest.productVersion, "Core schema release drifted");
+  assert(
+    coreSchemas.schemas.some((entry) => entry.name === "ai-join-card.schema.json"),
+    "Core AI join card schema is not published"
+  );
 
   const offlineSeed = jsonDocuments.get(`${manifest.build.apiPath}/offline-seed.json`);
   for (const [reference, document] of Object.entries(offlineSeed.objects)) {

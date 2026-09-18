@@ -28,14 +28,20 @@ dependencies = []
 hive-hub = "hive_hub.cli:main"
 
 [tool.setuptools]
-package-dir = { "" = "src" }
+package-dir = { hive_hub = "src/hive_hub", adapters = "adapters" }
 include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["src"]
+packages = ["hive_hub", "adapters"]
 
 [tool.setuptools.package-data]
 hive_hub = ["py.typed", "schema/*.json"]
+adapters = [
+  "py.typed",
+  "fixtures/*.json",
+  "fixtures/filesystem_workspace/*.json",
+  "fixtures/legacy_hub/**/*.json",
+  "fixtures/legacy_hub/**/*.py",
+  "fixtures/legacy_hub_escape/**/*.json",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"
@@ -51,4 +57,13 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.10"
 strict = true
-files = ["src", "tests"]
+files = [
+  "src",
+  "adapters",
+  "tests/test_contracts.py",
+  "tests/test_hub.py",
+  "tests/test_private_access.py",
+  "tests/test_safety_cli.py",
+  "tests/test_adapter_runtime.py",
+  "tests/test_release_integration.py",
+]

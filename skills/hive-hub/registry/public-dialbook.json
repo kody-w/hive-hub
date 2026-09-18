@@ -1,4 +1,1 @@
-{
-  "schema": "hive-hub-dialbook/1",
-  "records": []
-}
+{"records":[{"chants":[],"declaration":{"bytes":1877,"sha256":"afab2137c0dfd3ddba6ab59257cb364c8585a51d7492c2c291b1d10688d9c75c","url":"https://kody-w.github.io/hive-hub/api/hive-hub/v1/source/skill-declarations/softwarecoellc-vteam-hive.json"},"id":"dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c","locator":"https://kody-w.github.io/hive-hub/api/hive-hub/v1/source/skill-declarations/softwarecoellc-vteam-hive.json"}],"schema":"hive-hub-dialbook/1"}
