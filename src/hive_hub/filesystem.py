@@ -20,6 +20,20 @@ _THREAD_LOCKS_GUARD = threading.Lock()
 _THREAD_LOCKS: dict[str, threading.Lock] = {}
 
 
+def _safe_file_link_count(
+    link_count: int,
+    *,
+    windows: bool | None = None,
+) -> bool:
+    if windows is None:
+        windows = _is_windows()
+    return link_count in (0, 1) if windows else link_count == 1
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 @dataclass(frozen=True, slots=True)
 class WritePlan:
     relative_path: str
@@ -185,7 +199,9 @@ class SafeFilesystem:
                 raise
             try:
                 information = os.fstat(lock_fd)
-                if not stat.S_ISREG(information.st_mode) or information.st_nlink != 1:
+                if not stat.S_ISREG(information.st_mode) or not _safe_file_link_count(
+                    information.st_nlink
+                ):
                     raise UnsafePathError("transaction lock must be one regular file")
                 if information.st_size == 0:
                     os.write(lock_fd, b"\0")

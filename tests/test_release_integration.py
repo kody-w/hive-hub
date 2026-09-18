@@ -7,10 +7,17 @@ import os
 import re
 import subprocess
 import sys
+from unittest import mock
 
 from hive_hub import AIJoinCard
 from hive_hub.adapter_runtime import builtin_adapter_contracts
-from scripts import check_public_release
+from scripts import (
+    build_release_manifest,
+    check_public_release,
+    file_integrity,
+    update_agent_lock,
+)
+from scripts.file_integrity import FileIntegrityError
 
 from .helpers import PROJECT_ROOT, WorkspaceTestCase
 
@@ -26,6 +33,51 @@ def canonical(value: object) -> bytes:
 
 
 class ReleaseIntegrationTests(WorkspaceTestCase):
+    def test_release_file_link_policy_accepts_only_platform_safe_counts(self) -> None:
+        with mock.patch.object(file_integrity, "_is_windows", return_value=True):
+            self.assertTrue(file_integrity.safe_file_link_count(0))
+            self.assertTrue(file_integrity.safe_file_link_count(1))
+            self.assertFalse(file_integrity.safe_file_link_count(2))
+        with mock.patch.object(file_integrity, "_is_windows", return_value=False):
+            self.assertFalse(file_integrity.safe_file_link_count(0))
+            self.assertTrue(file_integrity.safe_file_link_count(1))
+            self.assertFalse(file_integrity.safe_file_link_count(2))
+
+    def test_release_privacy_and_package_verifiers_reject_hardlinks(self) -> None:
+        source = self.work / "source.txt"
+        source.write_bytes(b"same bytes")
+        alias = self.work / "alias.txt"
+        try:
+            os.link(source, alias)
+        except OSError as exc:
+            self.skipTest(f"hardlinks unavailable: {exc}")
+        self.assertGreaterEqual(source.stat().st_nlink, 2)
+
+        with self.assertRaises(FileIntegrityError):
+            file_integrity.read_regular_bytes(source)
+        with self.assertRaises(FileIntegrityError):
+            check_public_release.text(source)
+        with (
+            mock.patch.object(build_release_manifest, "ROOT", self.work),
+            mock.patch.object(
+                build_release_manifest,
+                "release_paths",
+                return_value=["source.txt"],
+            ),
+            self.assertRaises(FileIntegrityError),
+        ):
+            build_release_manifest.build_manifest()
+
+        skill = self.work / "skill"
+        skill.mkdir()
+        package_file = skill / "package.txt"
+        os.link(source, package_file)
+        with (
+            mock.patch.object(update_agent_lock, "SKILL", skill),
+            self.assertRaises(FileIntegrityError),
+        ):
+            update_agent_lock.build_lock()
+
     def test_public_camera_card_is_an_exact_core_contract(self) -> None:
         card_path = (
             PROJECT_ROOT

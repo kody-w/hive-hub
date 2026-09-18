@@ -5,9 +5,14 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.file_integrity import FileIntegrityError, read_regular_bytes  # noqa: E402
+
 TARGET = ROOT / "release" / "release-manifest.json"
 VERSION = "0.1.0"
 SOURCE_COMMITS = {
@@ -49,14 +54,14 @@ def release_paths() -> list[str]:
     return sorted(
         path
         for path in output.splitlines()
-        if path and path not in EXCLUDED and (ROOT / path).is_file()
+        if path and path not in EXCLUDED
     )
 
 
 def build_manifest() -> dict[str, object]:
     files = []
     for relative in release_paths():
-        data = (ROOT / relative).read_bytes()
+        data = read_regular_bytes(ROOT / relative)
         files.append(
             {
                 "path": relative,
@@ -120,12 +125,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     expected = canonical(build_manifest())
     if args.check:
-        if not TARGET.is_file() or TARGET.read_bytes() != expected:
+        try:
+            current = read_regular_bytes(TARGET)
+        except FileIntegrityError:
+            current = None
+        if current != expected:
             print("release/release-manifest.json is out of date")
             return 1
         print("release manifest is current")
         return 0
     TARGET.parent.mkdir(parents=True, exist_ok=True)
+    if TARGET.exists() or TARGET.is_symlink():
+        read_regular_bytes(TARGET)
     TARGET.write_bytes(expected)
     print(f"wrote {TARGET.relative_to(ROOT)}")
     return 0

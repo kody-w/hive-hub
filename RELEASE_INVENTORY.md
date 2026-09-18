@@ -57,6 +57,8 @@
 - Path: `skills/hive-hub/`
 - Version: `0.1.0`
 - Locked, stdlib-only Python 3.11+ runner
+- Cross-platform lock verification accepts file link counts `0|1` on Windows
+  and exactly `1` elsewhere while rejecting real hardlinks and byte/hash drift
 - Accepts the core `ai-join-card` camera contract
 - Selects executable current-main behavior only by an exact verified join
   contract, never by repository name

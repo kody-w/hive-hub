@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from hive_hub import __version__ as CORE_VERSION  # noqa: E402
 from hive_hub.adapter_runtime import builtin_adapter_contracts  # noqa: E402
+from scripts.file_integrity import FileIntegrityError, read_regular_bytes  # noqa: E402
 from scripts.update_agent_lock import (  # noqa: E402
     GITHUB_SUBSCRIPTION_CONTRACT,
     digest,
@@ -52,16 +53,22 @@ def sha(data: bytes) -> str:
 
 def write_or_check(path: Path, data: bytes, *, check: bool) -> None:
     if check:
-        if not path.is_file() or path.read_bytes() != data:
+        try:
+            current = read_regular_bytes(path)
+        except FileIntegrityError:
+            current = None
+        if current != data:
             raise SystemExit(f"out of date: {path.relative_to(ROOT)}")
         return
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() or path.is_symlink():
+        read_regular_bytes(path)
     path.write_bytes(data)
 
 
 def source_reference(relative: str) -> dict[str, Any]:
     path = ROOT / "public-src" / relative
-    data = canonical(json.loads(path.read_text(encoding="utf-8")))
+    data = canonical(json.loads(read_regular_bytes(path).decode("utf-8")))
     return {
         "url": f"{SITE_BASE_URL}/{API_PATH}/source/{relative}",
         "sha256": sha(data),
@@ -225,7 +232,7 @@ def manifest_entry(entry_id: str, kind: str, path: str) -> dict[str, Any]:
         "id": entry_id,
         "kind": kind,
         "path": path,
-        "sha256": sha((ROOT / "public-src" / path).read_bytes()),
+        "sha256": sha(read_regular_bytes(ROOT / "public-src" / path)),
     }
 
 
@@ -236,7 +243,7 @@ def update_manifest(
     check: bool,
 ) -> None:
     target = ROOT / "public-manifest.json"
-    manifest = json.loads(target.read_text(encoding="utf-8"))
+    manifest = json.loads(read_regular_bytes(target).decode("utf-8"))
     generated_ids = {
         "hive-hub-release-0.1.0",
         "softwarecoellc-vteam-hive-skill-declaration",
@@ -322,7 +329,7 @@ def sync(*, check: bool) -> None:
     for source in sorted(schema_source.glob("*.schema.json")):
         name = source.name.removesuffix(".schema.json")
         schema_names.append(name)
-        data = source.read_bytes()
+        data = read_regular_bytes(source)
         write_or_check(schema_target / source.name, data, check=check)
         if source.name == "ai-join-card.schema.json":
             write_or_check(

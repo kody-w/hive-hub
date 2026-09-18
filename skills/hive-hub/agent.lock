@@ -59,8 +59,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "bytes": 5291,
-      "sha256": "548a374480ead1ee8227caffa8fde708e9d521f15de271995550c6f93bc57feb"
+      "bytes": 5555,
+      "sha256": "979cf281fb88e400e13cd17d2efb1893d03908691ef6bb08dd795357b832f3bb"
     },
     {
       "path": "instructions/AI.md",
@@ -99,8 +99,8 @@
     },
     {
       "path": "scripts/run.py",
-      "bytes": 93584,
-      "sha256": "de22289116f1a883bef9a30a535ad274c0812efeb83e4f2c7eac98ec4380abaf"
+      "bytes": 94433,
+      "sha256": "919173ae85c950ee244ddd65269ec7c9957a90ebbc80eaee5563651e9ca0b6cb"
     }
   ]
 }

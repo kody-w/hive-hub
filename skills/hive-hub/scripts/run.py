@@ -485,13 +485,40 @@ def _safe_relative(value: str) -> Path:
     return Path(*pure.parts)
 
 
+def _safe_file_link_count(
+    link_count: int,
+    *,
+    windows: bool | None = None,
+) -> bool:
+    if windows is None:
+        windows = _is_windows()
+    return link_count in (0, 1) if windows else link_count == 1
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _matches_regular_file(
+    information: os.stat_result,
+    expected: os.stat_result,
+) -> bool:
+    return (
+        stat.S_ISREG(information.st_mode)
+        and _safe_file_link_count(information.st_nlink)
+        and information.st_dev == expected.st_dev
+        and information.st_ino == expected.st_ino
+        and information.st_size == expected.st_size
+    )
+
+
 def _read_regular(path: Path, maximum: int, *, storage: bool = False) -> bytes:
     error: type[HubError] = StorageError if storage else ContractError
     try:
         information = path.lstat()
         if (
             not stat.S_ISREG(information.st_mode)
-            or information.st_nlink != 1
+            or not _safe_file_link_count(information.st_nlink)
             or information.st_size < 0
             or information.st_size > maximum
         ):
@@ -501,11 +528,7 @@ def _read_regular(path: Path, maximum: int, *, storage: bool = False) -> bytes:
         descriptor = os.open(path, flags)
         try:
             current = os.fstat(descriptor)
-            if (
-                current.st_dev != information.st_dev
-                or current.st_ino != information.st_ino
-                or current.st_size != information.st_size
-            ):
+            if not _matches_regular_file(current, information):
                 raise error()
             chunks: list[bytes] = []
             remaining = information.st_size
@@ -516,6 +539,10 @@ def _read_regular(path: Path, maximum: int, *, storage: bool = False) -> bytes:
                 chunks.append(chunk)
                 remaining -= len(chunk)
             if os.read(descriptor, 1):
+                raise error()
+            if not _matches_regular_file(os.fstat(descriptor), information):
+                raise error()
+            if not _matches_regular_file(path.lstat(), information):
                 raise error()
             return b"".join(chunks)
         finally:
@@ -545,7 +572,7 @@ def _tree_files(root: Path) -> dict[str, os.stat_result]:
             if stat.S_ISDIR(information.st_mode):
                 visit(Path(entry.path), relative)
             elif stat.S_ISREG(information.st_mode):
-                if information.st_nlink != 1:
+                if not _safe_file_link_count(information.st_nlink):
                     raise PackageError()
                 files[relative] = information
             else:
@@ -676,7 +703,10 @@ def load_lock() -> dict[str, Any]:
     if set(actual) != set(expected):
         raise PackageError()
     for relative, record in expected.items():
-        data = _read_regular(SKILL_ROOT / Path(relative), record["bytes"])
+        try:
+            data = _read_regular(SKILL_ROOT / Path(relative), record["bytes"])
+        except HubError:
+            raise PackageError() from None
         if (
             len(data) != record["bytes"]
             or hashlib.sha256(data).hexdigest() != record["sha256"]
