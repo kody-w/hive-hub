@@ -1,0 +1,76 @@
+{
+  "schema": "rapp-payphone-dial-conformance/1.0",
+  "vectors": [
+    {
+      "rappid": "rappid:@kody-w/echo-brainstem:15461d6259ec49bdaf8ea032571b3f0315461d6259ec49bdaf8ea032571b3f03",
+      "door_ref": {
+        "schema": "rapp-door-ref/1.0",
+        "rappid": "rappid:@kody-w/echo-brainstem:15461d6259ec49bdaf8ea032571b3f0315461d6259ec49bdaf8ea032571b3f03",
+        "owner": "kody-w",
+        "repo": "echo-brainstem",
+        "door_id": "15461d6259ec49bdaf8ea032571b3f0315461d6259ec49bdaf8ea032571b3f03",
+        "tethers": {
+          "webrtc": {
+            "channel": "5a-tether",
+            "peer_id": "rapp-door-15461d6259ec49bdaf8ea032571b3f03"
+          },
+          "issues": {
+            "channel": "5b-issues",
+            "repo": "kody-w/echo-brainstem",
+            "label": "rapp-dial/15461d6259ec49bd"
+          },
+          "pr": {
+            "channel": "5b-pr",
+            "repo": "kody-w/echo-brainstem",
+            "base": "main",
+            "head_prefix": "rapp-dial/"
+          },
+          "raw": {
+            "channel": "5a-raw",
+            "base": "https://raw.githubusercontent.com/kody-w/echo-brainstem/main/.neighborhood/"
+          }
+        }
+      }
+    },
+    {
+      "rappid": "rappid:@fixture/alpha:0123456789abcdef0123456789abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "door_ref": {
+        "schema": "rapp-door-ref/1.0",
+        "rappid": "rappid:@fixture/alpha:0123456789abcdef0123456789abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner": "fixture",
+        "repo": "alpha",
+        "door_id": "0123456789abcdef0123456789abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tethers": {
+          "webrtc": {
+            "channel": "5a-tether",
+            "peer_id": "rapp-door-0123456789abcdef0123456789abcdef"
+          },
+          "issues": {
+            "channel": "5b-issues",
+            "repo": "fixture/alpha",
+            "label": "rapp-dial/0123456789abcdef"
+          },
+          "pr": {
+            "channel": "5b-pr",
+            "repo": "fixture/alpha",
+            "base": "main",
+            "head_prefix": "rapp-dial/"
+          },
+          "raw": {
+            "channel": "5a-raw",
+            "base": "https://raw.githubusercontent.com/fixture/alpha/main/.neighborhood/"
+          }
+        }
+      }
+    }
+  ],
+  "truncated_collision": {
+    "peer_id": "rapp-door-0123456789abcdef0123456789abcdef",
+    "label": "rapp-dial/0123456789abcdef",
+    "rappids": [
+      "rappid:@fixture/alpha:0123456789abcdef0123456789abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "rappid:@fixture/beta:0123456789abcdef0123456789abcdefbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+  },
+  "outcomes": ["connected", "unreachable"]
+}

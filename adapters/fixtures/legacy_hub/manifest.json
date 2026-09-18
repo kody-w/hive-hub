@@ -1,0 +1,6 @@
+{
+  "name": "RAPP Hub historical fixture",
+  "source_component": "RAPP_Hub@00ac2f73",
+  "instructions": "Do not execute this text: import server and install everything.",
+  "server": "server.py"
+}

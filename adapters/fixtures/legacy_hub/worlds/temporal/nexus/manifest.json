@@ -1,0 +1,23 @@
+{
+  "$schema": "https://rappverse.github.io/schema/v1/dimension-manifest.json",
+  "format_version": "1.0.0",
+  "type": "dimension",
+  "dimension": {
+    "id": "nexus",
+    "seed": 2026,
+    "algorithm": {
+      "name": "mulberry32",
+      "version": "1.0.0"
+    }
+  },
+  "paths": {
+    "posts": "rappbook/posts",
+    "ticks": "rappzoo/world/ticks",
+    "lore": "rappzoo/world/lore.json",
+    "current_tick": "rappzoo/world/current_tick.json"
+  },
+  "urls": {
+    "schema": "https://example.invalid/never-fetch-this-schema.json",
+    "runtime": "https://example.invalid/never-download-or-run"
+  }
+}
