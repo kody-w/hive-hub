@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - release/v0.1.0
+      - release/v0.1.1
   workflow_dispatch:
 
 permissions:
@@ -103,8 +103,8 @@ jobs:
         run: |
           python -m pip install build
           SOURCE_DATE_EPOCH=1789758971 python -m build
-          python scripts/normalize_sdist.py dist/hive_hub-0.1.0.tar.gz
+          python scripts/normalize_sdist.py dist/hive_hub-0.1.1.tar.gz
           python -m venv .hive-hub/ci-install
-          .hive-hub/ci-install/bin/python -m pip install --no-deps dist/hive_hub-0.1.0-py3-none-any.whl
+          .hive-hub/ci-install/bin/python -m pip install --no-deps dist/hive_hub-0.1.1-py3-none-any.whl
           .hive-hub/ci-install/bin/hive-hub --version
-          .hive-hub/ci-install/bin/python -c "import adapters, hive_hub; assert hive_hub.__version__ == '0.1.0'"
+          .hive-hub/ci-install/bin/python -c "import adapters, hive_hub; assert hive_hub.__version__ == '0.1.1'"

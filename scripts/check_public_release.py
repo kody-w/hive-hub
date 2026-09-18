@@ -45,6 +45,7 @@ PUBLIC_PREFIXES = (
 ALLOWED_PUBLIC_REPOSITORIES = {
     "billwhalenmsft/softwarecoellc-vteam-hive",
     "kody-w/hive-hub",
+    "kody-w/rappid",
 }
 GITHUB_REPOSITORY_RE = re.compile(
     r"(?:https://(?:raw\.)?githubusercontent\.com/|https://github\.com/)"

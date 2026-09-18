@@ -1,3 +1,9 @@
+import {
+  CHANT_PROTOCOL,
+  CHANT_VOCABULARY_SHA256,
+  CHANT_WORDS
+} from "./chant.mjs";
+
 function schema(id, title, required, properties, extra = {}) {
   return {
     $id: id,
@@ -15,6 +21,12 @@ const nonEmptyString = { minLength: 1, type: "string" };
 const sha256Ref = { pattern: "^sha256:[a-f0-9]{64}$", type: "string" };
 const httpsUrl = { format: "uri", pattern: "^https://", type: "string" };
 const pathValue = { pattern: "^(?!/)(?!.*\\.\\.).+$", type: "string" };
+const dialId = { pattern: "^dial:sha256:[a-f0-9]{64}$", type: "string" };
+const alias = { pattern: "^[a-z0-9][a-z0-9._-]*$", type: "string" };
+const chant = {
+  pattern: `^(?:${CHANT_WORDS.join("|")})(?:-(?:${CHANT_WORDS.join("|")})){6}$`,
+  type: "string"
+};
 
 export function createSchemas(schemaBaseUrl) {
   const base = schemaBaseUrl.replace(/\/+$/, "");
@@ -82,9 +94,21 @@ export function createSchemas(schemaBaseUrl) {
       ["$schema", "api", "cardId", "classification", "kind", "record", "steps", "version"],
       {
         $schema: httpsUrl,
+        aliases: { items: alias, minItems: 1, type: "array" },
         api: { type: "object" },
         cardId: nonEmptyString,
+        chant: {
+          properties: {
+            protocol: { const: CHANT_PROTOCOL },
+            semantics: { const: "candidate-array-locator-only" },
+            value: chant
+          },
+          required: ["protocol", "semantics", "value"],
+          type: "object"
+        },
         classification: { const: "public-locator-only" },
+        dialId,
+        fullDialIdVerificationRequired: { const: true },
         kind: { const: "ai-join-card" },
         record: descriptor,
         steps: { items: nonEmptyString, minItems: 1, type: "array" },
@@ -136,6 +160,9 @@ export function createSchemas(schemaBaseUrl) {
         $schema: httpsUrl,
         access: { type: "object" },
         adapter: descriptor,
+        aliases: { items: alias, minItems: 1, type: "array" },
+        chantProtocol: descriptor,
+        chantProtocolFingerprint: sha256Ref,
         chants: {
           items: {
             properties: {
@@ -157,6 +184,7 @@ export function createSchemas(schemaBaseUrl) {
           type: "object"
         },
         conformance: descriptor,
+        dialId,
         kind: { const: "dial-record" },
         learningBundle: descriptor,
         locator: { type: "object" },
@@ -171,6 +199,34 @@ export function createSchemas(schemaBaseUrl) {
       ["$schema", "chants", "kind", "records"],
       {
         $schema: httpsUrl,
+        aliases: {
+          additionalProperties: {
+            items: descriptor,
+            minItems: 1,
+            type: "array"
+          },
+          type: "object"
+        },
+        candidateSemantics: {
+          const: "Every chant maps to an array; no candidate is unique authority."
+        },
+        chant: {
+          properties: {
+            addressBits: { const: 49 },
+            fullDialIdVerificationRequired: { const: true },
+            protocol: { const: CHANT_PROTOCOL },
+            vocabularyProvenance: nonEmptyString,
+            vocabularySha256: { const: CHANT_VOCABULARY_SHA256 }
+          },
+          required: [
+            "protocol",
+            "vocabularyProvenance",
+            "vocabularySha256",
+            "addressBits",
+            "fullDialIdVerificationRequired"
+          ],
+          type: "object"
+        },
         chants: {
           additionalProperties: {
             items: descriptor,
@@ -179,8 +235,10 @@ export function createSchemas(schemaBaseUrl) {
           },
           type: "object"
         },
+        generatedAt: nonEmptyString,
         kind: { const: "public-dialbook" },
-        records: { items: descriptor, type: "array" }
+        records: { items: descriptor, type: "array" },
+        version: { const: "1.0.0" }
       }
     ),
     "federation-index.schema.json": schema(
@@ -306,7 +364,7 @@ export function createSchemas(schemaBaseUrl) {
         },
         federation: { type: "object" },
         manifestVersion: { const: "1.0.0" },
-        productVersion: { const: "0.1.0" },
+        productVersion: { const: "0.1.1" },
         sourceRoot: { const: "public-src" }
       }
     ),

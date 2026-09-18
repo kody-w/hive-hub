@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 from .canonical import address_digest, canonical_bytes, content_address, is_address, loads_json
+from .chant import normalize_chant
 from .contracts import (
     AdapterPlan,
     AdapterRegistration,
@@ -20,7 +21,7 @@ from .contracts import (
     ProtocolDeclaration,
     SubscriptionPlan,
     Visibility,
-    normalize_chant,
+    normalize_record_chant,
 )
 from .errors import ConflictError, NotFoundError, ValidationError
 from .filesystem import SafeFilesystem, WritePlan
@@ -276,7 +277,13 @@ class BaseDialbook:
             return "url", matches
         if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", query):
             return "url", []
-        chant = normalize_chant(query)
+        try:
+            chant = normalize_chant(query)
+        except ValidationError:
+            try:
+                chant = normalize_record_chant(query)
+            except ValidationError:
+                return "chant", []
         matches = [record for record in records if chant in record.chants]
         return "chant", matches
 

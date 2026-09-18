@@ -9,6 +9,19 @@ from .canonical import (
     loads_json,
     validate_address,
 )
+from .chant import (
+    CHANT_ADDRESS_BITS,
+    CHANT_PROTOCOL,
+    CHANT_VOCABULARY,
+    CHANT_VOCABULARY_PROVENANCE,
+    CHANT_VOCABULARY_SHA256,
+    CHANT_VOCABULARY_SOURCE,
+    chant_contract,
+    derive_chant,
+    normalize_chant,
+    validate_dial_record_id,
+    verify_chant,
+)
 from .contracts import (
     ADAPTER_INTERFACE_VERSION,
     SCHEMA_VERSION,
@@ -19,6 +32,7 @@ from .contracts import (
     AIJoinCard,
     BootstrapResult,
     CandidateSet,
+    ChantLocator,
     ConformanceContract,
     ConformanceRequirement,
     DialbookIndex,
@@ -35,7 +49,6 @@ from .contracts import (
     SubscriptionPlan,
     decode_qr_fragment,
     generate_qr_fragment,
-    normalize_chant,
     parse_contract,
     qr_commitment,
 )
@@ -52,11 +65,17 @@ from .hub import HiveHub, Hub, validate_document
 from .schema_catalog import SCHEMAS, get_schema, schema_names
 from .store import private_index_from_home, public_index_from_home
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "ADAPTER_INTERFACE_VERSION",
     "ADDRESS_PREFIX",
+    "CHANT_ADDRESS_BITS",
+    "CHANT_PROTOCOL",
+    "CHANT_VOCABULARY",
+    "CHANT_VOCABULARY_PROVENANCE",
+    "CHANT_VOCABULARY_SHA256",
+    "CHANT_VOCABULARY_SOURCE",
     "SCHEMAS",
     "SCHEMA_VERSION",
     "AIJoinCard",
@@ -66,6 +85,7 @@ __all__ = [
     "AdapterRegistrationReceipt",
     "BootstrapResult",
     "CandidateSet",
+    "ChantLocator",
     "ConflictError",
     "ConformanceContract",
     "ConformanceRequirement",
@@ -92,8 +112,10 @@ __all__ = [
     "__version__",
     "canonical_bytes",
     "canonical_dumps",
+    "chant_contract",
     "content_address",
     "decode_qr_fragment",
+    "derive_chant",
     "generate_qr_fragment",
     "get_schema",
     "is_address",
@@ -105,5 +127,7 @@ __all__ = [
     "qr_commitment",
     "schema_names",
     "validate_address",
+    "validate_dial_record_id",
     "validate_document",
+    "verify_chant",
 ]

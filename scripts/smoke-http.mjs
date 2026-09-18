@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { deriveChant } from "./lib/chant.mjs";
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
@@ -40,6 +42,9 @@ async function main() {
   const wellKnown = await (await get(base, ".well-known/hive-hub.json")).json();
   const releaseIndex = await (await get(base, "api/hive-hub/v1/release.json")).json();
   const release = await (await get(base, releaseIndex.current.path)).json();
+  const dialbook = await (await get(base, "api/hive-hub/v1/dialbook.json")).json();
+  const cards = await (await get(base, "api/hive-hub/v1/cards/index.json")).json();
+  const card = await (await get(base, cards.cards[0].card.path)).json();
   const joinHtml = await (await get(base, "hub/join/")).text();
   const joinInstructions = await (await get(base, "hub/join/ai.json")).json();
   const coreCardResponse = await get(
@@ -65,7 +70,17 @@ async function main() {
   };
   const bodyDigest = createHash("sha256").update(canonical(body)).digest("hex");
   assert(coreCard.card_id === `urn:hivehub:sha256:${bodyDigest}`, "core card id failed");
-  assert(release.version === "0.1.0", "release version failed");
+  assert(card.dialId === coreCard.locator, "public card and core locator disagree");
+  assert(card.chant.value === deriveChant(card.dialId), "public card chant derivation failed");
+  assert(
+    dialbook.chants[card.chant.value].some((candidate) => candidate.ref === card.record.ref),
+    "public dialbook does not index the derived chant"
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(dialbook.chants, "softwarecoellc-vteam-hive"),
+    "repository slug leaked into the chant index"
+  );
+  assert(release.version === "0.1.1", "release version failed");
   assert(wellKnown.release.ref === releaseIndex.current.ref, "well-known release link failed");
   assert(joinHtml.includes("Verify this locator before you dial."), "join page failed");
   process.stdout.write("local HTTP static smoke passed\n");

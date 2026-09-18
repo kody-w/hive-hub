@@ -5,7 +5,11 @@ import importlib.resources
 import json
 
 from hive_hub import (
+    CHANT_PROTOCOL,
+    CHANT_VOCABULARY,
+    CHANT_VOCABULARY_SHA256,
     AIJoinCard,
+    ChantLocator,
     DialRecord,
     LearningArtifact,
     LimitError,
@@ -13,10 +17,13 @@ from hive_hub import (
     ProtocolFingerprint,
     ValidationError,
     canonical_bytes,
+    chant_contract,
     content_address,
+    derive_chant,
     generate_qr_fragment,
     get_schema,
     loads_json,
+    normalize_chant,
     schema_names,
 )
 
@@ -24,6 +31,12 @@ from .helpers import FIXED_TIME, WorkspaceTestCase, make_record, make_stack
 
 
 class CanonicalContractTests(WorkspaceTestCase):
+    SAMPLE_DIAL_ID = (
+        "dial:sha256:"
+        "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+    )
+    SAMPLE_CHANT = "jetty-gorse-grove-pond-marrow-otter-weir"
+
     def test_canonical_bytes_and_generic_content_address_are_deterministic(self) -> None:
         left = canonical_bytes({"z": [3, 2, 1], "a": "glow"})
         right = canonical_bytes({"a": "glow", "z": [3, 2, 1]})
@@ -62,6 +75,33 @@ class CanonicalContractTests(WorkspaceTestCase):
         with self.assertRaisesRegex(ValidationError, "does not match"):
             DialRecord.from_dict(tampered)
 
+    def test_protocol_neutral_chant_derives_from_the_full_dial_id(self) -> None:
+        self.assertEqual(CHANT_PROTOCOL, "hive-hub-chant/1")
+        self.assertEqual(len(CHANT_VOCABULARY), 128)
+        self.assertEqual(
+            hashlib.sha256("\n".join(CHANT_VOCABULARY).encode("utf-8")).hexdigest(),
+            CHANT_VOCABULARY_SHA256,
+        )
+        self.assertEqual(derive_chant(self.SAMPLE_DIAL_ID), self.SAMPLE_CHANT)
+        self.assertEqual(
+            normalize_chant("  JETTY GORSE GROVE POND MARROW OTTER WEIR  "),
+            self.SAMPLE_CHANT,
+        )
+        locator = ChantLocator.create(self.SAMPLE_DIAL_ID)
+        self.assertEqual(ChantLocator.from_dict(locator.to_dict()), locator)
+        contract = chant_contract()
+        self.assertFalse(contract["requires_rapp_identity"])
+        self.assertFalse(contract["requires_rapp_runtime"])
+        self.assertTrue(contract["full_dial_id_verification_required"])
+        with self.assertRaisesRegex(ValidationError, "seven words"):
+            normalize_chant("softwarecoellc-vteam-hive")
+
+    def test_dial_record_v1_identity_and_legacy_chants_remain_stable(self) -> None:
+        stack = make_stack(self.work)
+        record = make_record(stack)
+        self.assertEqual(record.chants, ("firefly commons",))
+        self.assertEqual(DialRecord.from_dict(record.to_dict()), record)
+
     def test_protocol_fingerprint_is_the_declaration_address(self) -> None:
         stack = make_stack(self.work)
         fingerprint = ProtocolFingerprint.from_declaration(stack.declaration)
@@ -82,7 +122,7 @@ class CanonicalContractTests(WorkspaceTestCase):
             )
         valid = AIJoinCard.create(
             principal=principal,
-            locator="firefly commons",
+            locator=self.SAMPLE_CHANT,
             issued_at=FIXED_TIME,
         ).to_dict()
         valid["qr_fragment"] = "not-a-contract-field"
@@ -108,6 +148,7 @@ class CanonicalContractTests(WorkspaceTestCase):
         package_root = importlib.resources.files("hive_hub")
         required = {
             "dial-record",
+            "chant-locator",
             "protocol-declaration",
             "protocol-fingerprint",
             "learning-bundle",

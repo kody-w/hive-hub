@@ -13,6 +13,11 @@ The public camera-AI card uses the same closed `ai-join-card` contract as the
 Python core. The skill verifies its content-addressed id before using its
 locator.
 
+A chant is derived from the full Dial Record ID. You may type its seven words
+with spaces and any letter case; the skill normalizes them to lowercase
+hyphens. A repository slug is only a display/search alias, not a chant.
+Collisions are possible, so the complete Dial Record ID must still verify.
+
 Useful phrases include:
 
 - “dial this hive”

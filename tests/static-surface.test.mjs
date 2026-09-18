@@ -11,6 +11,12 @@ import { buildStaticSurface } from "../scripts/build.mjs";
 import { checkStaticSurface } from "../scripts/check.mjs";
 import { generateSensitiveCard } from "../scripts/generate-sensitive-card.mjs";
 import {
+  CHANT_PROTOCOL,
+  CHANT_VOCABULARY_SHA256,
+  deriveChant,
+  normalizeChant
+} from "../scripts/lib/chant.mjs";
+import {
   canonicalJson,
   listPublicFiles,
   readPublicFile,
@@ -59,7 +65,7 @@ test("generated surface passes links, hashes, security, and accessibility gates"
     manifestPath,
     root: buildA
   });
-  assert.equal(result.inputCount, 24);
+  assert.equal(result.inputCount, 36);
   assert.ok(result.immutableObjectCount >= 9);
   assert.equal(result.qrCount, 2);
 });
@@ -74,6 +80,57 @@ test("example record is exact and grants no authority or semantic compatibility"
   assert.deepEqual(record.claims.authority, []);
   assert.deepEqual(record.claims.semanticCompatibility, []);
   assert.equal(record.protocolFingerprint, record.protocol.ref);
+  assert.equal(
+    record.dialId,
+    "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+  );
+  assert.equal(
+    record.chants[0].value,
+    "jetty-gorse-grove-pond-marrow-otter-weir"
+  );
+  assert.equal(record.chants[0].value, deriveChant(record.dialId));
+  assert.deepEqual(record.aliases, ["softwarecoellc-vteam-hive"]);
+  assert.notEqual(record.chants[0].value, record.aliases[0]);
+  const chantProtocol = JSON.parse(
+    await readFile(path.join(buildA, record.chantProtocol.path), "utf8")
+  );
+  assert.equal(chantProtocol.protocolName, CHANT_PROTOCOL);
+  assert.equal(chantProtocol.vocabulary.sha256, CHANT_VOCABULARY_SHA256);
+  assert.deepEqual(chantProtocol.requires, {
+    rappIdentity: false,
+    rappRuntime: false
+  });
+});
+
+test("hive-hub-chant/1 is exact, human-friendly, and protocol-neutral", () => {
+  const dialId =
+    "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c";
+  assert.equal(CHANT_PROTOCOL, "hive-hub-chant/1");
+  assert.equal(
+    CHANT_VOCABULARY_SHA256,
+    "325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36"
+  );
+  assert.equal(
+    normalizeChant("JETTY GORSE GROVE POND MARROW OTTER WEIR"),
+    deriveChant(dialId)
+  );
+  assert.throws(() => normalizeChant("softwarecoellc-vteam-hive"));
+});
+
+test("chant correction appends evidence without rewriting the first receipt", async () => {
+  const index = JSON.parse(
+    await readFile(path.join(buildA, "api/hive-hub/v1/receipts/index.json"), "utf8")
+  );
+  assert.equal(index.receipts.length, 2);
+  assert.equal(
+    index.receipts[0].ref,
+    "sha256:ba52e73692f991d5a495087cc6f7ef2984299dfe6b940f92b0d88b3f11c81951"
+  );
+  const correction = JSON.parse(
+    await readFile(path.join(buildA, index.receipts[1].path), "utf8")
+  );
+  assert.equal(correction.event, "correct-record-chant");
+  assert.deepEqual(correction.previous, index.receipts[0]);
 });
 
 test("public build input reader never scans adjacent private books", async () => {
@@ -124,7 +181,7 @@ test("public build input reader never scans adjacent private books", async () =>
     ],
     federation: { members: [] },
     manifestVersion: "1.0.0",
-    productVersion: "0.1.0",
+    productVersion: "0.1.1",
     sourceRoot: "public-src"
   };
   await writeFile(fixtureManifestPath, canonicalJson(fixtureManifest));

@@ -174,6 +174,7 @@ class Fixture:
         extra_roles: bool = False,
         factor_scope: str = "fixture/read",
         factor_epoch: str = "1",
+        record_id: str | None = None,
     ) -> dict:
         adapter = adapter or self.subscription
         spec = f"{protocol} exact specification\n".encode()
@@ -224,7 +225,7 @@ class Fixture:
             "schema": "hive-hub-learning-bundle/1",
             "artifacts": artifacts,
         }
-        record_id = "dial:sha256:" + digest(
+        record_id = record_id or "dial:sha256:" + digest(
             {"fixture": name, "protocol": protocol, "path": path.name}
         )
         access: dict[str, object] = {
@@ -284,13 +285,24 @@ class Fixture:
         complete = []
         for record in records:
             value = dict(record)
-            value["id"] = "dial:sha256:" + digest(record)
+            record_id = value.get("id")
+            if not isinstance(record_id, str):
+                locator = Path(value["locator"])
+                record_id = json.loads(
+                    (locator / "hive.json").read_text(encoding="utf-8")
+                )["id"]
+            value["id"] = record_id
+            value["chants"] = [runner.derive_chant(record_id)]
             ids.append(value["id"])
             complete.append(value)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(
-                {"schema": "hive-hub-dialbook/1", "records": complete},
+                {
+                    "schema": "hive-hub-dialbook/1",
+                    "chant": runner.CHANT_DIALBOOK_CONTRACT,
+                    "records": complete,
+                },
                 indent=2,
             )
             + "\n",
@@ -941,40 +953,46 @@ class HiveHubTests(unittest.TestCase):
             runner._fetch_pinned_json(base, lock=self.fixture.lock, timeout=5)
 
     def test_chant_collision_never_guesses_and_full_dial_id_resolves(self) -> None:
-        first = self.work / "first"
-        second = self.work / "second"
-        self.fixture.declaration(first, name="First Hive")
-        self.fixture.declaration(second, name="Second Hive")
-        chant = "ember hollow quartz tidal vessel marrow lantern"
-        records = [
-            {"chants": [chant], "locator": str(first)},
-            {"chants": [chant], "locator": str(second)},
-        ]
+        chant = "ember-hollow-quartz-tidal-vessel-marrow-lantern"
+        records = []
+        for name in ("first", "second"):
+            record = {"chants": [], "locator": str(self.work / name)}
+            record["id"] = runner.dial_record_id(record)
+            records.append(record)
         dialbook = self.work / "dialbook.json"
-        ids = self.fixture.dialbook(dialbook, records)
-        collision = result_of(
-            command(
-                "join",
-                "--locator",
-                chant,
-                "--dialbook",
-                str(dialbook),
+        dialbook.write_text(
+            json.dumps(
+                {"schema": runner.LEGACY_DIALBOOK_SCHEMA, "records": records},
+                indent=2,
             )
+            + "\n",
+            encoding="utf-8",
         )
-        self.assertEqual(collision["blocker"]["code"], "chant-collision")
-        self.assertEqual(collision["blocker"]["details"]["candidate_ids"], sorted(ids))
-        exact = result_of(
-            command(
-                "join",
-                "--locator",
-                ids[0],
-                "--dialbook",
-                str(dialbook),
-                "--device-root",
-                str(self.work / "device"),
+        with mock.patch.object(runner, "derive_chant", return_value=chant):
+            with self.assertRaises(runner.ChantCollisionError) as collision:
+                runner.resolve_dial_locator(
+                    {"kind": "chant", "value": chant},
+                    dialbook=dialbook,
+                    limits=self.fixture.lock["limits"],
+                    cwd=self.work,
+                )
+            self.assertEqual(
+                collision.exception.details["candidate_ids"],
+                sorted(record["id"] for record in records),
             )
-        )
-        self.assertEqual(exact["status"], "planned")
+            exact = runner.resolve_dial_locator(
+                {"kind": "dial-id", "value": records[0]["id"]},
+                dialbook=dialbook,
+                limits=self.fixture.lock["limits"],
+                cwd=self.work,
+            )
+            self.assertEqual(exact[3], records[0]["id"])
+
+        tampered = json.loads(dialbook.read_text(encoding="utf-8"))
+        tampered["records"][0]["locator"] = str(self.work / "substituted")
+        dialbook.write_text(json.dumps(tampered) + "\n", encoding="utf-8")
+        with self.assertRaises(runner.StorageError):
+            runner.load_dialbook(dialbook, self.fixture.lock["limits"])
 
     def test_optional_qr_factor_is_after_access_and_never_persisted(self) -> None:
         secret = factor(0x52)
@@ -1308,6 +1326,26 @@ class HiveHubTests(unittest.TestCase):
                 value = result_of(process)
                 self.assertEqual(count_key(value, "blocker"), 1)
                 self.assertFalse(value["ready"])
+
+    def test_decode_accepts_derived_chant_and_rejects_repository_slug(self) -> None:
+        chant = "jetty-gorse-grove-pond-marrow-otter-weir"
+        decoded = result_of(
+                command(
+                    "decode",
+                    "--locator",
+                    chant.replace("-", " ").upper(),
+                )
+        )
+        self.assertEqual(decoded["locator"], {"kind": "chant", "value": chant})
+
+        rejected = result_of(
+                command(
+                    "decode",
+                    "--locator",
+                    "softwarecoellc-vteam-hive",
+                )
+        )
+        self.assertEqual(rejected["blocker"]["code"], "input-invalid")
 
     def test_downloaded_or_declared_commands_remain_inert(self) -> None:
         marker = self.work / "must-not-exist"

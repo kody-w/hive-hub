@@ -10,7 +10,13 @@ import subprocess
 import sys
 from unittest import mock
 
-from hive_hub import AIJoinCard
+from adapters.rappid import CHANT_WORDS as RAPPID_CHANT_WORDS
+from hive_hub import (
+    CHANT_VOCABULARY,
+    CHANT_VOCABULARY_SHA256,
+    AIJoinCard,
+    derive_chant,
+)
 from hive_hub import _windows_file as windows_file
 from hive_hub.adapter_runtime import builtin_adapter_contracts
 from scripts import (
@@ -160,15 +166,24 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
                 PROJECT_ROOT
                 / "public-src"
                 / "release"
-                / "hive-hub-0.1.0.json"
+                / "hive-hub-0.1.1.json"
             ).read_text(encoding="utf-8")
         )
         expected = [item.summary() for item in builtin_adapter_contracts()]
-        self.assertEqual(release["version"], "0.1.0")
+        self.assertEqual(release["version"], "0.1.1")
         self.assertTrue(release["adapters"]["optional"])
         self.assertEqual(release["adapters"]["contracts"], expected)
+        self.assertEqual(release["chant"]["protocol"], "hive-hub-chant/1")
+        self.assertEqual(
+            release["chant"]["vocabularySha256"],
+            CHANT_VOCABULARY_SHA256,
+        )
+        self.assertEqual(
+            release["publicSample"]["chant"],
+            derive_chant(release["publicSample"]["dialId"]),
+        )
 
-    def test_locked_public_dialbook_is_content_addressed(self) -> None:
+    def test_locked_public_dialbook_binds_derived_chant_to_full_id(self) -> None:
         dialbook = json.loads(
             (
                 PROJECT_ROOT
@@ -179,9 +194,38 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
             ).read_text(encoding="utf-8")
         )
         record = dialbook["records"][0]
-        body = {key: value for key, value in record.items() if key != "id"}
-        expected = "dial:sha256:" + hashlib.sha256(canonical(body)).hexdigest()
-        self.assertEqual(record["id"], expected)
+        declaration = json.loads(
+            (
+                PROJECT_ROOT
+                / "public-src"
+                / "skill-declarations"
+                / "softwarecoellc-vteam-hive.json"
+            ).read_text(encoding="utf-8")
+        )
+        expected_id = (
+            "dial:sha256:"
+            "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+        )
+        self.assertEqual(record["id"], expected_id)
+        self.assertEqual(
+            declaration["id"],
+            "dial:sha256:fa325c6c99bee6c69847e76661c16ba88ba6e979e46c46e799dd3b6b6a000b1f",
+        )
+        self.assertEqual(record["aliases"], [])
+        self.assertEqual(record["chants"], [derive_chant(expected_id)])
+        self.assertEqual(dialbook["chant"]["protocol"], "hive-hub-chant/1")
+        self.assertEqual(
+            dialbook["chant"]["vocabulary_sha256"],
+            CHANT_VOCABULARY_SHA256,
+        )
+        self.assertNotIn("softwarecoellc-vteam-hive", record["chants"])
+
+    def test_core_reuses_the_exact_owned_rappid_vocabulary_bytes(self) -> None:
+        self.assertEqual(CHANT_VOCABULARY, RAPPID_CHANT_WORDS)
+        self.assertEqual(
+            hashlib.sha256("\n".join(CHANT_VOCABULARY).encode("utf-8")).hexdigest(),
+            CHANT_VOCABULARY_SHA256,
+        )
 
     def test_importing_core_does_not_import_adapter_package(self) -> None:
         env = os.environ.copy()
