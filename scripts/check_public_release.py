@@ -18,6 +18,12 @@ SAFE_DENY_DIGESTS = frozenset(
     {
         "18bd7d72c25c6360e675996cf605328e499729c72c6035d55a4cbaf05992327c",
         "30c31ea528886a0b83fa156fe7f5e8da4a7fde32f0a3ad8a6fd83d6fae765cd2",
+        "8b0314b3b0431a8c807bed46a21c8c43f575fffc8126f55e084c6395e0bed462",
+        "3de06aca19269dfcaaaf7d0d0f07a9608ef7da210f5942864a41d42889a55d6b",
+        "6c883d27f71c21d79b16488ccaf6fa3ddc86d1ada89fd8f00a2600d6318d9570",
+        "6504cb31f5bfc9201ff5090eadda58aea7f66ad348f284bb065271711df85beb",
+        "06b6da15e447d50451f2c76cbbe11098231277a937f54c5190a0294517531794",
+        "1ed1846809379a9b81155c3df771ef09a741327a550596a58827b53eefc46866",
     }
 )
 PRIVATE_DENY_ENV = "HIVE_HUB_PRIVATE_IDENTIFIER_DENY_SHA256"
@@ -43,7 +49,6 @@ PUBLIC_PREFIXES = (
     "skills/hive-hub/registry/",
 )
 ALLOWED_PUBLIC_REPOSITORIES = {
-    "billwhalenmsft/softwarecoellc-vteam-hive",
     "kody-w/hive-hub",
     "kody-w/rappid",
 }

@@ -47,7 +47,9 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath }) {
         <div class="actions">
           <a class="button" href="../api/hive-hub/v1/dialbook.json">Open the public dialbook</a>
           <a class="button button-secondary" href="../api/hive-hub/v1/offline-seed.json">Download the offline seed</a>
+          <a class="text-link" href="https://github.com/kody-w/hive-hub/blob/main/docs/PUBLIC_EXAMPLES.md" rel="noreferrer noopener">Ten public showcase build prompts</a>
         </div>
+        <p class="muted">Showcase prompts are proposals, not running Hives. Private Hives are never listed here.</p>
       </section>
 
       <section class="principles" aria-labelledby="principles-title">
@@ -122,6 +124,13 @@ export function renderJoinHtml() {
         <div id="failure" class="notice notice-error" role="alert" hidden></div>
       </section>
 
+      <section id="join-help" aria-labelledby="join-help-title" hidden>
+        <h2 id="join-help-title">Start with a complete join link</h2>
+        <p>Scan a locator-only Hive QR or open its complete join link. You can also explore the explicitly public onboarding laboratory.</p>
+        <p>For an unlisted Hive, give its locator directly to an AI that already has source access. Do not publish private locators in the directory.</p>
+        <a class="button" href="../">Explore the public laboratory</a>
+      </section>
+
       <section id="verified" aria-labelledby="verified-title" hidden>
         <p class="verified-badge">Verified static JSON</p>
         <h2 id="verified-title"></h2>
@@ -166,6 +175,11 @@ export function renderJoinJavaScript() {
     const status = document.getElementById("status");
     const failure = document.getElementById("failure");
     try {
+      if (!fragment) {
+        status.textContent = "No join card supplied. Choose a public example or use a privately shared locator with your AI.";
+        document.getElementById("join-help").hidden = false;
+        return;
+      }
       const envelope = decodeEnvelope(fragment);
       status.textContent = "Verifying the content-addressed card…";
       const card = await fetchVerifiedJson(envelope.card, "sha256:" + envelope.sha256);

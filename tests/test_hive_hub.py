@@ -608,7 +608,7 @@ class HiveHubTests(unittest.TestCase):
             ROOT
             / "public-src"
             / "cards"
-            / "softwarecoellc-vteam-hive-core.json"
+            / "hive-hub-public-lab-core.json"
         ).read_text(encoding="utf-8")
         decoded = result_of(command("decode", "--card-json", encoded))
         self.assertEqual(decoded["card_source"], "core-ai-join-card")
@@ -622,6 +622,7 @@ class HiveHubTests(unittest.TestCase):
                 str(self.work / "published-card-device"),
             )
         )
+        self.assertEqual(planned.get("status"), "planned", planned)
         self.assertEqual(planned["plan"]["intent"], "resolve-hive")
         self.assertEqual(planned["plan"]["effects"][0]["transport"], "pinned-static-json")
 
@@ -1328,7 +1329,7 @@ class HiveHubTests(unittest.TestCase):
                 self.assertFalse(value["ready"])
 
     def test_decode_accepts_derived_chant_and_rejects_repository_slug(self) -> None:
-        chant = "jetty-gorse-grove-pond-marrow-otter-weir"
+        chant = "juniper-quartz-harbor-birch-cobalt-nook-flint"
         decoded = result_of(
                 command(
                     "decode",
@@ -1342,7 +1343,7 @@ class HiveHubTests(unittest.TestCase):
                 command(
                     "decode",
                     "--locator",
-                    "softwarecoellc-vteam-hive",
+                    "hive-hub-public-lab",
                 )
         )
         self.assertEqual(rejected["blocker"]["code"], "input-invalid")

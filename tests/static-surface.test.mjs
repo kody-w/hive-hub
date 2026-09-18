@@ -65,7 +65,7 @@ test("generated surface passes links, hashes, security, and accessibility gates"
     manifestPath,
     root: buildA
   });
-  assert.equal(result.inputCount, 36);
+  assert.equal(result.inputCount, 27);
   assert.ok(result.immutableObjectCount >= 9);
   assert.equal(result.qrCount, 2);
 });
@@ -74,22 +74,22 @@ test("example record is exact and grants no authority or semantic compatibility"
   const record = resultA.records[0].document;
   assert.equal(
     record.locator.repositoryUrl,
-    "https://github.com/billwhalenmsft/softwarecoellc-vteam-hive"
+    "https://github.com/kody-w/hive-hub"
   );
-  assert.equal(record.locator.revision, "f66da3d879b53a439bc87de764d79f68ceec048a");
+  assert.equal(record.locator.revision, "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9");
   assert.deepEqual(record.claims.authority, []);
   assert.deepEqual(record.claims.semanticCompatibility, []);
   assert.equal(record.protocolFingerprint, record.protocol.ref);
   assert.equal(
     record.dialId,
-    "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+    "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
   );
   assert.equal(
     record.chants[0].value,
-    "jetty-gorse-grove-pond-marrow-otter-weir"
+    "juniper-quartz-harbor-birch-cobalt-nook-flint"
   );
   assert.equal(record.chants[0].value, deriveChant(record.dialId));
-  assert.deepEqual(record.aliases, ["softwarecoellc-vteam-hive"]);
+  assert.deepEqual(record.aliases, ["hive-hub-public-lab"]);
   assert.notEqual(record.chants[0].value, record.aliases[0]);
   const chantProtocol = JSON.parse(
     await readFile(path.join(buildA, record.chantProtocol.path), "utf8")
@@ -104,33 +104,30 @@ test("example record is exact and grants no authority or semantic compatibility"
 
 test("hive-hub-chant/1 is exact, human-friendly, and protocol-neutral", () => {
   const dialId =
-    "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c";
+    "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32";
   assert.equal(CHANT_PROTOCOL, "hive-hub-chant/1");
   assert.equal(
     CHANT_VOCABULARY_SHA256,
     "325f47d38851721f16cf111f80114d8d9146e84813fa6822fe2ad38dd18dbb36"
   );
   assert.equal(
-    normalizeChant("JETTY GORSE GROVE POND MARROW OTTER WEIR"),
+    normalizeChant("JUNIPER QUARTZ HARBOR BIRCH COBALT NOOK FLINT"),
     deriveChant(dialId)
   );
-  assert.throws(() => normalizeChant("softwarecoellc-vteam-hive"));
+  assert.throws(() => normalizeChant("hive-hub-public-lab"));
 });
 
-test("chant correction appends evidence without rewriting the first receipt", async () => {
+test("public laboratory starts a receipt ledger without retired locators", async () => {
   const index = JSON.parse(
     await readFile(path.join(buildA, "api/hive-hub/v1/receipts/index.json"), "utf8")
   );
-  assert.equal(index.receipts.length, 2);
-  assert.equal(
-    index.receipts[0].ref,
-    "sha256:ba52e73692f991d5a495087cc6f7ef2984299dfe6b940f92b0d88b3f11c81951"
+  assert.equal(index.receipts.length, 1);
+  const receipt = JSON.parse(
+    await readFile(path.join(buildA, index.receipts[0].path), "utf8")
   );
-  const correction = JSON.parse(
-    await readFile(path.join(buildA, index.receipts[1].path), "utf8")
-  );
-  assert.equal(correction.event, "correct-record-chant");
-  assert.deepEqual(correction.previous, index.receipts[0]);
+  assert.equal(receipt.event, "publish-record");
+  assert.equal(receipt.previous, null);
+  assert.deepEqual(receipt.subject, resultA.records[0].descriptor);
 });
 
 test("public build input reader never scans adjacent private books", async () => {
@@ -269,6 +266,26 @@ test("public QR envelope is locator-only and sensitive cards stay local", async 
     }),
     /Sensitive cards may be written only/
   );
+});
+
+test("bare join URL guides the visitor without fetching or reporting verification failure", async () => {
+  const joinScript = await readFile(path.join(buildA, "hub/join/join.js"), "utf8");
+  const elements = new Map(
+    ["status", "failure", "join-help"].map((id) => [id, { hidden: true, textContent: "" }])
+  );
+  let fetches = 0;
+  vm.runInNewContext(joinScript, {
+    document: { getElementById: (id) => elements.get(id) },
+    fetch: () => { fetches += 1; throw new Error("unexpected fetch"); },
+    window: {
+      location: { hash: "", pathname: "/hub/join/", search: "" },
+      history: { replaceState() {} }
+    }
+  });
+  assert.equal(fetches, 0);
+  assert.equal(elements.get("join-help").hidden, false);
+  assert.equal(elements.get("failure").hidden, true);
+  assert.match(elements.get("status").textContent, /No join card supplied/);
 });
 
 test("generated join script executes the real core camera-card path", async () => {

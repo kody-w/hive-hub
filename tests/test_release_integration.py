@@ -144,7 +144,7 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
             PROJECT_ROOT
             / "public-src"
             / "cards"
-            / "softwarecoellc-vteam-hive-core.json"
+            / "hive-hub-public-lab-core.json"
         )
         card = AIJoinCard.from_dict(json.loads(card_path.read_text(encoding="utf-8")))
         self.assertEqual(card.principal.kind, "ai")
@@ -199,18 +199,33 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
                 PROJECT_ROOT
                 / "public-src"
                 / "skill-declarations"
-                / "softwarecoellc-vteam-hive.json"
+                / "hive-hub-public-lab.json"
             ).read_text(encoding="utf-8")
         )
         expected_id = (
             "dial:sha256:"
-            "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+            "6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
         )
         self.assertEqual(record["id"], expected_id)
         self.assertEqual(
             declaration["id"],
-            "dial:sha256:fa325c6c99bee6c69847e76661c16ba88ba6e979e46c46e799dd3b6b6a000b1f",
+            "dial:sha256:a917f8e41e56639a7036109b39888ee37793b7eeb045c08e387903da5c9da1af",
         )
+        identity_body = {
+            "chants": record["aliases"],
+            "locator": record["locator"],
+            "declaration": record["declaration"],
+        }
+        self.assertEqual(
+            expected_id,
+            "dial:sha256:" + hashlib.sha256(canonical(identity_body)).hexdigest(),
+        )
+        source_bytes = canonical(declaration) + b"\n"
+        self.assertEqual(
+            record["declaration"]["sha256"],
+            hashlib.sha256(source_bytes).hexdigest(),
+        )
+        self.assertEqual(record["declaration"]["bytes"], len(source_bytes))
         self.assertEqual(record["aliases"], [])
         self.assertEqual(record["chants"], [derive_chant(expected_id)])
         self.assertEqual(dialbook["chant"]["protocol"], "hive-hub-chant/1")
@@ -218,7 +233,7 @@ class ReleaseIntegrationTests(WorkspaceTestCase):
             dialbook["chant"]["vocabulary_sha256"],
             CHANT_VOCABULARY_SHA256,
         )
-        self.assertNotIn("softwarecoellc-vteam-hive", record["chants"])
+        self.assertNotIn("hive-hub-public-lab", record["chants"])
 
     def test_core_reuses_the_exact_owned_rappid_vocabulary_bytes(self) -> None:
         self.assertEqual(CHANT_VOCABULARY, RAPPID_CHANT_WORDS)

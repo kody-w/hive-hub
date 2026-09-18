@@ -208,9 +208,9 @@ class SafetyAndCLITests(WorkspaceTestCase):
     def test_cli_derives_parses_and_verifies_generic_chants(self) -> None:
         dial_id = (
             "dial:sha256:"
-            "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+            "6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
         )
-        expected = "jetty-gorse-grove-pond-marrow-otter-weir"
+        expected = "juniper-quartz-harbor-birch-cobalt-nook-flint"
         for arguments in (
             ["chant", "derive", dial_id],
             ["chant", "parse", expected.replace("-", " ").upper()],
@@ -230,7 +230,7 @@ class SafetyAndCLITests(WorkspaceTestCase):
                     str(self.work),
                     "chant",
                     "parse",
-                    "softwarecoellc-vteam-hive",
+                    "hive-hub-public-lab",
                 ]
             )
         self.assertEqual(code, 2)

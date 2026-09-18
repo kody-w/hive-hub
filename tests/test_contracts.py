@@ -33,9 +33,9 @@ from .helpers import FIXED_TIME, WorkspaceTestCase, make_record, make_stack
 class CanonicalContractTests(WorkspaceTestCase):
     SAMPLE_DIAL_ID = (
         "dial:sha256:"
-        "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+        "6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
     )
-    SAMPLE_CHANT = "jetty-gorse-grove-pond-marrow-otter-weir"
+    SAMPLE_CHANT = "juniper-quartz-harbor-birch-cobalt-nook-flint"
 
     def test_canonical_bytes_and_generic_content_address_are_deterministic(self) -> None:
         left = canonical_bytes({"z": [3, 2, 1], "a": "glow"})
@@ -84,7 +84,7 @@ class CanonicalContractTests(WorkspaceTestCase):
         )
         self.assertEqual(derive_chant(self.SAMPLE_DIAL_ID), self.SAMPLE_CHANT)
         self.assertEqual(
-            normalize_chant("  JETTY GORSE GROVE POND MARROW OTTER WEIR  "),
+            normalize_chant("  JUNIPER QUARTZ HARBOR BIRCH COBALT NOOK FLINT  "),
             self.SAMPLE_CHANT,
         )
         locator = ChantLocator.create(self.SAMPLE_DIAL_ID)
@@ -94,7 +94,7 @@ class CanonicalContractTests(WorkspaceTestCase):
         self.assertFalse(contract["requires_rapp_runtime"])
         self.assertTrue(contract["full_dial_id_verification_required"])
         with self.assertRaisesRegex(ValidationError, "seven words"):
-            normalize_chant("softwarecoellc-vteam-hive")
+            normalize_chant("hive-hub-public-lab")
 
     def test_dial_record_v1_identity_and_legacy_chants_remain_stable(self) -> None:
         stack = make_stack(self.work)

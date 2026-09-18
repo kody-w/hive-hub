@@ -277,10 +277,27 @@ recursive self-hash.
 Federation unions candidate dialbooks and bucket indexes. It does not promote
 any peer, chant, or record into authority.
 
-The public SoftwareCo sample has full Dial Record ID
-`dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c`
-and derived chant `jetty-gorse-grove-pond-marrow-otter-weir`.
-`softwarecoellc-vteam-hive` remains only a display/search alias.
+The public onboarding laboratory points only to Hive Hub's minimal founding
+revision. Its full Dial Record ID is
+`dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32`
+and its derived chant is `juniper-quartz-harbor-birch-cobalt-nook-flint`.
+`hive-hub-public-lab` is only a display/search alias. This demonstrates discovery
+and a reversible local subscription, not a running autonomous service.
+
+Private and unlisted Hives are dark doors: their names, addresses, chants, QR
+codes, records, and learning metadata must not enter the public projection.
+Share their locators through already-authorized private channels; the source
+ACL remains authoritative. A repository being readable is not permission to
+advertise it.
+
+Public receipt history is append-only unless a maintainer explicitly retires
+an exact prior manifest digest in `public-withdrawals.json`. That exceptional
+privacy withdrawal requires the old receipt sources and generated receipt
+URLs to be absent, not rewritten at their old content addresses. It does not
+erase Git history, existing downloads, or third-party caches.
+
+[Ten public showcase build prompts](docs/PUBLIC_EXAMPLES.md) describe proposed
+demonstrations using only synthetic or explicitly public material.
 
 ## Explicit public-only build
 

@@ -109,8 +109,8 @@ def build_manifest() -> dict[str, object]:
             "classification": "public-only",
             "private_inputs_read": 0,
             "sample": (
-                "billwhalenmsft/softwarecoellc-vteam-hive@"
-                "f66da3d879b53a439bc87de764d79f68ceec048a"
+                "kody-w/hive-hub@"
+                "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9"
             ),
         },
         "file_count": len(files),

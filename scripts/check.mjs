@@ -337,7 +337,7 @@ export async function checkStaticSurface({ root, manifestPath }) {
   assert(record.kind === "dial-record" && record.visibility === "public", "Example record is not public");
   assert(
     record.dialId ===
-      "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c",
+      "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32",
     "Example record full Dial Record ID is incorrect"
   );
   assert(
@@ -346,17 +346,17 @@ export async function checkStaticSurface({ root, manifestPath }) {
     "Example record chant is not derived from its full Dial Record ID"
   );
   assert(
-    record.aliases.includes("softwarecoellc-vteam-hive") &&
-      record.chants[0].value !== "softwarecoellc-vteam-hive",
+    record.aliases.includes("hive-hub-public-lab") &&
+      record.chants[0].value !== "hive-hub-public-lab",
     "Example repository slug is not isolated to display/search aliases"
   );
   assert(
     record.locator.repositoryUrl ===
-      "https://github.com/billwhalenmsft/softwarecoellc-vteam-hive",
+      "https://github.com/kody-w/hive-hub",
     "Example record repository is incorrect"
   );
   assert(
-    record.locator.revision === "f66da3d879b53a439bc87de764d79f68ceec048a",
+    record.locator.revision === "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9",
     "Example record commit is not pinned as required"
   );
   assert(record.claims.authority.length === 0, "Example record claims authority");
@@ -440,10 +440,10 @@ export async function checkStaticSurface({ root, manifestPath }) {
     "Release chant vocabulary drifted"
   );
   assert(
-    release.publicSample.repository === "billwhalenmsft/softwarecoellc-vteam-hive" &&
-      release.publicSample.revision === "f66da3d879b53a439bc87de764d79f68ceec048a" &&
+    release.publicSample.repository === "kody-w/hive-hub" &&
+      release.publicSample.revision === "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9" &&
       release.publicSample.dialId ===
-        "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c" &&
+        "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32" &&
       release.publicSample.chant === deriveChant(release.publicSample.dialId),
     "Integrated release changed the only real public sample"
   );

@@ -77,7 +77,7 @@ async function main() {
     "public dialbook does not index the derived chant"
   );
   assert(
-    !Object.prototype.hasOwnProperty.call(dialbook.chants, "softwarecoellc-vteam-hive"),
+    !Object.prototype.hasOwnProperty.call(dialbook.chants, "hive-hub-public-lab"),
     "repository slug leaked into the chant index"
   );
   assert(release.version === "0.1.1", "release version failed");
