@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hive-hub.invalid/schemas/hive-declaration.schema.json",
+  "title": "Hive Hub declaration",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "access",
+    "protocol",
+    "adapter",
+    "learning",
+    "conformance",
+    "join"
+  ],
+  "properties": {
+    "schema": {
+      "const": "hive-hub-declaration/1"
+    },
+    "id": {
+      "pattern": "^dial:sha256:[0-9a-f]{64}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "access": {
+      "type": "object"
+    },
+    "protocol": {
+      "type": "object"
+    },
+    "adapter": {
+      "type": "object"
+    },
+    "learning": {
+      "type": "object"
+    },
+    "conformance": {
+      "type": "object"
+    },
+    "join": {
+      "type": "object"
+    },
+    "extensions": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

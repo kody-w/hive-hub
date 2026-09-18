@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hive-hub.invalid/schemas/join-card.schema.json",
+  "title": "Hive Hub QR or AI join card",
+  "type": "object",
+  "required": [
+    "schema",
+    "locator"
+  ],
+  "properties": {
+    "schema": {
+      "enum": [
+        "hive-hub-join-card/1",
+        "hive-hub-qr-join-card/1",
+        "hive-hub-ai-join-card/1"
+      ]
+    },
+    "locator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "workspace_address": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "declaration": {
+      "type": "object"
+    },
+    "unlock_fragment": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    }
+  },
+  "additionalProperties": false
+}
