@@ -92,16 +92,16 @@
 - Published core schemas: `/api/hive-hub/v1/core-schemas/`
 - Human surface: `/hub/`
 - Browser-free AI instructions: `/hub/join/ai.json` and `/llms.txt`
-- Only real sample:
-  `billwhalenmsft/softwarecoellc-vteam-hive@f66da3d879b53a439bc87de764d79f68ceec048a`
+- Explicitly public onboarding sample:
+  `kody-w/hive-hub@8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9`
 - Sample Dial Record ID:
-  `dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c`
-- Sample chant: `jetty-gorse-grove-pond-marrow-otter-weir`
-- Display/search alias only: `softwarecoellc-vteam-hive`
-- Receipt sequence 2 records the chant correction while sequence 1 and every
-  immutable object it references remain byte-for-byte available.
-- The superseded immutable sequence-1 objects preserve their historical bytes;
-  no active card, record, dialbook, or skill chant indexes the repository slug.
+  `dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32`
+- Sample chant: `juniper-quartz-harbor-birch-cobalt-nook-flint`
+- Display/search alias only: `hive-hub-public-lab`
+- A new public-lab receipt ledger contains no dark-door locators.
+- Exact-manifest privacy withdrawals remove superseded receipt sources and
+  generated receipt URLs instead of republishing private metadata.
+- Removed live projections do not imply deletion of prior Git history or caches.
 
 ## Deterministic source inventory
 

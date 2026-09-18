@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -34,6 +34,38 @@ async function gitShowOrNull(repository, revisionPath) {
 
 function receiptEntries(manifest) {
   return manifest.entries.filter((entry) => entry.kind === "receipt");
+}
+
+export function allowsLedgerWithdrawal(policy, priorManifestBytes) {
+  if (
+    !policy ||
+    Object.keys(policy).sort().join(",") !== "kind,manifestSha256,version" ||
+    policy.kind !== "public-ledger-withdrawals" ||
+    policy.version !== 1 ||
+    !Array.isArray(policy.manifestSha256) ||
+    policy.manifestSha256.length > 128 ||
+    !policy.manifestSha256.every((digest) => /^[a-f0-9]{64}$/.test(digest)) ||
+    new Set(policy.manifestSha256).size !== policy.manifestSha256.length
+  ) {
+    throw new Error("Invalid public ledger withdrawal policy");
+  }
+  return policy.manifestSha256.includes(sha256Bytes(priorManifestBytes));
+}
+
+async function requireWithdrawnPath(repository, relative) {
+  const absolute = path.resolve(repository, relative);
+  if (!absolute.startsWith(path.resolve(repository) + path.sep)) {
+    throw new Error("Withdrawn path escapes the repository");
+  }
+  try {
+    await lstat(absolute);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+  throw new Error(`Withdrawn receipt is still present: ${relative}`);
 }
 
 export async function checkReceipts({ manifestPath, base }) {
@@ -80,6 +112,37 @@ export async function checkReceipts({ manifestPath, base }) {
   }
   const priorManifest = JSON.parse(priorManifestBytes);
   const priorEntries = receiptEntries(priorManifest);
+  const priorTree = await git(repository, [
+    "ls-tree", "-r", "--name-only", base, "--", "api/hive-hub/v1/receipts/sha256"
+  ]);
+  const priorReceiptPaths = priorTree.stdout.toString("utf8").trim().split("\n").filter(Boolean);
+  let withdrawalPolicy = null;
+  try {
+    withdrawalPolicy = JSON.parse(await readPublicFile(repository, "public-withdrawals.json"));
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+  if (withdrawalPolicy && allowsLedgerWithdrawal(withdrawalPolicy, priorManifestBytes)) {
+    for (const prior of priorEntries) {
+      if (currentEntries.some((entry) => entry.id === prior.id || entry.path === prior.path)) {
+        throw new Error("Withdrawn receipt declarations must not be reused");
+      }
+      await requireWithdrawnPath(repository, `${priorManifest.sourceRoot}/${prior.path}`);
+      await requireWithdrawnPath(repository, `api/hive-hub/v1/source/${prior.path}`);
+    }
+    for (const receiptPath of priorReceiptPaths) {
+      await requireWithdrawnPath(repository, receiptPath);
+    }
+    return {
+      comparedBase: true,
+      count: currentEntries.length,
+      priorLedger: true,
+      priorReceiptCount: priorEntries.length,
+      withdrawnLedger: true
+    };
+  }
   if (currentEntries.length < priorEntries.length) {
     throw new Error("Append-only receipt ledger removed prior receipt declarations");
   }
@@ -108,19 +171,6 @@ export async function checkReceipts({ manifestPath, base }) {
     }
   }
 
-  const priorTree = await git(repository, [
-    "ls-tree",
-    "-r",
-    "--name-only",
-    base,
-    "--",
-    "api/hive-hub/v1/receipts/sha256"
-  ]);
-  const priorReceiptPaths = priorTree.stdout
-    .toString("utf8")
-    .trim()
-    .split("\n")
-    .filter(Boolean);
   for (const receiptPath of priorReceiptPaths) {
     const priorBytes = await gitShowOrNull(repository, `${base}:${receiptPath}`);
     const currentBytes = await readPublicFile(repository, receiptPath);
@@ -149,7 +199,9 @@ async function main() {
     manifestPath: args.manifest
   });
   const baseMessage = result.comparedBase
-    ? result.priorLedger
+    ? result.withdrawnLedger
+      ? `; verified removal of ${result.priorReceiptCount} explicitly withdrawn receipt(s)`
+      : result.priorLedger
       ? ` and preserved ${result.priorReceiptCount} receipt(s) from the base`
       : "; the base has no prior ledger"
     : "";

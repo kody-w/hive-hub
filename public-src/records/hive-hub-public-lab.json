@@ -1,0 +1,41 @@
+{
+  "access": {
+    "authorization": "existing-source-acl",
+    "mode": "acl-only",
+    "unreachableResponse": "Do not distinguish a nonexistent target from an unauthorized target."
+  },
+  "aliases": ["hive-hub-public-lab"],
+  "adapterId": "github-repository-locator-v1",
+  "chantProtocolId": "hive-hub-chant-v1",
+  "chants": [
+    {
+      "role": "candidate-locator-only",
+      "value": "juniper-quartz-harbor-birch-cobalt-nook-flint"
+    }
+  ],
+  "claims": {"authority": [], "semanticCompatibility": []},
+  "conformanceId": "github-repository-locator-contract-v1",
+  "dialId": "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32",
+  "displayName": "Hive Hub public onboarding laboratory",
+  "kind": "dial-record",
+  "learningBundleId": "github-repository-learning-v1",
+  "locator": {
+    "archiveUrl": "https://github.com/kody-w/hive-hub/archive/8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9.tar.gz",
+    "browseUrl": "https://github.com/kody-w/hive-hub/tree/8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9",
+    "owner": "kody-w",
+    "provider": "github",
+    "rawBaseUrl": "https://raw.githubusercontent.com/kody-w/hive-hub/8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9",
+    "repository": "hive-hub",
+    "repositoryUrl": "https://github.com/kody-w/hive-hub",
+    "revision": "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9",
+    "revisionType": "git-commit"
+  },
+  "protocolId": "github-repository-v1",
+  "recordId": "hive-hub-public-lab",
+  "security": {
+    "credentialsIncluded": false,
+    "retrievedContent": "inert-until-approved-and-verified"
+  },
+  "summary": "An explicitly public onboarding laboratory pinned to Hive Hub's minimal founding revision. Verify a locator and plan a reversible local subscription; this is not a running autonomous service.",
+  "visibility": "public"
+}

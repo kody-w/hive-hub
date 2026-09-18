@@ -28,17 +28,21 @@ from scripts.update_agent_lock import (  # noqa: E402
 )
 
 PRODUCT_VERSION = "0.1.1"
-GENERATED_AT = "2026-09-18T22:02:35Z"
+GENERATED_AT = "2026-09-18T23:15:00Z"
 CORE_CARD_ISSUED_AT = "2026-09-18T19:16:11Z"
 SITE_BASE_URL = "https://kody-w.github.io/hive-hub"
 API_PATH = "api/hive-hub/v1"
-SAMPLE_REPOSITORY = "billwhalenmsft/softwarecoellc-vteam-hive"
-SAMPLE_REVISION = "f66da3d879b53a439bc87de764d79f68ceec048a"
+SAMPLE_REPOSITORY = "kody-w/hive-hub"
+SAMPLE_REVISION = "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9"
+SAMPLE_DECLARATION_ID = (
+    "dial:sha256:"
+    "a917f8e41e56639a7036109b39888ee37793b7eeb045c08e387903da5c9da1af"
+)
 SAMPLE_DIAL_ID = (
     "dial:sha256:"
-    "6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c"
+    "6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
 )
-SAMPLE_CHANT = "jetty-gorse-grove-pond-marrow-otter-weir"
+SAMPLE_CHANT = "juniper-quartz-harbor-birch-cobalt-nook-flint"
 assert derive_chant(SAMPLE_DIAL_ID) == SAMPLE_CHANT
 SOURCE_COMMITS = {
     "adapters": "243fdcbb6934f1989d1d2bd1e9a0e1ee34c5cef0",
@@ -93,7 +97,7 @@ def source_reference(relative: str) -> dict[str, Any]:
 def build_skill_declaration() -> dict[str, Any]:
     protocol = source_reference("protocols/github-repository-v1.json")
     conformance = source_reference("conformance/github-repository-locator-v1.json")
-    record = source_reference("records/softwarecoellc-vteam-hive-chant-v1.json")
+    example = source_reference("examples/hive-hub-public-lab.json")
     artifacts = [
         {
             "role": "spec",
@@ -107,7 +111,7 @@ def build_skill_declaration() -> dict[str, Any]:
         },
         {
             "role": "examples",
-            **record,
+            **example,
             "media_type": "application/json",
         },
     ]
@@ -117,8 +121,8 @@ def build_skill_declaration() -> dict[str, Any]:
     }
     return {
         "schema": "hive-hub-declaration/1",
-        "id": SAMPLE_DIAL_ID,
-        "name": "SoftwareCo LLC V-Team Hive repository example",
+        "id": SAMPLE_DECLARATION_ID,
+        "name": "Hive Hub public onboarding laboratory",
         "access": {"visibility": "public", "mode": "acl-only"},
         "protocol": {
             "id": "github-repository/1",
@@ -153,7 +157,7 @@ def build_skill_declaration() -> dict[str, Any]:
 
 
 def build_skill_dialbook(declaration: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    relative = "skill-declarations/softwarecoellc-vteam-hive.json"
+    relative = "skill-declarations/hive-hub-public-lab.json"
     reference = source_reference(relative)
     record = {
         "id": SAMPLE_DIAL_ID,
@@ -162,6 +166,12 @@ def build_skill_dialbook(declaration: dict[str, Any]) -> tuple[dict[str, Any], s
         "locator": reference["url"],
         "declaration": reference,
     }
+    identity_body = {
+        "chants": record["aliases"],
+        "locator": record["locator"],
+        "declaration": reference,
+    }
+    assert "dial:sha256:" + digest(identity_body) == SAMPLE_DIAL_ID
     return (
         {
             "schema": "hive-hub-dialbook/2",
@@ -278,27 +288,13 @@ def update_manifest(
 ) -> None:
     target = ROOT / "public-manifest.json"
     manifest = json.loads(read_regular_bytes(target).decode("utf-8"))
-    generated_ids = {
-        "hive-hub-release-0.1.1",
-        "hive-hub-release-0.1.0",
-        "historical-source-release-0.1.0",
-        "historical-source-record-softwarecoellc",
-        "historical-source-declaration-softwarecoellc",
-        "hive-hub-chant-v1",
-        "historical-card-4a9d98ad",
-        "historical-core-card-6d991eea",
-        "historical-declaration-afab2137",
-        "historical-record-8a91f582",
-        "historical-release-04a4eee6",
-        "historical-receipt-ba52e736",
-        "publish-softwarecoellc-example-0002",
-        "softwarecoellc-vteam-hive-skill-declaration",
-        "softwarecoellc-vteam-hive-core-card",
-        "softwarecoellc-vteam-hive-main-f66da3d",
-        *(f"core-schema-{name}" for name in schema_names),
+    generated_kinds = {
+        "core-card", "core-schema", "release", "skill-declaration",
     }
     entries = [
-        entry for entry in manifest["entries"] if entry["id"] not in generated_ids
+        entry for entry in manifest["entries"]
+        if entry["kind"] not in generated_kinds
+        and entry["id"] != "hive-hub-public-lab-learning-example"
     ]
     entries.extend(
         [
@@ -308,92 +304,19 @@ def update_manifest(
                 "release/hive-hub-0.1.1.json",
             ),
             manifest_entry(
-                "historical-source-release-0.1.0",
+                "hive-hub-public-lab-learning-example",
                 "source-archive",
-                "release/hive-hub-0.1.0.json",
+                "examples/hive-hub-public-lab.json",
             ),
             manifest_entry(
-                "historical-source-record-softwarecoellc",
-                "source-archive",
-                "records/softwarecoellc-vteam-hive.json",
-            ),
-            manifest_entry(
-                "historical-source-declaration-softwarecoellc",
-                "source-archive",
-                "skill-declarations/softwarecoellc-vteam-hive.json",
-            ),
-            manifest_entry(
-                "softwarecoellc-vteam-hive-main-f66da3d",
-                "record",
-                "records/softwarecoellc-vteam-hive-chant-v1.json",
-            ),
-            manifest_entry(
-                "hive-hub-chant-v1",
-                "protocol",
-                "protocols/hive-hub-chant-v1.json",
-            ),
-            manifest_entry(
-                "historical-receipt-ba52e736",
-                "historical-receipt",
-                (
-                    "receipts/history/"
-                    "ba52e73692f991d5a495087cc6f7ef2984299dfe6b940f92b0d88b3f11c81951.json"
-                ),
-            ),
-            manifest_entry(
-                "historical-card-4a9d98ad",
-                "historical-object",
-                (
-                    "history/cards/"
-                    "4a9d98adfd98118a5f7b458d3af41340944f8eb957ef1990f6f96a402f20d700.json"
-                ),
-            ),
-            manifest_entry(
-                "historical-core-card-6d991eea",
-                "historical-object",
-                (
-                    "history/cards/"
-                    "6d991eeaea3fe68e34d060176390f71d1672fd469e91e2fa9b7c9c0e904b4c29.json"
-                ),
-            ),
-            manifest_entry(
-                "historical-declaration-afab2137",
-                "historical-object",
-                (
-                    "history/declarations/"
-                    "afab2137c0dfd3ddba6ab59257cb364c8585a51d7492c2c291b1d10688d9c75c.json"
-                ),
-            ),
-            manifest_entry(
-                "historical-record-8a91f582",
-                "historical-object",
-                (
-                    "history/records/"
-                    "8a91f5821d2663ea6e106d9e1dea1c04238159a48a8f4f814f67d6f05662d1cd.json"
-                ),
-            ),
-            manifest_entry(
-                "historical-release-04a4eee6",
-                "historical-object",
-                (
-                    "history/releases/"
-                    "04a4eee6ac2b2b13924828ab1be868557f61053012d7e586dad97f97ed7f5d15.json"
-                ),
-            ),
-            manifest_entry(
-                "publish-softwarecoellc-example-0002",
-                "receipt",
-                "receipts/0002-correct-softwarecoellc-chant.json",
-            ),
-            manifest_entry(
-                "softwarecoellc-vteam-hive-skill-declaration",
+                "hive-hub-public-lab-skill-declaration",
                 "skill-declaration",
-                "skill-declarations/softwarecoellc-vteam-hive-chant-v1.json",
+                "skill-declarations/hive-hub-public-lab.json",
             ),
             manifest_entry(
-                "softwarecoellc-vteam-hive-core-card",
+                "hive-hub-public-lab-core-card",
                 "core-card",
-                "cards/softwarecoellc-vteam-hive-core.json",
+                "cards/hive-hub-public-lab-core.json",
             ),
         ]
     )
@@ -409,8 +332,8 @@ def update_manifest(
     manifest["productVersion"] = PRODUCT_VERSION
     manifest["build"]["generatedAt"] = GENERATED_AT
     card = manifest["cards"][0]
-    card["coreCardId"] = "softwarecoellc-vteam-hive-core-card"
-    card["skillDeclarationId"] = "softwarecoellc-vteam-hive-skill-declaration"
+    card["coreCardId"] = "hive-hub-public-lab-core-card"
+    card["skillDeclarationId"] = "hive-hub-public-lab-skill-declaration"
     card["skillDialId"] = skill_dial_id
     card["chant"] = derive_chant(skill_dial_id)
     write_or_check(target, canonical(manifest), check=check)
@@ -422,7 +345,7 @@ def sync(*, check: bool) -> None:
         ROOT
         / "public-src"
         / "skill-declarations"
-        / "softwarecoellc-vteam-hive-chant-v1.json"
+        / "hive-hub-public-lab.json"
     )
     write_or_check(declaration_path, canonical(declaration), check=check)
 
@@ -433,7 +356,7 @@ def sync(*, check: bool) -> None:
         check=check,
     )
     write_or_check(
-        ROOT / "public-src" / "cards" / "softwarecoellc-vteam-hive-core.json",
+        ROOT / "public-src" / "cards" / "hive-hub-public-lab-core.json",
         canonical(build_core_card(dial_id)),
         check=check,
     )

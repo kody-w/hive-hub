@@ -291,10 +291,10 @@ function validateRelease(document, manifest) {
     "Release chant authority or runtime boundary is invalid"
   );
   assert(
-    document.publicSample?.repository === "billwhalenmsft/softwarecoellc-vteam-hive" &&
-      document.publicSample?.revision === "f66da3d879b53a439bc87de764d79f68ceec048a" &&
+    document.publicSample?.repository === "kody-w/hive-hub" &&
+      document.publicSample?.revision === "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9" &&
       document.publicSample?.dialId ===
-        "dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c" &&
+        "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32" &&
       document.publicSample?.chant === deriveChant(document.publicSample.dialId),
     "Release metadata does not bind the allowed public sample"
   );

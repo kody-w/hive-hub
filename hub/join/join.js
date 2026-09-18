@@ -9,6 +9,11 @@
     const status = document.getElementById("status");
     const failure = document.getElementById("failure");
     try {
+      if (!fragment) {
+        status.textContent = "No join card supplied. Choose a public example or use a privately shared locator with your AI.";
+        document.getElementById("join-help").hidden = false;
+        return;
+      }
       const envelope = decodeEnvelope(fragment);
       status.textContent = "Verifying the content-addressed card…";
       const card = await fetchVerifiedJson(envelope.card, "sha256:" + envelope.sha256);

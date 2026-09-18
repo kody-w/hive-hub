@@ -52,11 +52,11 @@ the local subscription. It never performs an adapter effect.
 
 ```bash
 hive-hub chant derive \
-  dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c
-hive-hub chant parse "JETTY GORSE GROVE POND MARROW OTTER WEIR"
+  dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32
+hive-hub chant parse "JUNIPER QUARTZ HARBOR BIRCH COBALT NOOK FLINT"
 hive-hub chant verify \
-  dial:sha256:6efe6390f51f67d1bca0169280ed8e091040563430186df4bb28ebff4298486c \
-  jetty-gorse-grove-pond-marrow-otter-weir
+  dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32 \
+  juniper-quartz-harbor-birch-cobalt-nook-flint
 ```
 
 A chant is only a collisionable candidate locator. Dialing still verifies the
