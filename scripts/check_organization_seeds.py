@@ -40,6 +40,7 @@ def verify_package(seed: dict[str, Any]) -> dict[str, bytes]:
         require(len(data) == entry["bytes"] and sha(data) == entry["sha256"], "file hash mismatch")
         files[path] = data
     require(len(files) == seed["counts"]["packageFiles"], "package count mismatch")
+    require("LICENSE" in files and b"MIT License" in files["LICENSE"], "package license missing")
     archive = base64.b64decode(seed["archive"]["base64"], validate=True)
     require(
         len(archive) == seed["archive"]["bytes"] and sha(archive) == seed["archive"]["sha256"],

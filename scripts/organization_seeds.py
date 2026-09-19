@@ -377,6 +377,7 @@ def build_seed(slug: str, root: Path = ROOT) -> dict[str, Any]:
         "signed_estate_activation": False,
     }
     files = {
+        "LICENSE": _read_source(root / "LICENSE"),
         "README.md": _readme(blueprint),
         "initialize.json": json_bytes(initialization),
         "templates/casework/work/intake.json": json_bytes(
@@ -424,6 +425,7 @@ def build_seed(slug: str, root: Path = ROOT) -> dict[str, Any]:
         "slug": slug,
         "name": blueprint["name"],
         "classification": "public-synthetic",
+        "license": "MIT",
         "status": "seed-not-activated",
         "protocol": "rapp-work/1",
         "workspace_profile": "rapp-work-sdk/1",
