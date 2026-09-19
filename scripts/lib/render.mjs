@@ -1045,3 +1045,36 @@ Example Dial Record fingerprint: ${exampleRecord.ref}
 No runtime external scripts, analytics, service workers, persistent storage, or telemetry are used.
 `;
 }
+
+export function renderRootIndexHtml() {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    ${SECURITY_META}
+    <meta http-equiv="refresh" content="0; url=./hub/">
+    <meta name="description" content="Protocol-neutral Hive discovery through a deterministic static API.">
+    <title>Hive Hub</title>
+    <link rel="canonical" href="./hub/">
+    <link rel="stylesheet" href="./hub/assets/hub.css">
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="Hive Hub instructions for AI clients">
+    <link rel="alternate" type="application/json" href="./api/hive-hub/v1/index.json" title="Hive Hub static API">
+  </head>
+  <body>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <h1 id="hero-title">Hive Hub</h1>
+        <p class="lede">The Hub front door is <a href="./hub/">./hub/</a>. Your browser is being sent there now.</p>
+        <div class="actions">
+          <a class="button" href="./hub/">Open the Hub</a>
+          <a class="button button-secondary" href="./hub/join/">Verify an AI join card</a>
+          <a class="text-link" href="./llms.txt">llms.txt</a>
+          <a class="text-link" href="./api/hive-hub/v1/index.json">Static API</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
+`;
+}

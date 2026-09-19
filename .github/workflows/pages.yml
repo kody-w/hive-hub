@@ -58,8 +58,8 @@ jobs:
 
       - name: Require committed generated output
         run: |
-          if test -n "$(git status --porcelain -- .nojekyll .well-known api hub llms.txt)"; then
-            git status --short -- .nojekyll .well-known api hub llms.txt
+          if test -n "$(git status --porcelain -- .nojekyll .well-known api hub index.html llms.txt)"; then
+            git status --short -- .nojekyll .well-known api hub index.html llms.txt
             echo "Generated public output is not committed or is stale." >&2
             exit 1
           fi

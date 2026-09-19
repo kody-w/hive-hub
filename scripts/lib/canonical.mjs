@@ -7,6 +7,7 @@ export const PUBLIC_ROOT_PATHS = [
   ".well-known/hive-hub.json",
   "api/hive-hub/v1",
   "hub",
+  "index.html",
   "llms.txt"
 ];
 

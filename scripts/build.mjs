@@ -25,6 +25,7 @@ import { writeOrganizationSeeds } from "./lib/organization-seeds.mjs";
 import {
   renderHomeHtml,
   renderHubCss,
+  renderRootIndexHtml,
   renderJoinHtml,
   renderJoinJavaScript,
   renderOrganizationSeedHtml,
@@ -1419,6 +1420,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       renderOrganizationSeedHtml({ seed: seed.document, card, generatedAt })
     );
   }
+  await writer.write("index.html", renderRootIndexHtml());
   await writer.write(".nojekyll", "");
 
   const hashedFiles = sortedObject(
