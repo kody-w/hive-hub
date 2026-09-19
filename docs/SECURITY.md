@@ -1,7 +1,8 @@
 # Security model
 
-Hive Hub core is a local data and planning library. It contains no network
-client, credential broker, repository client, or code executor.
+Hive Hub core is local-first. It contains no credential broker, repository
+client, or code executor. Public discovery has one explicit, lazily loaded
+stdlib HTTP client; ordinary dialing and planning remain offline.
 
 ## Authority boundaries
 
@@ -57,11 +58,34 @@ persisted core contract.
 - atomic no-replace writes and byte-address verification before reversal;
 - cross-platform per-record interprocess locking around private record and
   policy registration, including rollback;
-- no dynamic imports, `eval`, `exec`, shell commands, or subprocesses.
+- no downloaded-code imports, `eval`, `exec`, shell commands, or subprocesses.
 
 The core does not claim resistance to a hostile process with equal operating
 system privileges. Hosts should apply normal directory ownership and
 permissions.
+
+## Approved public discovery
+
+`dial --from` first returns a content-addressed plan without requests or writes.
+Its exact digest is required to perform the single bounded snapshot GET and
+inert public registration. Base URL, query, destination, limits, and effect
+policy all participate in the digest. It never reads private/local dialbooks,
+uses proxy credentials, follows redirects, or follows pointers in the response.
+TLS verification remains enabled; plaintext HTTP is limited to explicit
+loopback development hosts.
+
+The initial snapshot is mutable discovery data: its byte digest is unknown
+before the approved request. Envelope byte hashes, unchanged core identity
+bodies, derived chants, artifact hashes, and exact contract relationships are
+verified before any registration. A full-ID query pins a record digest; a
+chant alone provides only candidate discovery, not publisher authenticity or
+authorization. Registration grants no execution permission.
+
+The response and each envelope retain the core's byte/collection/depth limits.
+Compressed responses, duplicate keys, floats, and unexpected contract fields
+are rejected. Writes are content-addressed, no-replace, and serialized for
+public imports; a failed import rolls back only its newly created files.
+Existing local content is never overwritten.
 
 ## Universal skill network and execution boundary
 
