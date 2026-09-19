@@ -215,6 +215,7 @@ export async function checkStaticSurface({ root, manifestPath }) {
     "api/hive-hub/v1/receipts/index.json",
     "api/hive-hub/v1/release.json",
     "api/hive-hub/v1/status.json",
+    "index.html",
     "hub/index.html",
     "hub/join/index.html",
     "hub/join/join.js",
