@@ -1,0 +1,12 @@
+case_id,setup,action,expected_reference_evidence,classification
+recovery-cash,Original three-month cash and subscription rows,Reconcile opening plus receipts less payments,Closing USD 32400 and no unexplained subscription mismatch,SYNTHETIC
+recovery-reserve,Original prior-period catch-up payables,Reserve separately from recurring scenario,USD 5500 reserved; USD 26900 remains,SYNTHETIC
+recovery-legacy,Original defective dispatcher,Select four eligible tickets,Known wrong policy chooses ticket-009; ticket-002; ticket-006; ticket-012,SYNTHETIC
+recovery-candidate,Agreed severity ordering,Select four eligible tickets,Candidate chooses ticket-001; ticket-010; ticket-007; ticket-011,SYNTHETIC
+recovery-blocked,Blocked urgent ticket-004,Build review batch and capacity slice,Ticket remains blocked and is never counted as selected or completed,SYNTHETIC
+recovery-capacity,420-minute support cap,Simulate non-preemptive fit,Six selected tickets use exactly 420 minutes; all others remain visible,SYNTHETIC
+recovery-zero,Zero-minute support cap,Simulate slice,No selection and all eleven eligible tickets deferred,SYNTHETIC
+recovery-duplicate,Duplicate synthetic ticket or transaction ID,Validate inputs,Reject duplicate rather than silently count it twice,SYNTHETIC
+recovery-unknown-severity,Ticket with an unrecognized severity,Validate candidate inputs,Reject rather than assign a default rank,SYNTHETIC
+recovery-ties,Same severity and opened date in reversed input order,Select candidate batch,Stable ticket-ID tie break independent of file order,SYNTHETIC
+recovery-effects,Any local report or passing test,Review report and authority boundary,No deployment; messages; support completion; cost change; or realized savings implied,SYNTHETIC

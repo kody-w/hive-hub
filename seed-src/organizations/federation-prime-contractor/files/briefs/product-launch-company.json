@@ -1,0 +1,16 @@
+{
+  "schema":"synthetic-candidate-partner-brief/1",
+  "classification":"SYNTHETIC",
+  "brief_id":"operator-kit-discovery",
+  "candidate_organization":"product-launch-company",
+  "relationship":"discovery-only",
+  "request_state":"unsent-and-unapproved",
+  "objective":"Propose an operator kit for a closed synthetic rehearsal, not a public product launch or marketing campaign.",
+  "in_scope":["at least four concrete operator steps","exact interface reference","upstream role/retention alignment","SYNTHETIC disclosure","owner review before any real use"],
+  "out_of_scope":["advertising spend","public launch claims","email campaigns","real testimonials","external analytics","foreign workspace registration"],
+  "deliverable":{"id":"pilot-kit","artifact_kind":"pilot-kit","required_fields":["schema","interface_schema","operator_steps","public_launch","owner_review_required","disclosure"]},
+  "depends_on":["prototype-spec","operating-model"],
+  "acceptance_ids":["kit-schema","kit-interface","kit-steps","kit-no-public-launch","kit-owner-review","kit-disclosure"],
+  "handoff":"An eventual separately owner-approved public pilot-kit artifact may be reviewed locally; no outreach or transfer occurs now.",
+  "authority":{"contract":false,"membership":false,"remote_execution":false,"workspace_registration":false}
+}

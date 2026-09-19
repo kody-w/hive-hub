@@ -1,0 +1,10 @@
+classification,quote-id,line-id,sku,quantity,unit-price-usd,discount-pct,tax-code
+SYNTHETIC,q-101,line-101-a,blank-card-case,2,125.00,5.00,standard
+SYNTHETIC,q-102,line-102-a,paper-label-pack,3,40.00,10.00,standard
+SYNTHETIC,q-103,line-103-a,folder-case,1,200.00,8.00,standard
+SYNTHETIC,q-104,line-104-a,desk-divider-kit,2,499.95,15.00,standard
+SYNTHETIC,q-105,line-105-a,blank-notebook,1,25.00,0.00,unconfirmed
+SYNTHETIC,q-106,line-106-a,rounding-sample-card,3,0.05,0.00,standard
+SYNTHETIC,q-106,line-106-b,exempt-reference-sheet,1,10.00,0.00,exempt
+SYNTHETIC,q-107,line-107-a,paper-label-pack,-1,40.00,0.00,standard
+SYNTHETIC,q-108,line-108-a,blank-envelope-case,1,100.00,0.00,standard

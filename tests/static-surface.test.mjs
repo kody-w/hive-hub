@@ -65,9 +65,9 @@ test("generated surface passes links, hashes, security, and accessibility gates"
     manifestPath,
     root: buildA
   });
-  assert.equal(result.inputCount, 27);
+  assert.equal(result.inputCount, 72);
   assert.ok(result.immutableObjectCount >= 9);
-  assert.equal(result.qrCount, 2);
+  assert.equal(result.qrCount, 22);
 });
 
 test("example record is exact and grants no authority or semantic compatibility", async () => {
@@ -378,4 +378,93 @@ test("generated join script executes the real core camera-card path", async () =
   const machine = JSON.parse(elements.get("machine-readable").textContent);
   assert.deepEqual(machine.card, cardDocument);
   assert.equal(machine.verification.coreContract, "verified");
+});
+
+test("organization join verifies the exact package and refuses a different seed", async () => {
+  const publishedCards = await Promise.all(resultA.cards.map(async (card) => ({
+    ...card,
+    document: JSON.parse(await readFile(path.join(buildA, card.descriptor.path), "utf8"))
+  })));
+  const seedCards = publishedCards.filter((card) => card.document.seed);
+  assert.equal(seedCards.length, 10);
+  const selected = seedCards[0];
+  const joinScript = await readFile(path.join(buildA, "hub/join/join.js"), "utf8");
+  for (const tampered of [false, true]) {
+    const document = structuredClone(selected.document);
+    if (tampered) document.seed = seedCards[1].document.seed;
+    const cardBytes = Buffer.from(canonicalJson(document));
+    const envelope = {
+      card: selected.descriptor.url,
+      sha256: sha256Bytes(cardBytes),
+      v: 1
+    };
+    const location = new URL("https://kody-w.github.io/hive-hub/hub/join/");
+    location.hash = "#v1." + Buffer.from(JSON.stringify(envelope)).toString("base64url");
+    const elements = new Map([
+      "status", "failure", "machine-readable", "machine-section", "verified-title",
+      "summary", "steps", "repository-link", "json-link", "llms-link", "verified"
+    ].map((id) => [id, {
+      hidden: true, textContent: "", children: [], append(item) { this.children.push(item); }
+    }]));
+    let finish;
+    const completed = new Promise((resolve) => { finish = resolve; });
+    Object.defineProperty(elements.get("status"), "textContent", {
+      set(value) {
+        this.value = value;
+        if (value.startsWith("Verification complete.") || value === "Verification failed.") {
+          finish(value);
+        }
+      },
+      get() { return this.value || ""; }
+    });
+    let cleared = false;
+    const context = {
+      TextDecoder, TextEncoder, URL, URLSearchParams, Uint8Array, atob, btoa,
+      document: {
+        getElementById: (id) => elements.get(id),
+        createElement: () => ({ textContent: "" })
+      },
+      fetch: async (url) => {
+        assert.equal(cleared, true, "The locator must leave history before fetching");
+        const parsed = new URL(url);
+        assert.equal(parsed.origin, location.origin);
+        assert.ok(parsed.pathname.startsWith("/hive-hub/"));
+        const bytes = String(url) === selected.descriptor.url
+          ? cardBytes
+          : await readFile(path.join(buildA, parsed.pathname.slice("/hive-hub/".length)));
+        return {
+          ok: true,
+          arrayBuffer: async () => bytes.buffer.slice(
+            bytes.byteOffset, bytes.byteOffset + bytes.byteLength
+          )
+        };
+      },
+      window: {
+        atob, btoa, crypto: webcrypto,
+        history: { replaceState() { cleared = true; } },
+        location
+      }
+    };
+    vm.runInNewContext(joinScript, context);
+    let timer;
+    const finalStatus = await Promise.race([
+      completed,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("seed join verification timed out")), 3000);
+      })
+    ]);
+    clearTimeout(timer);
+    if (tampered) {
+      assert.equal(finalStatus, "Verification failed.");
+      assert.match(elements.get("failure").textContent, /disagree/);
+      assert.equal(elements.get("verified").hidden, true);
+    } else {
+      assert.match(finalStatus, /^Verification complete/);
+      const result = JSON.parse(elements.get("machine-readable").textContent);
+      assert.equal(result.seed.status, "seed-not-activated");
+      assert.equal(result.seed.counts.teams >= 5, true);
+      assert.equal(elements.get("repository-link").href, result.seed.archive.url);
+      assert.equal(elements.get("repository-link").download, result.seed.slug + ".zip");
+    }
+  }
 });

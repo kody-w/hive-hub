@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Mosslight Courier · an offline route puzzle</title>
+  <style>
+    :root{color-scheme:dark;--ink:#e9f6e4;--night:#14251f;--moss:#264c39;--mint:#b7edac;--gold:#f5cf71}
+    *{box-sizing:border-box}body{margin:0;background:var(--night);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+    main{max-width:980px;margin:auto;padding:24px}header{display:flex;gap:18px;align-items:center}header img{width:76px;height:76px}
+    h1{margin:0;font-size:clamp(1.7rem,5vw,2.8rem);line-height:1.2}p{margin:.65rem 0}.eyebrow{color:var(--gold);letter-spacing:.1em;text-transform:uppercase;font-size:.8rem}
+    .layout{display:grid;grid-template-columns:minmax(240px,1.5fr) minmax(220px,1fr);gap:24px;margin-top:20px}
+    .panel{background:#1c3429;padding:18px;border:1px solid #63846d;border-radius:16px}
+    label{display:block;margin:10px 0}button,select{font:inherit;color:var(--ink);background:#294835;border:1px solid #b7edac;border-radius:7px;padding:8px 12px;cursor:pointer}
+    button:focus-visible,select:focus-visible,#board:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+    #board{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;aspect-ratio:9/7;margin:16px 0;border-radius:8px}
+    .tile{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(14px,3.5vw,26px);background:#345c41;border:1px solid #648470;border-radius:4px;position:relative}
+    .wall{background:#0c1814;color:#54715d;border-color:#223c2e}.depot{background:#e5ba61;color:#241d0d}.target{color:#fff5c9;border:2px solid #f5cf71}
+    .delivered{background:#8fd798;color:#13291d}.bridge{background:#bddee4;color:#122d36;border-style:dashed}.closed{background:#5a4141;color:#ffe8e8}
+    .player::after{content:"◆";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#102920;background:#d2ffbd;border:3px solid #fff;border-radius:50%;margin:3px}
+    .controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}#status{min-height:5.4em;padding:12px;background:#10271d;border-left:4px solid var(--gold)}
+    kbd{font:inherit;font-size:.88em;padding:1px 5px;border:1px solid #9bb69e;border-radius:4px;white-space:nowrap}
+    ul{padding-left:20px}small,.muted{color:#bed0bc}footer{margin-top:22px;border-top:1px solid #587760;padding-top:12px}
+    @media(max-width:700px){.layout{grid-template-columns:1fr}main{padding:14px}.tile{font-size:clamp(17px,5vw,29px)}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+  </style>
+  <script defer src="game.js"></script>
+</head>
+<body>
+<main>
+  <header><img src="../art/courier.svg" alt="An original diamond-shaped moss courier carrying a lantern"><div><div class="eyebrow">A small, original offline puzzle</div><h1>Mosslight Courier</h1><p>One glow cell. Three quiet greenhouses. Find your route.</p></div></header>
+  <div class="layout">
+    <section class="panel" aria-label="Game">
+      <label for="level">Board <select id="level"></select></label>
+      <button id="focus" type="button">Focus board</button>
+      <div id="board" tabindex="0" role="group" aria-label="Nine-column, seven-row puzzle board" aria-describedby="keys status"></div>
+      <p id="status" role="status" aria-live="polite" aria-atomic="true">Loading local game…</p>
+      <div class="controls" aria-label="Move controls">
+        <button type="button" data-action="up" aria-label="Move up">↑</button><button type="button" data-action="left" aria-label="Move left">←</button><button type="button" data-action="down" aria-label="Move down">↓</button><button type="button" data-action="right" aria-label="Move right">→</button>
+        <button type="button" data-action="wait">Wait</button><button type="button" data-action="undo">Undo</button><button type="button" data-action="restart">Restart</button>
+      </div>
+      <label><input id="sound" type="checkbox"> Optional locally generated sound</label>
+    </section>
+    <aside class="panel">
+      <h2>Your first shift</h2>
+      <p>Deliver a glow cell to every <strong>○ beacon</strong>. You carry only one. Return to the <strong>D depot</strong> to reload automatically.</p>
+      <p>The <strong>= bridge</strong> opens for beats 1–2, then closes for beats 3–4. Enter only while open. You can always leave a bridge beneath your feet. Watch the <strong>next-action</strong> phase in the status.</p>
+      <p id="keys"><kbd>Arrows</kbd> / <kbd>WASD</kbd> move. <kbd>Space</kbd> waits one beat. <kbd>U</kbd> / <kbd>Backspace</kbd> undo. <kbd>R</kbd> restarts. These keys work while the board is focused.</p>
+      <ul><li>A blocked move does not spend a beat.</li><li>A filled <strong>★ beacon</strong> needs no more cells.</li><li><strong>◆</strong> is you. No time limit. Undo is welcome.</li><li>Win each board independently; switch boards with the selector.</li></ul>
+      <p class="muted">No network. No accounts. No saved state. Sound starts off.</p>
+    </aside>
+  </div>
+  <footer><small>Original seed reference build. Fictional studio and production research are SYNTHETIC. Three boards; keyboard/click controls; no claim of complete assistive-technology support.</small></footer>
+</main>
+</body>
+</html>

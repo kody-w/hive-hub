@@ -21,11 +21,13 @@ import {
 } from "./lib/canonical.mjs";
 import { loadPublicInputs } from "./lib/public-inputs.mjs";
 import { createQrSvg } from "./lib/qr.mjs";
+import { writeOrganizationSeeds } from "./lib/organization-seeds.mjs";
 import {
   renderHomeHtml,
   renderHubCss,
   renderJoinHtml,
   renderJoinJavaScript,
+  renderOrganizationSeedHtml,
   renderLlmsText
 } from "./lib/render.mjs";
 import { createSchemas } from "./lib/schemas.mjs";
@@ -43,6 +45,7 @@ const OPTIONAL_ENTRY_KINDS = new Set([
   "core-schema",
   "historical-object",
   "historical-receipt",
+  "organization-seed",
   "release",
   "source-archive",
   "skill-declaration"
@@ -243,6 +246,17 @@ function validateRecord(document) {
       document.claims.semanticCompatibility.length === 0,
     "Example record must not claim semantic compatibility"
   );
+  assert(document.security?.credentialsIncluded === false, "Public record cannot contain credentials");
+  if (document.locator?.provider === "static-seed") {
+    assert(
+      Object.keys(document.locator).sort().join(",") === "provider,seedId" &&
+      /^organization-seed-[a-z0-9-]+$/.test(document.locator.seedId) &&
+      document.protocolId === "rapp-work-organization-seed-v1",
+      "Static seed locator must reference one explicitly declared seed contract"
+    );
+    return;
+  }
+  assert(document.locator?.provider === "github", "Unsupported public locator provider");
   assert(
     /^[a-f0-9]{40}$/.test(document.locator?.revision),
     "Repository revision must be one exact lowercase Git commit"
@@ -422,6 +436,28 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   for (const entry of loaded.entries) {
     await writer.writeJson(`${apiPath}/source/${entry.path}`, entry.document);
   }
+  const organizationSeeds = await writeOrganizationSeeds(
+    writer, grouped.get("organization-seed"), { apiPath, siteBaseUrl }
+  );
+  immutableObjects.push(...organizationSeeds.values());
+  const networkSkillEntry = grouped.get("source-archive").find(
+    (entry) => entry.declaration.id === "hive-network-global-skill"
+  );
+  assert(networkSkillEntry, "The global network skill is missing");
+  const networkSkill = networkSkillEntry.document;
+  const networkSkillBytes = Buffer.from(networkSkill.content, "utf8");
+  assert(
+    networkSkill.kind === "agent-skill-document" &&
+    networkSkill.name === "hive-network" &&
+    networkSkillBytes.length === networkSkill.bytes &&
+    sha256Bytes(networkSkillBytes) === networkSkill.sha256,
+    "The global network skill byte commitment is invalid"
+  );
+  const networkSkillPath = "hub/skills/hive-network/SKILL.md";
+  await writer.write(networkSkillPath, networkSkillBytes);
+  const networkSkillDescriptor = descriptorFor(
+    networkSkillPath, networkSkill.sha256, siteBaseUrl
+  );
 
   for (const entry of grouped.get("historical-receipt")) {
     assert(entry.document.kind === "receipt", `${entry.path} is not a historical receipt`);
@@ -728,6 +764,15 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       protocol: protocol.descriptor,
       protocolFingerprint: protocol.descriptor.ref
     };
+    if (entry.document.locator.provider === "static-seed") {
+      const seed = organizationSeeds.get(entry.document.locator.seedId);
+      assert(seed, "Record references an unknown organization seed");
+      document.locator = {
+        provider: "static-seed",
+        seed: seed.descriptor,
+        archive: seed.archive
+      };
+    }
     const preHash = sha256Bytes(
       Buffer.from(
         canonicalJson({
@@ -830,6 +875,16 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       title: declaration.title,
       version: "1.0.0"
     };
+    if (record.document.locator.provider === "static-seed") {
+      cardDocument.seed = record.document.locator.seed;
+      cardDocument.steps = [
+        ...cardDocument.steps.slice(0, 3),
+        "Inspect the verified organization seed, native SDK initialization inputs, team workspaces, and synthetic case.",
+        "Download the exact hash-pinned ZIP. This is a seed, not an activated Hive or running company.",
+        "Use a locally trusted exact RAPP Work SDK and obtain approval of complete native plans before setup.",
+        "Keep downloaded code inert. No membership, signing, execution, spending, or publication authority is granted."
+      ];
+    }
     const stored = await writeContentObject(writer, {
       apiPath,
       category: "cards",
@@ -886,6 +941,38 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     cards.push(object);
   }
   cards.sort((left, right) => left.id.localeCompare(right.id));
+  const laboratoryCard = cards.find((card) => card.id === "hive-hub-public-lab-public");
+  assert(laboratoryCard, "The existing public laboratory must remain addressable");
+  const seedCards = [...organizationSeeds.values()].map((seed) => {
+    const card = cards.find((candidate) => candidate.document.seed?.ref === seed.descriptor.ref);
+    assert(card, "Every organization seed requires its own verified join card");
+    return { seed, card };
+  });
+  const seedsIndex = await writeStableJson(
+    writer,
+    `${apiPath}/organization-seeds.json`,
+    {
+      kind: "organization-seed-index",
+      status: "seeds-not-activated",
+      count: seedCards.length,
+      seeds: seedCards.map(({ seed, card }) => ({
+        slug: seed.document.slug,
+        name: seed.document.name,
+        tagline: seed.document.tagline,
+        status: seed.document.status,
+        counts: seed.document.counts,
+        seed: seed.descriptor,
+        archive: seed.archive,
+        card: card.descriptor,
+        cameraAiCard: card.cameraAiCard.descriptor,
+        qr: card.qr,
+        chant: card.document.chant.value,
+        joinUrl: card.qrUrl,
+        page: publicUrl(siteBaseUrl, `hub/seeds/${seed.document.slug}/`)
+      }))
+    },
+    siteBaseUrl
+  );
 
   const receipts = [];
   let previousReceipt = null;
@@ -1144,7 +1231,8 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         coreCards: coreCards.size,
         coreSchemas: coreSchemaDescriptors.length,
         records: records.length,
-        receipts: receipts.length
+        receipts: receipts.length,
+        organizationSeeds: organizationSeeds.size
       },
       freshness: "The timestamp is a deterministic manifest value, not a live probe.",
       generatedAt,
@@ -1182,7 +1270,9 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
 
   const joinAiDocument = {
     apiIndex: publicUrl(siteBaseUrl, `${apiPath}/index.json`),
-    cameraAiCard: cards[0].cameraAiCard.descriptor,
+    cameraAiCard: laboratoryCard.cameraAiCard.descriptor,
+    organizationSeeds: seedsIndex.descriptor,
+    globalSkill: networkSkillDescriptor,
     coreSchemas: coreSchemasIndex.descriptor,
     interpretation: [
       "Decode #v1.<base64url JSON> locally and replace browser history before network access.",
@@ -1220,6 +1310,8 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         url: publicUrl(siteBaseUrl, `${apiPath}/hashes.json`)
       },
       offlineSeed: offlineSeed.descriptor,
+      organizationSeeds: seedsIndex.descriptor,
+      globalSkill: networkSkillDescriptor,
       coreSchemas: coreSchemasIndex.descriptor,
       release: releaseIndex.descriptor,
       receipts: receiptsIndex.descriptor,
@@ -1286,6 +1378,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     coreSchemas: coreSchemasIndex.descriptor,
     join: publicUrl(siteBaseUrl, "hub/join/"),
     kind: "hive-hub-well-known",
+    globalSkill: networkSkillDescriptor,
     llms: publicUrl(siteBaseUrl, "llms.txt"),
     pagesIndex: apiIndex.descriptor,
     release: releaseObject.descriptor,
@@ -1295,8 +1388,10 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   const llmsText = renderLlmsText({
     apiIndexUrl: apiIndex.descriptor.url,
     dialbookUrl: dialbook.descriptor.url,
-    exampleRecord: records[0].descriptor,
-    cameraAiCard: cards[0].cameraAiCard.descriptor,
+    exampleRecord: laboratoryCard.record.descriptor,
+    cameraAiCard: laboratoryCard.cameraAiCard.descriptor,
+    organizationSeedsUrl: seedsIndex.descriptor.url,
+    globalSkillUrl: networkSkillDescriptor.url,
     joinAiUrl: joinAi.descriptor.url,
     release: releaseObject.descriptor,
     rawIndexUrl: publicUrl(rawBaseUrl, indexPath)
@@ -1309,14 +1404,21 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     "hub/index.html",
     renderHomeHtml({
       card: {
-        ...cards[0].document,
-        qrFragment: cards[0].qrFragment
+        ...laboratoryCard.document,
+        qrFragment: laboratoryCard.qrFragment
       },
       generatedAt,
-      qrPath: cards[0].qr.path,
-      record: cards[0].record.document
+      qrPath: laboratoryCard.qr.path,
+      record: laboratoryCard.record.document,
+      seedCards
     })
   );
+  for (const { seed, card } of seedCards) {
+    await writer.write(
+      `hub/seeds/${seed.document.slug}/index.html`,
+      renderOrganizationSeedHtml({ seed: seed.document, card, generatedAt })
+    );
+  }
   await writer.write(".nojekyll", "");
 
   const hashedFiles = sortedObject(

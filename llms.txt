@@ -5,6 +5,8 @@
 Canonical Pages API index: https://kody-w.github.io/hive-hub/api/hive-hub/v1/index.json
 Raw Git API index: https://raw.githubusercontent.com/kody-w/hive-hub/main/api/hive-hub/v1/index.json
 Public dialbook: https://kody-w.github.io/hive-hub/api/hive-hub/v1/dialbook.json
+Ten RAPP Work organization seeds: https://kody-w.github.io/hive-hub/api/hive-hub/v1/organization-seeds.json
+Standalone global network skill: https://kody-w.github.io/hive-hub/hub/skills/hive-network/SKILL.md
 Machine join instructions: https://kody-w.github.io/hive-hub/hub/join/ai.json
 Integrated 0.1.1 release: https://kody-w.github.io/hive-hub/api/hive-hub/v1/releases/sha256/eb/eb4b8c33aeb9f33fc0f009bef4005e0619962a64dc7b1fbf5a8fd21984588a7e.json (sha256:eb4b8c33aeb9f33fc0f009bef4005e0619962a64dc7b1fbf5a8fd21984588a7e)
 Core camera-AI join card: https://kody-w.github.io/hive-hub/api/hive-hub/v1/cards/core/sha256/5d/5da9aa7c7112f54157343917f50f64e0b9441cd6f9ab1a4d2546be7d418bd794.json (sha256:5da9aa7c7112f54157343917f50f64e0b9441cd6f9ab1a4d2546be7d418bd794)
@@ -33,5 +35,8 @@ Example Dial Record fingerprint: sha256:1da8f80b4b6e053dadba23ce901e1533e0a7aeed
 - hashes.json validates generated public files.
 - offline-seed.json carries immutable essentials for offline inspection.
 - receipts/index.json names an append-only content-addressed receipt chain.
+- organization-seeds.json lists ten real downloadable organization starter packages with team workspaces, case inputs, task dependencies, and original artifacts.
+- Seed JSON and ZIP contents are inert. A seed is not an activated organization or running agent. Initialize only with the exact locally trusted RAPP Work SDK and owner-approved native plans.
+- The hive-network SKILL.md is a complete host-operated workflow for discovery, local work, and separately approved public contributions. It grants no authority and cannot add capabilities to a browser-only AI.
 
 No runtime external scripts, analytics, service workers, persistent storage, or telemetry are used.

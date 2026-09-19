@@ -1,0 +1,21 @@
+{
+  "classification": "SYNTHETIC",
+  "artifact_kind": "reference-example-not-approved",
+  "cycle": "first-portfolio-cycle",
+  "proposal_basis": "Illustrates a reasoned override of a dimensionless score, not an approved allocation.",
+  "active_experiments": ["lf-schema", "fn-outline", "rp-sheet"],
+  "parked_units": [
+    {"unit": "quietbench-templates", "reason": "Reference selection prioritizes a broader comparison of artifact types; reconsider after keyboard rubric review."},
+    {"unit": "tinylesson-studio", "reason": "Reference selection defers transfer assessment design; no claim of low demand."}
+  ],
+  "discretionary_hours": 19,
+  "discretionary_cash_usd": "90.00",
+  "protected_hours": 8,
+  "protected_cash_usd": "100.00",
+  "exit_rules": [
+    "Stop at the chosen experiment's allocated hours.",
+    "Do not contact people, spend funds, or publish without a separate owner approval.",
+    "Return any unused allowance to the uncommitted envelope."
+  ],
+  "human_decision_needed": "Accept, change, or reject the complete proposed worksheet and experiment scope."
+}

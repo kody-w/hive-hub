@@ -1,0 +1,15 @@
+{
+  "classification":"SYNTHETIC",
+  "case_id":"stackline-caddy-pilot",
+  "fictional_business":"Stackline Small Objects",
+  "object":"Two-piece desk caddy for loose dry stationery",
+  "planning_quantity":20,
+  "planning_budget_usd":"200.00",
+  "nominal_envelope_mm":[180,100,32],
+  "maximum_use":"Lightweight dry desk items on a stable horizontal surface",
+  "excluded_uses":["food contact","electrical enclosure","medical use","child-safety product","heated items","load-bearing support"],
+  "physical_work_completed":false,
+  "purchases_or_supplier_contacts":false,
+  "starting_decision":"Evaluate a nominal design and one width change; do not fabricate or procure.",
+  "uncertainties":["actual material suitability","dimensional process capability","surface quality","real labor time","packing durability","real costs"]
+}

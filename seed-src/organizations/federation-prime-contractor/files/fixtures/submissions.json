@@ -1,0 +1,29 @@
+{
+  "schema":"synthetic-prime-submissions/1",
+  "classification":"SYNTHETIC",
+  "scenario":"baseline",
+  "fixture_only":true,
+  "submissions":[
+    {
+      "deliverable_id":"prototype-spec",
+      "candidate_partner":"applied-invention-lab",
+      "artifact_visibility":"public-reference-fixture",
+      "exchange_approval":"not-requested",
+      "artifact":{"schema":"pocket-queue-interface/1","offline_only":true,"network_required":false,"max_demo_attendees":60,"record_fields":["synthetic_ticket_id","station_code","joined_at"],"station_codes":["welcome","demo","closeout"]}
+    },
+    {
+      "deliverable_id":"operating-model",
+      "candidate_partner":"enterprise-transformation-firm",
+      "artifact_visibility":"public-reference-fixture",
+      "exchange_approval":"not-requested",
+      "artifact":{"schema":"pocket-queue-operating-model/1","interface_schema":"pocket-queue-interface/1","retention_minutes":1440,"roles":["greeter","queue-steward","closeout-reviewer"],"stop_condition":"Stop intake at the 60-ticket cap or when the data boundary is unclear; retain only the local synthetic record for owner review."}
+    },
+    {
+      "deliverable_id":"pilot-kit",
+      "candidate_partner":"product-launch-company",
+      "artifact_visibility":"public-reference-fixture",
+      "exchange_approval":"not-requested",
+      "artifact":{"schema":"pocket-queue-pilot-kit/1","interface_schema":"pocket-queue-interface/0","operator_steps":["Open the separately approved local rehearsal build and verify that only synthetic fields are present.","Use authored ticket IDs to practice welcome-to-demo handoff without names or contact data.","Stop intake at the reviewed capacity boundary and ask the owner before changing scope.","At closeout review the synthetic counts and the operating-model retention rule before deleting exercise data."],"public_launch":false,"owner_review_required":true,"disclosure":"SYNTHETIC closed 60-attendee rehearsal only; not a real deployment or public launch."}
+    }
+  ]
+}

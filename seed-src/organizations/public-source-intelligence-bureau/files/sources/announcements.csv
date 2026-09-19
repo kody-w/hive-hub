@@ -1,0 +1,4 @@
+record_id,published_at,title,statement,origin_group,classification
+announce-01,2026-09-01,Autumn availability notice,Juniper Queue will support fully offline desk intake from 2026-10-15.,juniper-authored,SYNTHETIC
+announce-02,2026-09-01,Launch scope note,The announced scope is browser kiosk intake only; no payment or identity module is included.,juniper-authored,SYNTHETIC
+announce-03,2026-09-16,Supervised pilot clarification,The preview is ready for a supervised October pilot; final token-independent start remains under review.,juniper-authored,SYNTHETIC

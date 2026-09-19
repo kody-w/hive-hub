@@ -92,6 +92,15 @@
 - Published core schemas: `/api/hive-hub/v1/core-schemas/`
 - Human surface: `/hub/`
 - Browser-free AI instructions: `/hub/join/ai.json` and `/llms.txt`
+- Ten public RAPP Work organization starters:
+  `/api/hive-hub/v1/organization-seeds.json`
+- Individual seed pages: `/hub/seeds/<slug>/`
+- Content-addressed seed JSON and deterministic ZIP downloads:
+  `/api/hive-hub/v1/seeds/`
+- Native initialization conformance: ten pointer-only Organizations and all
+  declared team/case Workspaces, exercised only in temporary test fixtures.
+- Seeds contain no live identities, keys, memberships, signed activation, or
+  fabricated completed-work evidence. Consumers initialize their own state.
 - Explicitly public onboarding sample:
   `kody-w/hive-hub@8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9`
 - Sample Dial Record ID:
@@ -121,6 +130,8 @@
 - isolated wheel install
 - import, version, CLI, metadata, schema-data, and zero-dependency verification
 - deterministic static rebuild and QR SVG validation
+- all ten seed file inventories, exact ZIP bytes, task ownership/dependencies,
+  and native RAPP Work SDK initialization
 - public/private input isolation and private-locator/secret scan
 - core CLI plus skill dial/card/join subscription end to end
 - adapter optionality, chant vector/collision, and Payphone outcome tests

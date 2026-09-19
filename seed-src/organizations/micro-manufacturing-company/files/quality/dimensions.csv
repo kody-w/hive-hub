@@ -1,0 +1,5 @@
+feature_id,nominal_mm,lower_mm,upper_mm,future_method,classification
+tray_width_mm,180,179.5,180.5,Measure outer width at two opposing locations,SYNTHETIC
+tray_depth_mm,100,99.5,100.5,Measure outer depth at two opposing locations,SYNTHETIC
+tray_height_mm,32,31.5,32.5,Measure outer height at four corners,SYNTHETIC
+side_clearance_mm,1.5,1.0,2.0,Compute half the measured inner-width minus insert-width difference,SYNTHETIC

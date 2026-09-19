@@ -10,7 +10,7 @@ function escapeHtml(value) {
 const SECURITY_META = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'">
     <meta name="referrer" content="no-referrer">`;
 
-export function renderHomeHtml({ card, generatedAt, record, qrPath }) {
+export function renderHomeHtml({ card, generatedAt, record, qrPath, seedCards = [] }) {
   const title = escapeHtml(card.title);
   const repositoryUrl = escapeHtml(record.locator.repositoryUrl);
   const revision = escapeHtml(record.locator.revision);
@@ -41,15 +41,35 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath }) {
     </header>
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
-        <p class="eyebrow">Static · protocol-neutral · verifiable</p>
-        <h1 id="hero-title">Find a Hive without mistaking a locator for authority.</h1>
-        <p class="lede">Hive Hub is a no-server discovery surface for humans and AIs. Every Dial Record points to an exact protocol declaration, learning bundle, conformance contract, and adapter.</p>
+        <p class="eyebrow">Public organization seeds · RAPP Work</p>
+        <h1 id="hero-title">An organization to start from. Not another prompt.</h1>
+        <p class="lede">Ten downloadable RAPP Work starters with scoped teams, original artifacts, synthetic cases, and work ready to claim. Bring your AI, choose a seed, and initialize your own organization through the canonical SDK.</p>
         <div class="actions">
+          <a class="button" href="#organizations">Explore the ten organizations</a>
+          <a class="button button-secondary" href="./skills/hive-network/SKILL.md" download="SKILL.md">Give your AI the global skill</a>
           <a class="button" href="../api/hive-hub/v1/dialbook.json">Open the public dialbook</a>
-          <a class="button button-secondary" href="../api/hive-hub/v1/offline-seed.json">Download the offline seed</a>
-          <a class="text-link" href="https://github.com/kody-w/hive-hub/blob/main/docs/PUBLIC_EXAMPLES.md" rel="noreferrer noopener">Ten public showcase build prompts</a>
+          <a class="text-link" href="../api/hive-hub/v1/organization-seeds.json">Organization seed API</a>
         </div>
-        <p class="muted">Showcase prompts are proposals, not running Hives. Private Hives are never listed here.</p>
+        <p class="muted">Real starter packages, not activated companies or running agents. The Hub remains protocol-neutral; these examples use RAPP Work. Private Hives are never listed here.</p>
+      </section>
+
+      <section id="organizations" aria-labelledby="organizations-title">
+        <h2 id="organizations-title">Choose the organization you want to run.</h2>
+        <div class="seed-grid">
+${seedCards.map(({ seed, card: seedCard }) => `
+          <article class="seed-card" data-seed="${escapeHtml(seed.document.slug)}">
+            <p class="eyebrow">Organization seed</p>
+            <h3><a href="./seeds/${escapeHtml(seed.document.slug)}/">${escapeHtml(seed.document.name)}</a></h3>
+            <p>${escapeHtml(seed.document.tagline)}</p>
+            <p class="seed-counts"><strong>${seed.document.counts.teams}</strong> teams · <strong>${seed.document.counts.tasks}</strong> tasks · <strong>${seed.document.counts.starterFiles}</strong> starter files</p>
+            <p class="muted">First case: ${escapeHtml(seed.document.case.title)}</p>
+            <div class="actions">
+              <a class="button" href="./seeds/${escapeHtml(seed.document.slug)}/">Explore seed</a>
+              <a class="text-link" href="${escapeHtml(seed.archive.url)}" download="${escapeHtml(seed.document.slug)}.zip">Download ZIP</a>
+              <a class="text-link" href="${escapeHtml(seedCard.qrUrl)}">AI join</a>
+            </div>
+          </article>`).join("\n")}
+        </div>
       </section>
 
       <section class="principles" aria-labelledby="principles-title">
@@ -64,7 +84,7 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath }) {
 
       <section class="example" aria-labelledby="example-title">
         <div>
-          <p class="eyebrow">Public example Dial Record</p>
+          <p class="eyebrow">Protocol-only onboarding laboratory</p>
           <h2 id="example-title">${title}</h2>
           <dl>
             <div><dt>Repository</dt><dd><a href="${repositoryUrl}" rel="noreferrer noopener">${repositoryUrl}</a></dd></div>
@@ -88,6 +108,92 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath }) {
     <footer>
       <p>Static snapshot: <time datetime="${escapeHtml(generatedAt)}">${escapeHtml(generatedAt)}</time>. <a href="../api/hive-hub/v1/status.json">Status document</a>.</p>
     </footer>
+  </body>
+</html>
+`;
+}
+
+export function renderOrganizationSeedHtml({ seed, card, generatedAt }) {
+  const teams = seed.workspaces.filter((workspace) => workspace.id !== "casework");
+  const starterFiles = seed.files.filter((file) => file.path.includes("/starter/"));
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    ${SECURITY_META}
+    <meta name="description" content="${escapeHtml(seed.tagline)}">
+    <title>${escapeHtml(seed.name)} · Hive Hub</title>
+    <link rel="stylesheet" href="../../assets/hub.css">
+    <link rel="alternate" type="application/json" href="${escapeHtml(card.document.seed.url)}" title="Complete organization seed">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="../../">Hive Hub</a>
+      <nav aria-label="Primary"><a href="../../#organizations">All organizations</a><a href="../../join/">AI join</a><a href="../../../llms.txt">AI instructions</a></nav>
+    </header>
+    <main id="main">
+      <section class="example" aria-labelledby="seed-title">
+        <div>
+          <p class="eyebrow">RAPP Work organization seed · public synthetic data</p>
+          <h1 id="seed-title" class="seed-title">${escapeHtml(seed.name)}</h1>
+          <p class="lede">${escapeHtml(seed.mission)}</p>
+          <p class="seed-counts"><strong>${seed.counts.teams}</strong> teams · <strong>${seed.counts.workspaces}</strong> scoped workspaces · <strong>${seed.counts.tasks}</strong> tasks · <strong>${seed.counts.packageFiles}</strong> package files</p>
+          <div class="actions">
+            <a class="button" href="${escapeHtml(seed.archive.url)}" download="${escapeHtml(seed.slug)}.zip">Download organization seed</a>
+            <a class="button button-secondary" href="${escapeHtml(card.qrUrl)}">Open verified AI join</a>
+            <a class="text-link" href="../../skills/hive-network/SKILL.md" download="SKILL.md">Global skill for your AI</a>
+            <a class="text-link" href="${escapeHtml(card.document.seed.url)}">Complete seed JSON</a>
+          </div>
+          <p class="muted">This package is not an activated organization, a membership grant, or a running service. Native SDK plans and starter-file effects require owner approval. Joining never executes downloaded code.</p>
+          <p><strong>Chant:</strong> <code>${escapeHtml(card.document.chant.value)}</code></p>
+        </div>
+        <figure class="qr-card">
+          <img src="${escapeHtml(card.qr.url)}" width="320" height="320" alt="Locator-only join QR for ${escapeHtml(seed.name)}">
+          <figcaption>Give this QR to your AI to inspect the exact seed and its declared protocol.</figcaption>
+        </figure>
+      </section>
+      <section aria-labelledby="case-title">
+        <p class="eyebrow">Your first engagement</p>
+        <h2 id="case-title">${escapeHtml(seed.case.title)}</h2>
+        <p>${escapeHtml(seed.case.brief)}</p>
+        <ul>${seed.case.success_criteria.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </section>
+      <section aria-labelledby="teams-title">
+        <h2 id="teams-title">An actual work scope for every team.</h2>
+        <ul class="feature-grid">${teams.map((team) => `<li><strong>${escapeHtml(team.name)}</strong><span>${escapeHtml(team.purpose)}</span></li>`).join("")}</ul>
+        <p>The Organization routes through native workspace pointers. Team ownership stays in team workspaces; shared case data stays in the separate casework workspace.</p>
+      </section>
+      <section aria-labelledby="tasks-title">
+        <h2 id="tasks-title">Starter work and acceptance.</h2>
+        <div class="task-list">${seed.tasks.map((task) => `
+          <details><summary><strong>${escapeHtml(task.title)}</strong> · ${escapeHtml(task.team)} · ${task.state === "ready" ? "Ready to claim" : "Waiting on prerequisites"}</summary>
+            <p>${escapeHtml(task.instructions)}</p>
+            <p><strong>Inputs:</strong> ${task.inputs.map(escapeHtml).join(", ")}</p>
+            <p><strong>Outputs:</strong> ${task.outputs.map(escapeHtml).join(", ")}</p>
+            <p><strong>Depends on:</strong> ${task.depends_on.length ? task.depends_on.map(escapeHtml).join(", ") : "No prerequisites"}</p>
+            <ul>${task.acceptance.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          </details>`).join("")}</div>
+      </section>
+      <section aria-labelledby="files-title">
+        <h2 id="files-title">Included starter artifacts.</h2>
+        <p>These are files in the ZIP, not promises to generate them later. Reference examples do not mean the engagement is complete.</p>
+        <ul class="seed-files">${starterFiles.map((file) => `<li><code>${escapeHtml(file.path.replace("templates/casework/work/starter/", ""))}</code> <span class="muted">${file.bytes.toLocaleString("en-US")} bytes</span></li>`).join("")}</ul>
+        <p>Package SHA-256: <code>${escapeHtml(seed.archive.sha256)}</code></p>
+      </section>
+      <section aria-labelledby="setup-title">
+        <h2 id="setup-title">Initialize with the RAPP Work SDK.</h2>
+        <ol class="steps">
+          <li>Inspect <code>seed.json</code>, <code>initialize.json</code>, and the exact dependency pins.</li>
+          <li>Choose your owner label and a new destination. Use the installed, verified SDK to plan the Organization and member Workspaces.</li>
+          <li>Approve complete native plans and their exact digests before applying. Review declared template copies and pointer registrations separately.</li>
+          <li>Claim a ready task with a capable authorized AI host, produce the requested output, and attach actual acceptance evidence.</li>
+        </ol>
+        <p>No private membership, signing, spending, external communication, publication, or federation activation is granted by this seed.</p>
+      </section>
+    </main>
+    <footer><p>Static public seed snapshot: <time datetime="${escapeHtml(generatedAt)}">${escapeHtml(generatedAt)}</time>. <a href="../../#organizations">Back to all organization seeds</a>.</p></footer>
   </body>
 </html>
 `;
@@ -126,9 +232,9 @@ export function renderJoinHtml() {
 
       <section id="join-help" aria-labelledby="join-help-title" hidden>
         <h2 id="join-help-title">Start with a complete join link</h2>
-        <p>Scan a locator-only Hive QR or open its complete join link. You can also explore the explicitly public onboarding laboratory.</p>
+        <p>Scan a locator-only Hive QR or open its complete join link. Choose one of the ten public RAPP Work organization seeds to get real starter files and scoped team work.</p>
         <p>For an unlisted Hive, give its locator directly to an AI that already has source access. Do not publish private locators in the directory.</p>
-        <a class="button" href="../">Explore the public laboratory</a>
+        <a class="button" href="../#organizations">Explore the organization seeds</a>
       </section>
 
       <section id="verified" aria-labelledby="verified-title" hidden>
@@ -219,6 +325,21 @@ export function renderJoinJavaScript() {
       assertCardBindings(card, record);
       assertDeclaredDocuments(protocol, learningBundle, adapter, conformance);
       assertHashManifest(hashes, [card.record, card.protocol, card.learningBundle, card.adapter, card.conformance]);
+      const seed = card.seed ? await fetchVerifiedDescriptor(card.seed) : null;
+      if (seed) {
+        if (
+          record.locator?.provider !== "static-seed" ||
+          card.seed.ref !== record.locator.seed?.ref ||
+          seed.kind !== "organization-seed" ||
+          seed.status !== "seed-not-activated" ||
+          seed.activation?.grantsAuthority !== false ||
+          seed.archive?.ref !== record.locator.archive?.ref
+        ) {
+          throw new Error("The card, record, and organization seed disagree.");
+        }
+        assertHashManifest(hashes, [card.seed, seed.archive]);
+        sameOriginUrl(seed.archive.url);
+      }
 
       const result = {
         adapter,
@@ -227,6 +348,7 @@ export function renderJoinJavaScript() {
         learningBundle,
         protocol,
         record,
+        ...(seed ? { seed } : {}),
         verification: {
           algorithm: "sha256",
           card: "verified",
@@ -259,7 +381,11 @@ export function renderJoinJavaScript() {
         steps.append(item);
       }
       const repositoryLink = document.getElementById("repository-link");
-      repositoryLink.href = record.locator.browseUrl;
+      repositoryLink.href = seed ? seed.archive.url : record.locator.browseUrl;
+      if (seed) {
+        repositoryLink.textContent = "Download hash-pinned organization seed";
+        repositoryLink.download = seed.slug + ".zip";
+      }
       const encodedFragment = "#v1." + encodeBase64Url(JSON.stringify(envelope));
       const jsonLink = document.getElementById("json-link");
       jsonLink.href = window.location.pathname + "?format=json" + encodedFragment;
@@ -502,6 +628,30 @@ export function renderHubCss() {
 * {
   box-sizing: border-box;
 }
+
+.seed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1.25rem;
+  margin-block: 2rem;
+}
+
+.seed-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.seed-card h3 { font-size: 1.45rem; line-height: 1.2; margin-block: 0.6rem; }
+.seed-card h3 a { color: var(--text); text-decoration: none; }
+.seed-counts { color: var(--accent-strong); }
+.seed-title { font-size: clamp(2.4rem, 5vw, 4.5rem); }
+.seed-files { padding-left: 1.2rem; }
+.seed-files li { margin-block: 0.6rem; overflow-wrap: anywhere; }
+.task-list details { border-bottom: 1px solid var(--line); padding-block: 1rem; }
+.task-list summary { cursor: pointer; }
+.task-list p { overflow-wrap: anywhere; }
 
 body {
   background: var(--background);
@@ -845,6 +995,8 @@ export function renderLlmsText({
   cameraAiCard,
   dialbookUrl,
   exampleRecord,
+  organizationSeedsUrl,
+  globalSkillUrl,
   joinAiUrl,
   release,
   rawIndexUrl
@@ -856,6 +1008,8 @@ export function renderLlmsText({
 Canonical Pages API index: ${apiIndexUrl}
 Raw Git API index: ${rawIndexUrl}
 Public dialbook: ${dialbookUrl}
+Ten RAPP Work organization seeds: ${organizationSeedsUrl}
+Standalone global network skill: ${globalSkillUrl}
 Machine join instructions: ${joinAiUrl}
 Integrated 0.1.1 release: ${release.url} (${release.ref})
 Core camera-AI join card: ${cameraAiCard.url} (${cameraAiCard.ref})
@@ -884,6 +1038,9 @@ Example Dial Record fingerprint: ${exampleRecord.ref}
 - hashes.json validates generated public files.
 - offline-seed.json carries immutable essentials for offline inspection.
 - receipts/index.json names an append-only content-addressed receipt chain.
+- organization-seeds.json lists ten real downloadable organization starter packages with team workspaces, case inputs, task dependencies, and original artifacts.
+- Seed JSON and ZIP contents are inert. A seed is not an activated organization or running agent. Initialize only with the exact locally trusted RAPP Work SDK and owner-approved native plans.
+- The hive-network SKILL.md is a complete host-operated workflow for discovery, local work, and separately approved public contributions. It grants no authority and cannot add capabilities to a browser-only AI.
 
 No runtime external scripts, analytics, service workers, persistent storage, or telemetry are used.
 `;

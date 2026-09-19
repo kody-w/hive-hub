@@ -1,0 +1,13 @@
+ticket_id,opened_on,priority,state,estimated_minutes,affected_accounts,blocked_by,issue,classification
+ticket-001,2026-09-10,urgent,open,90,7,,Duplicate export acknowledgment in batch retry,SYNTHETIC
+ticket-002,2026-09-06,low,open,20,1,,Misaligned export title in wide layout,SYNTHETIC
+ticket-003,2026-09-15,normal,open,60,3,,Saved view sort resets on reopen,SYNTHETIC
+ticket-004,2026-09-21,urgent,open,120,5,needs-synthetic-reproduction,Intermittent retry log cannot yet be reproduced,SYNTHETIC
+ticket-005,2026-09-12,normal,open,75,4,,Bulk tag operation drops the visible selection,SYNTHETIC
+ticket-006,2026-09-20,low,open,25,1,,Secondary button caption is unclear,SYNTHETIC
+ticket-007,2026-09-25,urgent,open,90,6,,Retry status remains pending after acknowledged completion,SYNTHETIC
+ticket-008,2026-09-27,normal,open,45,2,,Empty-list state omits a recovery hint,SYNTHETIC
+ticket-009,2026-09-01,low,open,15,1,,Help icon baseline differs between two pages,SYNTHETIC
+ticket-010,2026-09-18,urgent,open,60,8,,Urgent queue view shows no reason for skipped items,SYNTHETIC
+ticket-011,2026-09-09,normal,open,60,4,,Filter summary disappears on back navigation,SYNTHETIC
+ticket-012,2026-09-23,low,open,30,1,,Printed legend has an unnecessary blank row,SYNTHETIC

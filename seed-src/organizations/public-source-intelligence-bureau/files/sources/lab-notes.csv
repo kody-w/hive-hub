@@ -1,0 +1,5 @@
+record_id,published_at,title,statement,origin_group,classification
+lab-01,2026-09-10,Short run observation,One supplied-device run attempted 1000 entries and saw 987 acknowledgments after two disconnected hours; no restart or recovered-ID count was tested.,lab-style-authored,SYNTHETIC
+lab-02,2026-09-13,Long restart pair,Two preview 0.8 trials attempted 400 actions each after 36 disconnected hours; sign-in blocked application start and both recorded zero acknowledgments.,lab-style-authored,SYNTHETIC
+lab-03,2026-09-15,Six-hour restart accounting,One six-hour restart trial acknowledged 398 of 400 attempts; a manual recovered export contained 390 event IDs; accounting for eight acknowledged IDs remains unresolved.,lab-style-authored,SYNTHETIC
+lab-04,2026-09-15,Method and independence limit,The fictional vendor supplied the devices and preview build for all runs; these authored lab-style notes are not an independent certification.,lab-style-authored,SYNTHETIC

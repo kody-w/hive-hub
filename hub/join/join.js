@@ -53,6 +53,21 @@
       assertCardBindings(card, record);
       assertDeclaredDocuments(protocol, learningBundle, adapter, conformance);
       assertHashManifest(hashes, [card.record, card.protocol, card.learningBundle, card.adapter, card.conformance]);
+      const seed = card.seed ? await fetchVerifiedDescriptor(card.seed) : null;
+      if (seed) {
+        if (
+          record.locator?.provider !== "static-seed" ||
+          card.seed.ref !== record.locator.seed?.ref ||
+          seed.kind !== "organization-seed" ||
+          seed.status !== "seed-not-activated" ||
+          seed.activation?.grantsAuthority !== false ||
+          seed.archive?.ref !== record.locator.archive?.ref
+        ) {
+          throw new Error("The card, record, and organization seed disagree.");
+        }
+        assertHashManifest(hashes, [card.seed, seed.archive]);
+        sameOriginUrl(seed.archive.url);
+      }
 
       const result = {
         adapter,
@@ -61,6 +76,7 @@
         learningBundle,
         protocol,
         record,
+        ...(seed ? { seed } : {}),
         verification: {
           algorithm: "sha256",
           card: "verified",
@@ -93,7 +109,11 @@
         steps.append(item);
       }
       const repositoryLink = document.getElementById("repository-link");
-      repositoryLink.href = record.locator.browseUrl;
+      repositoryLink.href = seed ? seed.archive.url : record.locator.browseUrl;
+      if (seed) {
+        repositoryLink.textContent = "Download hash-pinned organization seed";
+        repositoryLink.download = seed.slug + ".zip";
+      }
       const encodedFragment = "#v1." + encodeBase64Url(JSON.stringify(envelope));
       const jsonLink = document.getElementById("json-link");
       jsonLink.href = window.location.pathname + "?format=json" + encodedFragment;

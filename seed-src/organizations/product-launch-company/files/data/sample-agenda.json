@@ -1,0 +1,15 @@
+{
+  "classification": "SYNTHETIC",
+  "title": "Library kit planning reference",
+  "start": "09:00",
+  "duration_minutes": 60,
+  "wrap_minutes": 5,
+  "topics": [
+    {"id": "welcome", "label": "Confirm the decision to make", "minutes": 5, "required": true},
+    {"id": "stock-review", "label": "Review fictional kit stock", "minutes": 10, "required": false},
+    {"id": "decision", "label": "Choose the sample kit scope", "minutes": 20, "required": true},
+    {"id": "template-demo", "label": "Optional template demonstration", "minutes": 15, "required": false},
+    {"id": "risk-check", "label": "Check assumptions and open questions", "minutes": 10, "required": true},
+    {"id": "roundup", "label": "Collect optional follow-up ideas", "minutes": 8, "required": false}
+  ]
+}
