@@ -1,1 +1,14 @@
-{"adapter_plan":null,"card_id":"urn:hivehub:sha256:51aecad084f5739c9891e490967f4cd6672e8a062aba716ba55c606f14fc198a","expected_protocol_fingerprint":"urn:hivehub:sha256:92299f6ce3a2c80ea3f80810c74dc208748b413167dbbbefeae6ece427a05367","expected_record_id":"urn:hivehub:sha256:de1124a60f97f732ebd13fba183bcd109e4a506620a64e591e2bfc61c962b752","issued_at":"2026-09-18T19:16:11Z","kind":"ai-join-card","locator":"urn:hivehub:sha256:de1124a60f97f732ebd13fba183bcd109e4a506620a64e591e2bfc61c962b752","principal":{"id":"person:example","kind":"human"},"schema_version":1}
+{
+  "adapter_plan": null,
+  "card_id": "urn:hivehub:sha256:f8818677d2a7ae62b52292b1ce23fd0dfe7f66a07b91f55f8ce88a165750159a",
+  "expected_protocol_fingerprint": "urn:hivehub:sha256:92299f6ce3a2c80ea3f80810c74dc208748b413167dbbbefeae6ece427a05367",
+  "expected_record_id": "urn:hivehub:sha256:4dcedce01898cf289c6b6484d8dba5c7230257ec495cd826fcbe268ce71f30ff",
+  "issued_at": "2026-09-18T19:16:11Z",
+  "kind": "ai-join-card",
+  "locator": "urn:hivehub:sha256:4dcedce01898cf289c6b6484d8dba5c7230257ec495cd826fcbe268ce71f30ff",
+  "principal": {
+    "id": "person:example",
+    "kind": "human"
+  },
+  "schema_version": 1
+}

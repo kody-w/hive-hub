@@ -54,7 +54,27 @@ Python 3.10, 3.11, and 3.14 are release-gated. Runtime dependencies are empty.
 
 ## CLI
 
+These work immediately after `pip install hive-hub`, with no files and no
+network:
+
 ```bash
+hive-hub chant derive \
+  dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32
+hive-hub chant parse "JUNIPER QUARTZ HARBOR BIRCH COBALT NOOK FLINT"
+hive-hub schema list
+hive-hub status
+```
+
+That Dial Record ID is the live public laboratory Hive in the
+[public dialbook](https://kody-w.github.io/hive-hub/api/hive-hub/v1/dialbook.json),
+and it derives exactly that chant. A chant is a locator, not authority; the
+complete Dial Record ID must still verify.
+
+The rest of the walkthrough uses the example contracts, which ship in the
+source tree rather than the wheel:
+
+```bash
+git clone https://github.com/kody-w/hive-hub && cd hive-hub
 export HIVE_HUB_HOME="$PWD/.hive-hub"
 
 hive-hub validate examples/generic/protocol-declaration.json
@@ -64,9 +84,6 @@ hive-hub learn \
 hive-hub adapter register examples/generic/adapter-registration.json
 hive-hub register public examples/generic/public-dial-record.json
 
-hive-hub chant derive \
-  urn:hivehub:sha256:de1124a60f97f732ebd13fba183bcd109e4a506620a64e591e2bfc61c962b752
-hive-hub chant parse "VINE TRENCH SABLE OXBOW ATLAS ATLAS ESTER"
 hive-hub dial "VINE TRENCH SABLE OXBOW ATLAS ATLAS ESTER" --scope public
 hive-hub inspect "$(python - <<'PY'
 import json

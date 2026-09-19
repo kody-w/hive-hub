@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 from hive_hub import (
@@ -184,6 +185,7 @@ class PrivateAccessTests(WorkspaceTestCase):
         self.assertTrue((self.work / "books" / "private" / "records").is_dir())
 
         original = SafeFilesystem.read_bytes
+        private_root = (self.work / "books" / "private").resolve()
 
         def guarded(
             filesystem: SafeFilesystem,
@@ -191,7 +193,8 @@ class PrivateAccessTests(WorkspaceTestCase):
             *,
             max_bytes: int,
         ) -> bytes:
-            if "private" in filesystem.root.parts:
+            root = Path(filesystem.root).resolve()
+            if root == private_root or private_root in root.parents:
                 raise AssertionError("public builder touched private storage")
             return original(filesystem, relative_path, max_bytes=max_bytes)
 
