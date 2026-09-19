@@ -107,6 +107,8 @@ def loads_json(data: str | bytes, *, max_bytes: int = MAX_JSON_BYTES) -> JsonVal
         )
     except ValidationError:
         raise
+    except RecursionError as exc:
+        raise LimitError("JSON nesting depth exceeds the configured limit") from exc
     except json.JSONDecodeError as exc:
         raise ValidationError(
             "invalid JSON",

@@ -23,6 +23,7 @@ from .contracts import (
     Visibility,
     parse_contract,
     validate_dial_query,
+    validate_record_contracts,
 )
 from .errors import NotFoundError, ValidationError
 from .store import (
@@ -140,14 +141,7 @@ class HiveHub:
         declaration = self.registry.get_declaration(record.protocol_fingerprint)
         bundle = self.registry.get_bundle(record.learning_bundle_address)
         adapter = self.registry.get_adapter(record.adapter_registration_address)
-        if bundle.protocol_fingerprint != declaration.fingerprint:
-            raise ValidationError("record learning bundle belongs to another protocol")
-        if adapter.protocol_fingerprint != declaration.fingerprint:
-            raise ValidationError("record adapter belongs to another protocol")
-        if bundle.conformance_contract.address != declaration.conformance_address:
-            raise ValidationError("record learning bundle conformance mismatch")
-        if adapter.conformance_address != declaration.conformance_address:
-            raise ValidationError("record adapter conformance mismatch")
+        validate_record_contracts(record, declaration, bundle, adapter)
 
     def register_record(
         self,

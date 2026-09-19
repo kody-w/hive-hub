@@ -7,8 +7,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hive_hub.canonical import canonical_bytes, canonical_dumps, loads_json  # noqa: E402
-from hive_hub.contracts import (  # noqa: E402
+from hive_hub.canonical import canonical_bytes, canonical_dumps, loads_json
+from hive_hub.contracts import (
     AdapterRegistration,
     ConformanceContract,
     ConformanceRequirement,
@@ -17,8 +17,8 @@ from hive_hub.contracts import (  # noqa: E402
     LearningBundle,
     ProtocolDeclaration,
 )
-from hive_hub.errors import ValidationError  # noqa: E402
-from hive_hub.limits import MAX_JSON_BYTES  # noqa: E402
+from hive_hub.errors import ValidationError
+from hive_hub.limits import MAX_JSON_BYTES
 
 
 def locator_urls(value: dict[str, Any]) -> list[str]:

@@ -54,6 +54,7 @@ from .contracts import (
 )
 from .errors import (
     ConflictError,
+    FetchError,
     HiveHubError,
     LimitError,
     NotFoundError,
@@ -62,8 +63,14 @@ from .errors import (
     ValidationError,
 )
 from .hub import HiveHub, Hub, validate_document
+from .published import project_published_record
 from .schema_catalog import SCHEMAS, get_schema, schema_names
-from .store import private_index_from_home, public_index_from_home
+from .store import (
+    dial_from_public_hub,
+    private_index_from_home,
+    public_dial_plan,
+    public_index_from_home,
+)
 
 __version__ = "0.1.1"
 
@@ -93,6 +100,7 @@ __all__ = [
     "DialRecord",
     "DialResult",
     "DialbookIndex",
+    "FetchError",
     "HiveHub",
     "HiveHubError",
     "Hub",
@@ -116,6 +124,7 @@ __all__ = [
     "content_address",
     "decode_qr_fragment",
     "derive_chant",
+    "dial_from_public_hub",
     "generate_qr_fragment",
     "get_schema",
     "is_address",
@@ -123,6 +132,8 @@ __all__ = [
     "normalize_chant",
     "parse_contract",
     "private_index_from_home",
+    "project_published_record",
+    "public_dial_plan",
     "public_index_from_home",
     "qr_commitment",
     "schema_names",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import json
 import os
@@ -161,20 +162,25 @@ class SafetyAndCLITests(WorkspaceTestCase):
             self.assertEqual(stack.hub.dial(record.id).status, "resolved")
             self.assertEqual(stack.hub.status()["network_used"], False)
 
-    def test_source_has_no_network_or_code_execution_imports(self) -> None:
+    def test_source_has_no_implicit_network_or_code_execution_imports(self) -> None:
         source_root = Path(__file__).parents[1] / "src" / "hive_hub"
         source = "\n".join(path.read_text("utf-8") for path in source_root.glob("*.py"))
         forbidden = (
             "import requests",
             "import socket",
             "import subprocess",
-            "urllib.request",
             "os.system(",
             "eval(",
             "exec(",
         )
         for token in forbidden:
             self.assertNotIn(token, source)
+        for path in source_root.glob("*.py"):
+            for statement in ast.parse(path.read_text("utf-8")).body:
+                if isinstance(statement, ast.ImportFrom):
+                    self.assertNotEqual(statement.module, "urllib.request")
+                elif isinstance(statement, ast.Import):
+                    self.assertNotIn("urllib.request", [alias.name for alias in statement.names])
 
     def test_cli_success_and_errors_are_clean_json(self) -> None:
         stdout = io.StringIO()

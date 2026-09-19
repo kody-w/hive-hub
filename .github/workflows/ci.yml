@@ -61,6 +61,7 @@ jobs:
           tests.test_organization_seeds
           tests.test_shipped_examples
           tests.test_published_record_conformance
+          tests.test_remote_dial
       - name: Adapter conformance
         run: python -B -m unittest discover -s adapters/tests -t . -v
 

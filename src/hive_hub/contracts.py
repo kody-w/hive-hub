@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, ClassVar, Literal, TypeVar, cast
 from urllib.parse import parse_qsl, urlsplit
 
-from .canonical import canonical_bytes, content_address, validate_address
+from .canonical import address_digest, canonical_bytes, content_address, validate_address
 from .chant import (
     CHANT_PROTOCOL,
     CHANT_VOCABULARY_SHA256,
@@ -988,6 +988,14 @@ class DialRecord:
     urls: tuple[str, ...]
     chants: tuple[str, ...]
 
+    @property
+    def dial_id(self) -> str:
+        return "dial:sha256:" + address_digest(self.id)
+
+    @property
+    def candidate_chants(self) -> tuple[str, ...]:
+        return tuple(sorted({*self.chants, derive_chant(self.dial_id)}))
+
     @staticmethod
     def _body(
         *,
@@ -1143,6 +1151,30 @@ class DialRecord:
             "urls": list(self.urls),
             "chants": list(self.chants),
         }
+
+def validate_record_contracts(
+    record: DialRecord,
+    declaration: ProtocolDeclaration,
+    bundle: LearningBundle,
+    adapter: AdapterRegistration,
+) -> None:
+    if (
+        record.protocol_fingerprint != declaration.fingerprint
+        or record.learning_bundle_address != bundle.address
+        or record.adapter_registration_address != adapter.address
+    ):
+        raise ValidationError("record contract content address mismatch")
+    if bundle.protocol_fingerprint != declaration.fingerprint:
+        raise ValidationError("record learning bundle belongs to another protocol")
+    if adapter.protocol_fingerprint != declaration.fingerprint:
+        raise ValidationError("record adapter belongs to another protocol")
+    if bundle.conformance_contract.address != declaration.conformance_address:
+        raise ValidationError("record learning bundle conformance mismatch")
+    if adapter.conformance_address != declaration.conformance_address:
+        raise ValidationError("record adapter conformance mismatch")
+    if adapter.interface_version != declaration.adapter_api_version:
+        raise ValidationError("adapter interface version does not match the protocol")
+
 
 def generate_qr_fragment() -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode("ascii")
@@ -1658,7 +1690,7 @@ class DialIndexEntry:
             learning_bundle_address=record.learning_bundle_address,
             adapter_registration_address=record.adapter_registration_address,
             urls=record.urls,
-            chants=record.chants,
+            chants=record.candidate_chants,
         )
 
     @classmethod
@@ -1776,7 +1808,7 @@ class DialbookIndex:
         chant_map: dict[str, list[str]] = {}
         url_map: dict[str, list[str]] = {}
         for record in ordered_records:
-            for chant in record.chants:
+            for chant in record.candidate_chants:
                 chant_map.setdefault(chant, []).append(record.id)
             for url in record.urls:
                 url_map.setdefault(url, []).append(record.id)

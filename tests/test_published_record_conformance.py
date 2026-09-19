@@ -6,6 +6,7 @@ from hive_hub.canonical import address_digest, canonical_bytes, content_address,
 from hive_hub.chant import derive_chant
 from hive_hub.contracts import DialRecord
 from hive_hub.limits import MAX_RECORD_BYTES
+from hive_hub.published import PublishedRecord
 
 from .helpers import PROJECT_ROOT
 
@@ -32,6 +33,7 @@ class PublishedRecordConformanceTests(unittest.TestCase):
                     envelope.get("coreRecord"), dict, "published record has no coreRecord"
                 )
                 record = DialRecord.from_dict(envelope["coreRecord"])
+                self.assertEqual(PublishedRecord.from_dict(envelope).record, record)
                 self.assertEqual(envelope["coreRecord"], record.to_dict())
                 body = record._body(
                     name=record.name,
@@ -55,6 +57,26 @@ class PublishedRecordConformanceTests(unittest.TestCase):
                     "sha256:" + address_digest(content_address(raw, raw=True)),
                 )
                 self.assertEqual(raw, canonical_bytes(envelope) + b"\n")
+
+    def test_record_store_contains_only_active_records_and_exact_archived_bytes(self) -> None:
+        dialbook = loads_json((PROJECT_ROOT / "api/hive-hub/v1/dialbook.json").read_bytes())
+        active = {PROJECT_ROOT / descriptor["path"] for descriptor in dialbook["records"]}
+        paths = set((PROJECT_ROOT / "api/hive-hub/v1/records/sha256").glob("*/*.json"))
+        manifest = loads_json((PROJECT_ROOT / "public-manifest.json").read_bytes())
+        archived = set()
+        for entry in manifest["entries"]:
+            if entry["kind"] != "historical-object":
+                continue
+            raw = (PROJECT_ROOT / "public-src" / entry["path"]).read_bytes()
+            document = loads_json(raw)
+            if document.get("kind") != "dial-record":
+                continue
+            self.assertEqual(address_digest(content_address(raw, raw=True)), entry["sha256"])
+            matching = [path for path in paths if path.stem == entry["sha256"]]
+            self.assertEqual(len(matching), 1, "archived record disappeared or was duplicated")
+            self.assertEqual(matching[0].read_bytes(), raw)
+            archived.add(matching[0])
+        self.assertEqual(paths, active | archived, "an emitted record escaped the oracle")
 
 
 if __name__ == "__main__":

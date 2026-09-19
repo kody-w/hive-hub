@@ -93,6 +93,21 @@ test("committed public records share the core identity body and derived chant", 
     assert.equal(descriptor.ref, `sha256:${sha256Bytes(bytes)}`);
     assert.equal(bytes.toString("utf8"), canonicalJson(record));
   }
+  const emitted = (await listPublicFiles(repository))
+    .filter((file) => file.startsWith("api/hive-hub/v1/records/sha256/"));
+  const accounted = new Set(dialbook.records.map((descriptor) => descriptor.path));
+  for (const entry of manifest.entries.filter((item) => item.kind === "historical-object")) {
+    const bytes = await readFile(path.join(repository, "public-src", entry.path));
+    if (JSON.parse(bytes).kind !== "dial-record") {
+      continue;
+    }
+    assert.equal(sha256Bytes(bytes), entry.sha256);
+    const archived = emitted.filter((file) => file.endsWith(`/${entry.sha256}.json`));
+    assert.equal(archived.length, 1);
+    assert.deepEqual(await readFile(path.join(repository, archived[0])), bytes);
+    accounted.add(archived[0]);
+  }
+  assert.deepEqual(emitted.sort(), [...accounted].sort());
 });
 
 test("generated surface passes links, hashes, security, and accessibility gates", async () => {
