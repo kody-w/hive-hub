@@ -8,10 +8,10 @@ Public dialbook: https://kody-w.github.io/hive-hub/api/hive-hub/v1/dialbook.json
 Ten RAPP Work organization seeds: https://kody-w.github.io/hive-hub/api/hive-hub/v1/organization-seeds.json
 Standalone global network skill: https://kody-w.github.io/hive-hub/hub/skills/hive-network/SKILL.md
 Machine join instructions: https://kody-w.github.io/hive-hub/hub/join/ai.json
-Integrated 0.1.1 release: https://kody-w.github.io/hive-hub/api/hive-hub/v1/releases/sha256/eb/eb4b8c33aeb9f33fc0f009bef4005e0619962a64dc7b1fbf5a8fd21984588a7e.json (sha256:eb4b8c33aeb9f33fc0f009bef4005e0619962a64dc7b1fbf5a8fd21984588a7e)
+Integrated 0.1.1 release: https://kody-w.github.io/hive-hub/api/hive-hub/v1/releases/sha256/02/02615bbb5dec5eab91aed94c8cda4b995a81167fde8ab4dc3b789b51b64a28e0.json (sha256:02615bbb5dec5eab91aed94c8cda4b995a81167fde8ab4dc3b789b51b64a28e0)
 Core camera-AI join card: https://kody-w.github.io/hive-hub/api/hive-hub/v1/cards/core/sha256/5d/5da9aa7c7112f54157343917f50f64e0b9441cd6f9ab1a4d2546be7d418bd794.json (sha256:5da9aa7c7112f54157343917f50f64e0b9441cd6f9ab1a4d2546be7d418bd794)
-Example immutable Dial Record: https://kody-w.github.io/hive-hub/api/hive-hub/v1/records/sha256/sha256-00-3f/1da8f80b4b6e053dadba23ce901e1533e0a7aeed975c9244bede62613cce1502.json
-Example Dial Record fingerprint: sha256:1da8f80b4b6e053dadba23ce901e1533e0a7aeed975c9244bede62613cce1502
+Example immutable Dial Record: https://kody-w.github.io/hive-hub/api/hive-hub/v1/records/sha256/sha256-c0-ff/dae8e20947d18f243a044f87baff7547f5004c2b1635dd6f03fdaf2312d31925.json
+Example Dial Record fingerprint: sha256:dae8e20947d18f243a044f87baff7547f5004c2b1635dd6f03fdaf2312d31925
 
 ## Required interpretation
 

@@ -55,19 +55,27 @@ test("withdrawal requires explicit approval and removal of prior receipt bytes",
     const oldReceiptPath = oldIndex.receipts[0].path;
     const oldReceipt = await readFile(path.join(root, oldReceiptPath));
     const manifest = JSON.parse(manifestBytes);
-    const entry = manifest.entries.find((item) => item.kind === "receipt");
-    const oldSourcePath = path.join(root, "public-src", entry.path);
-    const source = JSON.parse(await readFile(oldSourcePath));
+    const priorEntries = manifest.entries.filter((item) => item.kind === "receipt");
+    const entry = { ...priorEntries[0] };
+    const source = JSON.parse(await readFile(path.join(root, "public-src", entry.path)));
     source.ledger = "replacement-fixture";
+    source.sequence = 1;
     entry.id = "fixture-replacement-receipt";
     entry.path = "receipts/0001-fixture-replacement.json";
     const sourceBytes = Buffer.from(canonicalJson(source));
     entry.sha256 = sha256Bytes(sourceBytes);
     await writeFile(path.join(root, "public-src", entry.path), sourceBytes);
-    await rm(oldSourcePath);
+    for (const prior of priorEntries) {
+      await rm(path.join(root, "public-src", prior.path));
+    }
+    manifest.entries = manifest.entries.filter(
+      (item) => item.kind !== "receipt" && item.kind !== "historical-receipt"
+    );
+    manifest.entries.push(entry);
+    manifest.entries.sort((left, right) => left.id.localeCompare(right.id));
     await writeFile(manifestPath, canonicalJson(manifest));
     await buildStaticSurface({ manifestPath, outDir: root });
-    await assert.rejects(checkReceipts({ manifestPath, base }), /changed or reordered/);
+    await assert.rejects(checkReceipts({ manifestPath, base }), /removed prior|changed or reordered/);
     await writeFile(path.join(root, "public-withdrawals.json"), canonicalJson({
       kind: "public-ledger-withdrawals",
       version: 1,

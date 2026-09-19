@@ -100,7 +100,8 @@ test("generated surface passes links, hashes, security, and accessibility gates"
     manifestPath,
     root: buildA
   });
-  assert.equal(result.inputCount, 72);
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.equal(result.inputCount, manifest.entries.length);
   assert.ok(result.immutableObjectCount >= 9);
   assert.equal(result.qrCount, 22);
 });
@@ -117,11 +118,7 @@ test("example record is exact and grants no authority or semantic compatibility"
   assert.equal(record.protocolFingerprint, record.protocol.ref);
   assert.equal(
     record.dialId,
-    "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
-  );
-  assert.equal(
-    record.chants[0].value,
-    "juniper-quartz-harbor-birch-cobalt-nook-flint"
+    record.coreRecord.id.replace(/^urn:hivehub:/, "dial:")
   );
   assert.equal(record.chants[0].value, deriveChant(record.dialId));
   assert.deepEqual(record.aliases, ["hive-hub-public-lab"]);
@@ -152,17 +149,22 @@ test("hive-hub-chant/1 is exact, human-friendly, and protocol-neutral", () => {
   assert.throws(() => normalizeChant("hive-hub-public-lab"));
 });
 
-test("public laboratory starts a receipt ledger without retired locators", async () => {
+test("public laboratory preserves its original receipt and appends the identity migration", async () => {
   const index = JSON.parse(
     await readFile(path.join(buildA, "api/hive-hub/v1/receipts/index.json"), "utf8")
   );
-  assert.equal(index.receipts.length, 1);
+  assert.equal(index.receipts.length, 2);
   const receipt = JSON.parse(
     await readFile(path.join(buildA, index.receipts[0].path), "utf8")
   );
   assert.equal(receipt.event, "publish-record");
   assert.equal(receipt.previous, null);
-  assert.deepEqual(receipt.subject, resultA.records[0].descriptor);
+  const migration = JSON.parse(
+    await readFile(path.join(buildA, index.receipts[1].path), "utf8")
+  );
+  assert.deepEqual(migration.previous, index.receipts[0]);
+  assert.deepEqual(migration.subject, resultA.records[0].descriptor);
+  assert.notDeepEqual(receipt.subject, migration.subject);
 });
 
 test("public build input reader never scans adjacent private books", async () => {

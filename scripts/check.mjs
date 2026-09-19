@@ -16,6 +16,7 @@ import {
   sha256Bytes
 } from "./lib/canonical.mjs";
 import { loadPublicInputs } from "./lib/public-inputs.mjs";
+import { assertCoreIdentity } from "./lib/core-record.mjs";
 
 function assert(condition, message) {
   if (!condition) {
@@ -205,6 +206,7 @@ export async function checkStaticSurface({ root, manifestPath }) {
     ".well-known/hive-hub.json",
     "api/hive-hub/v1/index.json",
     "api/hive-hub/v1/dialbook.json",
+    "api/hive-hub/v1/dial-snapshot.json",
     "api/hive-hub/v1/buckets/index.json",
     "api/hive-hub/v1/federation/index.json",
     "api/hive-hub/v1/federation/buckets.json",
@@ -340,6 +342,7 @@ export async function checkStaticSurface({ root, manifestPath }) {
 
   for (const recordDescriptor of dialbook.records) {
     const record = jsonDocuments.get(recordDescriptor.path);
+    assertCoreIdentity(record);
     assert(
       record.kind === "dial-record" && record.visibility === "public",
       "Example record is not public"
@@ -362,11 +365,6 @@ export async function checkStaticSurface({ root, manifestPath }) {
       );
       assert(record.aliases.includes(seed.slug), "Seed alias is not bound to its package");
     } else {
-      assert(
-        record.dialId ===
-          "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32",
-        "Example record full Dial Record ID is incorrect"
-      );
       assert(
         record.aliases.includes("hive-hub-public-lab") &&
           record.chants[0].value !== "hive-hub-public-lab",
@@ -478,6 +476,9 @@ export async function checkStaticSurface({ root, manifestPath }) {
 
   const releaseIndex = jsonDocuments.get(`${manifest.build.apiPath}/release.json`);
   const release = jsonDocuments.get(releaseIndex.current.path);
+  const laboratory = dialbook.records
+    .map((descriptor) => jsonDocuments.get(descriptor.path))
+    .find((record) => record.recordId === "hive-hub-public-lab");
   assert(release.version === manifest.productVersion, "Integrated release version drifted");
   assert(release.adapters.optional === true, "Release makes adapters mandatory");
   assert(release.static.publicInputsOnly === true, "Release is not public-input-only");
@@ -489,11 +490,26 @@ export async function checkStaticSurface({ root, manifestPath }) {
   assert(
     release.publicSample.repository === "kody-w/hive-hub" &&
       release.publicSample.revision === "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9" &&
-      release.publicSample.dialId ===
-        "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32" &&
+      release.publicSample.dialId === laboratory.dialId &&
       release.publicSample.chant === deriveChant(release.publicSample.dialId),
     "Integrated release changed the only real public sample"
   );
+  const snapshot = jsonDocuments.get(`${manifest.build.apiPath}/dial-snapshot.json`);
+  assert(
+    snapshot.kind === "published-dial-snapshot" && snapshot.schema_version === 1 &&
+      snapshot.records.length === dialbook.records.length &&
+      snapshot.records.length <= 256 &&
+      Buffer.byteLength(canonicalJson(snapshot)) <= 2 * 1024 * 1024,
+    "Cold-start snapshot is missing, incomplete, or exceeds the core limits"
+  );
+  for (const [index, entry] of snapshot.records.entries()) {
+    const descriptor = dialbook.records[index];
+    assert(
+      entry.ref === descriptor.ref &&
+        canonicalJson(entry.record) === canonicalJson(jsonDocuments.get(descriptor.path)),
+      "Cold-start snapshot differs from the published record bytes"
+    );
+  }
   const coreSchemas = jsonDocuments.get(`${manifest.build.apiPath}/core-schemas/index.json`);
   assert(coreSchemas.productVersion === manifest.productVersion, "Core schema release drifted");
   assert(

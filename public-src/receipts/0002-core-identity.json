@@ -1,0 +1,18 @@
+{
+  "actor": "urn:hive-hub:publisher:repository-maintainers",
+  "event": "republish-record",
+  "kind": "receipt-source",
+  "ledger": "public-lab",
+  "occurredAt": "2026-09-19T23:09:12Z",
+  "operation": {
+    "boundedTo": [
+      "the public laboratory's canonical core identity",
+      "derived locator-only chants and cards",
+      "inert closed-contract discovery data"
+    ],
+    "planFirst": true,
+    "reversibleBy": "Restore the preceding public projection without rewriting its immutable receipt."
+  },
+  "recordId": "hive-hub-public-lab",
+  "sequence": 2
+}
