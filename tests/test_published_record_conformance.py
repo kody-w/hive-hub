@@ -33,7 +33,6 @@ class PublishedRecordConformanceTests(unittest.TestCase):
                     envelope.get("coreRecord"), dict, "published record has no coreRecord"
                 )
                 record = DialRecord.from_dict(envelope["coreRecord"])
-                self.assertEqual(PublishedRecord.from_dict(envelope).record, record)
                 self.assertEqual(envelope["coreRecord"], record.to_dict())
                 body = record._body(
                     name=record.name,
@@ -52,6 +51,7 @@ class PublishedRecordConformanceTests(unittest.TestCase):
                     envelope["chants"],
                     [{"role": "candidate-locator-only", "value": derive_chant(dial_id)}],
                 )
+                self.assertEqual(PublishedRecord.from_dict(envelope).record, record)
                 self.assertEqual(
                     descriptor["ref"],
                     "sha256:" + address_digest(content_address(raw, raw=True)),

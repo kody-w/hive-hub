@@ -14,6 +14,7 @@ from hive_hub import ConflictError, UnsafePathError
 from hive_hub import _windows_file as windows_file
 from hive_hub._windows_file import WindowsFileMetadata
 from hive_hub.cli import main
+from hive_hub.contracts import normalize_record_chant, validate_dial_query
 from hive_hub.filesystem import (
     SafeFilesystem,
     _has_single_file_link,
@@ -24,6 +25,24 @@ from .helpers import MockWindowsFileApi, WorkspaceTestCase, make_record, make_st
 
 
 class SafetyAndCLITests(WorkspaceTestCase):
+    def test_valid_43_character_chants_are_not_opaque_qr_factors(self) -> None:
+        chant = "quartz-hearth-xylem-zeal-zephyr-drift-arbor"
+        self.assertEqual(len(chant), 43)
+        self.assertEqual(validate_dial_query(chant), chant)
+        self.assertEqual(normalize_record_chant(chant), chant)
+        for candidate in ("A" * 43, "not-a-real-vocabulary-chant".ljust(43, "x")):
+            with self.subTest(candidate=candidate):
+                self.cli_rejects_qr_factor(candidate)
+
+    def cli_rejects_qr_factor(self, candidate: str) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(["--home", str(self.work), "dial", candidate])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("bare QR factor", json.loads(stderr.getvalue())["error"]["message"])
+
     def test_core_posix_link_policy_still_requires_exactly_one(self) -> None:
         with patch("hive_hub.filesystem._is_windows", return_value=False):
             for link_count, accepted in ((0, False), (1, True), (2, False)):

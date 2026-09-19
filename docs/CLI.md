@@ -86,8 +86,10 @@ records. Duplicate keys, floats, excessive depth, bad byte hashes, mismatched
 core identity/chant/contracts, and private records fail before registration.
 Matching records and their inert contracts use atomic no-replace writes;
 failure removes only files newly created by that import. Re-applying is
-idempotent. Derived chants are included in local candidate indexes without
-modifying the record's hashed `chants` array.
+idempotent. URL-only records advertise a derived chant in local indexes without
+modifying their hashed `chants` array. Existing legacy label arrays remain
+unchanged; their intrinsic ID-derived chant also resolves without consuming
+an additional slot in a full legacy index.
 
 `--from` accepts only `auto` or `public` scope and refuses ACL/QR options.
 Absent and unauthorized HTTP responses share one sanitized failure.

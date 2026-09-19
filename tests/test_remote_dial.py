@@ -425,3 +425,14 @@ class RemoteDialTests(WorkspaceTestCase):
                 self.assertEqual(published.record.chants, ())
                 self.assertEqual(published.adapter.effect_kinds, ())
                 self.assertEqual(published.adapter.operations, ("inspect",))
+
+    def test_every_built_chant_can_be_imported_and_indexed(self) -> None:
+        for entry in self.snapshot["records"]:
+            with self.subTest(record=entry["record"]["recordId"]):
+                self.query = entry["record"]["chants"][0]["value"]
+                plan = self.remote()
+                result = self.remote("--apply", plan["plan_id"])
+                self.assertEqual(result["status"], "resolved")
+                self.assertEqual(result["record"], entry["record"]["coreRecord"])
+        index = HiveHub(self.home).build_public_index(persist=False)
+        self.assertEqual(len(index["records"]), len(self.snapshot["records"]))

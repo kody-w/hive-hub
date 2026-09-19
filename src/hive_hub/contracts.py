@@ -198,9 +198,19 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _is_bare_qr_factor(text: str) -> bool:
+    if _QR_RE.fullmatch(text.strip()) is None:
+        return False
+    try:
+        normalize_chant(text)
+    except ValidationError:
+        return True
+    return False
+
+
 def normalize_record_chant(value: Any) -> str:
     text = _string(value, field="chant", maximum_bytes=512)
-    if _QR_RE.fullmatch(text.strip()) is not None:
+    if _is_bare_qr_factor(text):
         raise ValidationError("a QR factor cannot be used as a chant")
     normalized = " ".join(unicodedata.normalize("NFKC", text).casefold().split())
     if not normalized:
@@ -237,7 +247,7 @@ def validate_dial_query(value: Any) -> str:
     query = _string(value, field="dial query", maximum_bytes=4096)
     if "#" in query:
         raise ValidationError("dial query must not contain a URL fragment")
-    if _QR_RE.fullmatch(query.strip()) is not None:
+    if _is_bare_qr_factor(query):
         raise ValidationError("dial query must not be a bare QR factor")
     if _URI_SCHEME_RE.match(query) is not None:
         validate_locator(query, field="dial query")
@@ -993,8 +1003,9 @@ class DialRecord:
         return "dial:sha256:" + address_digest(self.id)
 
     @property
-    def candidate_chants(self) -> tuple[str, ...]:
-        return tuple(sorted({*self.chants, derive_chant(self.dial_id)}))
+    def index_chants(self) -> tuple[str, ...]:
+        """Keep bounded legacy label arrays intact; derive an empty index view."""
+        return self.chants or (derive_chant(self.dial_id),)
 
     @staticmethod
     def _body(
@@ -1690,7 +1701,7 @@ class DialIndexEntry:
             learning_bundle_address=record.learning_bundle_address,
             adapter_registration_address=record.adapter_registration_address,
             urls=record.urls,
-            chants=record.candidate_chants,
+            chants=record.index_chants,
         )
 
     @classmethod
@@ -1808,7 +1819,7 @@ class DialbookIndex:
         chant_map: dict[str, list[str]] = {}
         url_map: dict[str, list[str]] = {}
         for record in ordered_records:
-            for chant in record.candidate_chants:
+            for chant in record.index_chants:
                 chant_map.setdefault(chant, []).append(record.id)
             for url in record.urls:
                 url_map.setdefault(url, []).append(record.id)

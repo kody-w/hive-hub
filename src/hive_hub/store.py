@@ -11,7 +11,7 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from .canonical import address_digest, canonical_bytes, content_address, is_address, loads_json
-from .chant import normalize_chant, validate_dial_record_id
+from .chant import derive_chant, normalize_chant, validate_dial_record_id
 from .contracts import (
     AdapterPlan,
     AdapterRegistration,
@@ -78,7 +78,10 @@ def _match_records(
             chant = normalize_record_chant(query)
         except ValidationError:
             return "chant", []
-    return "chant", [record for record in records if chant in record.candidate_chants]
+    return "chant", [
+        record for record in records
+        if chant in record.chants or chant == derive_chant(record.dial_id)
+    ]
 
 
 def _snapshot_url(base_url: str) -> str:

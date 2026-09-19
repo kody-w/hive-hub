@@ -7,8 +7,11 @@ from hive_hub import (
     DialRecord,
     Principal,
     SubscriptionPlan,
+    canonical_bytes,
     content_address,
+    derive_chant,
 )
+from hive_hub.limits import MAX_ARRAY_ITEMS
 from hive_hub.store import PublicDialbook
 
 from .helpers import FIXED_TIME, WorkspaceTestCase, make_record, make_stack
@@ -61,6 +64,27 @@ class HubFlowTests(WorkspaceTestCase):
             item for item in index["chant_candidates"] if item["candidate"] == "shared glow"
         )
         self.assertEqual(collision["record_ids"], sorted([alpha.id, beta.id]))
+
+    def test_derived_lookup_preserves_a_full_legacy_label_array(self) -> None:
+        stack = make_stack(self.work)
+        record = DialRecord.create(
+            name="Full legacy label array",
+            description="Derived lookup must not enlarge persisted legacy arrays.",
+            visibility="public",
+            protocol_fingerprint=stack.declaration.fingerprint,
+            learning_bundle_address=stack.bundle.address,
+            adapter_registration_address=stack.adapter.address,
+            urls=["https://firefly.invalid/full-labels"],
+            chants=[f"label{index:03d}" for index in range(MAX_ARRAY_ITEMS)],
+        )
+        stack.hub.register_public_record(record)
+        for query in (record.chants[0], derive_chant(record.dial_id)):
+            result = stack.hub.dial(query, scope="public")
+            self.assertEqual(result.record, record)
+            self.assertEqual(result.candidates[0].chants, record.chants)
+            canonical_bytes(result.to_dict())
+        index = stack.hub.build_public_index(persist=False)
+        self.assertEqual(len(index["chant_candidates"]), MAX_ARRAY_ITEMS)
 
     def test_human_and_ai_bootstrap_are_plan_first_and_local(self) -> None:
         stack = make_stack(self.work)

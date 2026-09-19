@@ -79,6 +79,9 @@ Implements `hive-hub-chant/1`. The derivation is
 bytes modulo 128 and mapping them through the frozen vocabulary. Human parsing
 accepts case differences and either spaces or canonical hyphens; output is
 exactly seven lowercase hyphen-separated words.
+Known vocabulary chants are recognized before rejecting opaque QR factors:
+a valid 43-character hyphenated chant is not mistaken for a QR secret merely
+because its length and characters also fit the base64url pattern.
 
 The vocabulary is byte-exact from
 `kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae`, with SHA-256
@@ -130,6 +133,9 @@ publication without pretending it originally contained `coreRecord`.
 Contain sorted record summaries plus `chant_candidates` and `url_candidates`.
 Each candidate maps to an array of one or more record ids, so collisions are
 never overwritten. The two index kinds reject mixed visibility.
+URL-only records advertise a derived chant. Existing label arrays are preserved,
+including arrays at the configured item limit; intrinsic ID-derived lookup
+also works for those records without inserting another index label.
 
 ### `ai-join-card`
 
