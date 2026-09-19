@@ -59,6 +59,8 @@ jobs:
           tests.test_adapter_runtime
           tests.test_release_integration
           tests.test_organization_seeds
+          tests.test_shipped_examples
+          tests.test_published_record_conformance
       - name: Adapter conformance
         run: python -B -m unittest discover -s adapters/tests -t . -v
 
@@ -96,6 +98,10 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run verify
+      - name: Cross-language published record oracle
+        env:
+          PYTHONPATH: src:.
+        run: python -B -m unittest tests.test_published_record_conformance
       - name: Browser-free local HTTP smoke
         run: |
           mkdir -p .hive-hub

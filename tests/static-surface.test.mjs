@@ -60,6 +60,41 @@ test("build is byte-for-byte deterministic", async () => {
   }
 });
 
+test("committed public records share the core identity body and derived chant", async () => {
+  const dialbook = JSON.parse(
+    await readFile(path.join(repository, "api/hive-hub/v1/dialbook.json"), "utf8")
+  );
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.ok(dialbook.records.length > 0);
+  assert.equal(
+    dialbook.records.length,
+    manifest.entries.filter((entry) => entry.kind === "record").length
+  );
+  for (const descriptor of dialbook.records) {
+    const bytes = await readFile(path.join(repository, descriptor.path));
+    const record = JSON.parse(bytes);
+    const core = record.coreRecord;
+    assert.ok(core, `${descriptor.path} has no coreRecord`);
+    assert.deepEqual(Object.keys(core).sort(), [
+      "adapter_registration_address", "chants", "description", "id", "kind",
+      "learning_bundle_address", "name", "protocol_fingerprint", "schema_version",
+      "urls", "visibility"
+    ]);
+    assert.equal(core.kind, "dial-record");
+    assert.equal(core.schema_version, 1);
+    const { id, ...fields } = core;
+    const body = { ...fields, kind: "dial-record-body" };
+    const digest = sha256Bytes(Buffer.from(canonicalJson(body).slice(0, -1)));
+    assert.equal(id, `urn:hivehub:sha256:${digest}`);
+    assert.equal(record.dialId, `dial:sha256:${digest}`);
+    assert.deepEqual(record.chants, [
+      { role: "candidate-locator-only", value: deriveChant(record.dialId) }
+    ]);
+    assert.equal(descriptor.ref, `sha256:${sha256Bytes(bytes)}`);
+    assert.equal(bytes.toString("utf8"), canonicalJson(record));
+  }
+});
+
 test("generated surface passes links, hashes, security, and accessibility gates", async () => {
   const result = await checkStaticSurface({
     manifestPath,
