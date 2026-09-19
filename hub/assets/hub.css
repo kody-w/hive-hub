@@ -19,6 +19,30 @@
   box-sizing: border-box;
 }
 
+.seed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1.25rem;
+  margin-block: 2rem;
+}
+
+.seed-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.seed-card h3 { font-size: 1.45rem; line-height: 1.2; margin-block: 0.6rem; }
+.seed-card h3 a { color: var(--text); text-decoration: none; }
+.seed-counts { color: var(--accent-strong); }
+.seed-title { font-size: clamp(2.4rem, 5vw, 4.5rem); }
+.seed-files { padding-left: 1.2rem; }
+.seed-files li { margin-block: 0.6rem; overflow-wrap: anywhere; }
+.task-list details { border-bottom: 1px solid var(--line); padding-block: 1rem; }
+.task-list summary { cursor: pointer; }
+.task-list p { overflow-wrap: anywhere; }
+
 body {
   background: var(--background);
   color: var(--text);

@@ -296,8 +296,36 @@ privacy withdrawal requires the old receipt sources and generated receipt
 URLs to be absent, not rewritten at their old content addresses. It does not
 erase Git history, existing downloads, or third-party caches.
 
-[Ten public showcase build prompts](docs/PUBLIC_EXAMPLES.md) describe proposed
-demonstrations using only synthetic or explicitly public material.
+## Ten public RAPP Work organization seeds
+
+The [Hub catalog](https://kody-w.github.io/hive-hub/hub/#organizations) contains
+ten real, downloadable starter packages: a One-Person Conglomerate, Enterprise
+Transformation Firm, Product Launch Company, Open-Source Infrastructure
+Foundation, Applied Invention Lab, Independent Game Studio, Micro-Manufacturing
+Company, Public-Source Intelligence Bureau, Turnaround Firm, and Federation
+Prime Contractor.
+
+Each has scoped team workspaces, an original synthetic intake case, a task DAG
+with ownership and acceptance criteria, usable starter artifacts, an exact file
+inventory, a deterministic ZIP, and its own verified join card and QR. They
+replace the prompt-only showcase. The protocol-only public laboratory remains
+addressable separately.
+
+The seeds use the exact canonical `rapp-work-sdk/1` SDK. Organizations are
+pointer-only; team content and shared casework remain in distinct same-world
+workspaces. A consumer selects its owner and destination and approves complete
+native plans before initialization. The catalog does not claim activated
+companies, running agents, private membership, completed work, or signed estate
+authority.
+
+The generic Hub core remains protocol-neutral. Seed data is an optional public
+example layer, not a replacement RAPP runtime. See
+[the package and initialization guide](docs/ORGANIZATION_SEEDS.md).
+
+The [standalone global skill](skills/hive-network/SKILL.md) is one file a person
+can give to their existing AI. It guides local use and reviewed contributions
+without installing a daemon, copying provider stores, granting access, or
+mistaking a subscription for an activated organization.
 
 ## Explicit public-only build
 

@@ -22,26 +22,24 @@ from hive_hub import (  # noqa: E402
 from hive_hub import __version__ as CORE_VERSION  # noqa: E402
 from hive_hub.adapter_runtime import builtin_adapter_contracts  # noqa: E402
 from scripts.file_integrity import FileIntegrityError, read_regular_bytes  # noqa: E402
+from scripts.organization_seeds import SEED_SLUGS, build_all  # noqa: E402
 from scripts.update_agent_lock import (  # noqa: E402
     GITHUB_SUBSCRIPTION_CONTRACT,
+    SUBSCRIPTION_CONTRACT,
     digest,
 )
 
 PRODUCT_VERSION = "0.1.1"
-GENERATED_AT = "2026-09-18T23:15:00Z"
+GENERATED_AT = "2026-09-18T23:29:19Z"
 CORE_CARD_ISSUED_AT = "2026-09-18T19:16:11Z"
 SITE_BASE_URL = "https://kody-w.github.io/hive-hub"
 API_PATH = "api/hive-hub/v1"
 SAMPLE_REPOSITORY = "kody-w/hive-hub"
 SAMPLE_REVISION = "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9"
 SAMPLE_DECLARATION_ID = (
-    "dial:sha256:"
-    "a917f8e41e56639a7036109b39888ee37793b7eeb045c08e387903da5c9da1af"
+    "dial:sha256:a917f8e41e56639a7036109b39888ee37793b7eeb045c08e387903da5c9da1af"
 )
-SAMPLE_DIAL_ID = (
-    "dial:sha256:"
-    "6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
-)
+SAMPLE_DIAL_ID = "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
 SAMPLE_CHANT = "juniper-quartz-harbor-birch-cobalt-nook-flint"
 assert derive_chant(SAMPLE_DIAL_ID) == SAMPLE_CHANT
 SOURCE_COMMITS = {
@@ -177,9 +175,7 @@ def build_skill_dialbook(declaration: dict[str, Any]) -> tuple[dict[str, Any], s
             "schema": "hive-hub-dialbook/2",
             "chant": {
                 "protocol": CHANT_PROTOCOL,
-                "algorithm": (
-                    "sha256(utf8(full-canonical-dial-record-id))[0:7] mod 128"
-                ),
+                "algorithm": ("sha256(utf8(full-canonical-dial-record-id))[0:7] mod 128"),
                 "address_bits": CHANT_ADDRESS_BITS,
                 "vocabulary_sha256": CHANT_VOCABULARY_SHA256,
                 "vocabulary_provenance": CHANT_VOCABULARY_PROVENANCE,
@@ -194,7 +190,7 @@ def build_skill_dialbook(declaration: dict[str, Any]) -> tuple[dict[str, Any], s
     )
 
 
-def build_core_card(locator: str) -> dict[str, Any]:
+def build_core_card(locator: str, issued_at: str = CORE_CARD_ISSUED_AT) -> dict[str, Any]:
     body = {
         "kind": "ai-join-card-body",
         "schema_version": 1,
@@ -203,7 +199,7 @@ def build_core_card(locator: str) -> dict[str, Any]:
         "expected_record_id": None,
         "expected_protocol_fingerprint": None,
         "adapter_plan": None,
-        "issued_at": CORE_CARD_ISSUED_AT,
+        "issued_at": issued_at,
     }
     return {
         "kind": "ai-join-card",
@@ -214,8 +210,112 @@ def build_core_card(locator: str) -> dict[str, Any]:
         "expected_record_id": None,
         "expected_protocol_fingerprint": None,
         "adapter_plan": None,
-        "issued_at": CORE_CARD_ISSUED_AT,
+        "issued_at": body["issued_at"],
     }
+
+
+def seed_contracts(seed: dict[str, Any], *, check: bool) -> dict[str, Any]:
+    slug = seed["slug"]
+    protocol = source_reference("protocols/rapp-work-organization-seed-v1.json")
+    conformance = source_reference("conformance/rapp-work-organization-seed-v1.json")
+    seed_reference = source_reference(f"organization-seeds/{slug}.json")
+    learning = {
+        "schema": "hive-hub-learning-bundle/1",
+        "artifacts": [
+            {"role": "spec", **protocol, "media_type": "application/json"},
+            {"role": "conformance", **conformance, "media_type": "application/json"},
+            {"role": "examples", **seed_reference, "media_type": "application/json"},
+        ],
+    }
+    declaration = {
+        "schema": "hive-hub-declaration/1",
+        "id": "dial:sha256:" + digest({"seed": seed_reference, "kind": "seed-declaration"}),
+        "name": seed["name"],
+        "access": {"visibility": "public", "mode": "acl-only"},
+        "protocol": {
+            "id": "rapp-work-sdk/1",
+            "fingerprint": protocol["sha256"],
+            "spec_sha256": protocol["sha256"],
+        },
+        "adapter": {
+            "id": SUBSCRIPTION_CONTRACT["id"],
+            "fingerprint": digest(SUBSCRIPTION_CONTRACT),
+        },
+        "learning": {**learning, "sha256": digest(learning)},
+        "conformance": {
+            "id": "rapp-work-organization-seed/1",
+            "artifact_sha256": conformance["sha256"],
+        },
+        "join": {
+            "kind": "subscription",
+            "next_step": (
+                f"Inspect the {seed['name']} seed's initialize.json, team work, and "
+                "synthetic case. Use your locally trusted exact RAPP Work SDK to plan "
+                "Organization and Workspace creation. Obtain approval of complete native "
+                "plans and starter-file effects before setup. This subscription does not "
+                "activate an organization, run downloaded code, or grant membership."
+            ),
+        },
+        "extensions": {
+            "seed": seed_reference,
+            "seed_status": "seed-not-activated",
+            "workspace_profile": "rapp-work-sdk/1",
+            "sdk_commit": seed["dependencies"]["sdk"]["commit"],
+            "authority": False,
+        },
+    }
+    write_or_check(
+        ROOT / "public-src" / "skill-declarations" / f"seed-{slug}.json",
+        canonical(declaration),
+        check=check,
+    )
+    reference = source_reference(f"skill-declarations/seed-{slug}.json")
+    body = {"chants": [slug], "locator": reference["url"], "declaration": reference}
+    dial_id = "dial:sha256:" + digest(body)
+    dial_record = {
+        "id": dial_id,
+        "aliases": [slug],
+        "chants": [derive_chant(dial_id)],
+        "locator": reference["url"],
+        "declaration": reference,
+    }
+    record = {
+        "kind": "dial-record",
+        "recordId": f"seed-{slug}",
+        "displayName": seed["name"],
+        "summary": seed["tagline"],
+        "visibility": "public",
+        "access": {
+            "authorization": "existing-source-acl",
+            "mode": "acl-only",
+            "unreachableResponse": "Do not distinguish an absent target from an unauthorized one.",
+        },
+        "aliases": [slug],
+        "dialId": dial_id,
+        "chants": [{"role": "candidate-locator-only", "value": derive_chant(dial_id)}],
+        "chantProtocolId": "hive-hub-chant-v1",
+        "protocolId": "rapp-work-organization-seed-v1",
+        "learningBundleId": "rapp-work-organization-seed-learning-v1",
+        "conformanceId": "rapp-work-organization-seed-contract-v1",
+        "adapterId": "rapp-work-organization-seed-adapter-v1",
+        "claims": {"authority": [], "semanticCompatibility": []},
+        "locator": {"provider": "static-seed", "seedId": f"organization-seed-{slug}"},
+        "security": {
+            "credentialsIncluded": False,
+            "retrievedContent": "inert-until-approved-and-verified",
+        },
+    }
+    write_or_check(
+        ROOT / "public-src" / "records" / f"seed-{slug}.json",
+        canonical(record),
+        check=check,
+    )
+    write_or_check(
+        ROOT / "public-src" / "cards" / f"seed-{slug}-core.json",
+        canonical(build_core_card(dial_id, GENERATED_AT)),
+        check=check,
+    )
+    return dial_record
 
 
 def build_release() -> dict[str, Any]:
@@ -284,20 +384,32 @@ def update_manifest(
     *,
     schema_names: list[str],
     skill_dial_id: str,
+    seed_records: list[dict[str, Any]],
     check: bool,
 ) -> None:
     target = ROOT / "public-manifest.json"
     manifest = json.loads(read_regular_bytes(target).decode("utf-8"))
     generated_kinds = {
-        "core-card", "core-schema", "release", "skill-declaration",
+        "core-card",
+        "core-schema",
+        "release",
+        "skill-declaration",
+        "organization-seed",
     }
     entries = [
-        entry for entry in manifest["entries"]
+        entry
+        for entry in manifest["entries"]
         if entry["kind"] not in generated_kinds
         and entry["id"] != "hive-hub-public-lab-learning-example"
+        and entry["id"] != "hive-network-global-skill"
+        and entry["id"] not in {f"seed-{slug}" for slug in SEED_SLUGS}
+        and not entry["id"].startswith("rapp-work-organization-seed-")
     ]
     entries.extend(
         [
+            manifest_entry(
+                "hive-network-global-skill", "source-archive", "skills/hive-network.json"
+            ),
             manifest_entry(
                 "hive-hub-release-0.1.1",
                 "release",
@@ -321,6 +433,49 @@ def update_manifest(
         ]
     )
     entries.extend(
+        [
+            manifest_entry(
+                "rapp-work-organization-seed-v1",
+                "protocol",
+                "protocols/rapp-work-organization-seed-v1.json",
+            ),
+            manifest_entry(
+                "rapp-work-organization-seed-contract-v1",
+                "conformance",
+                "conformance/rapp-work-organization-seed-v1.json",
+            ),
+            manifest_entry(
+                "rapp-work-organization-seed-adapter-v1",
+                "adapter",
+                "adapters/rapp-work-organization-seed-v1.json",
+            ),
+            manifest_entry(
+                "rapp-work-organization-seed-learning-v1",
+                "learning-bundle",
+                "learning-bundles/rapp-work-organization-seed-v1.json",
+            ),
+        ]
+    )
+    for slug in SEED_SLUGS:
+        entries.extend(
+            [
+                manifest_entry(
+                    f"organization-seed-{slug}",
+                    "organization-seed",
+                    f"organization-seeds/{slug}.json",
+                ),
+                manifest_entry(f"seed-{slug}", "record", f"records/seed-{slug}.json"),
+                manifest_entry(
+                    f"seed-{slug}-skill-declaration",
+                    "skill-declaration",
+                    f"skill-declarations/seed-{slug}.json",
+                ),
+                manifest_entry(
+                    f"seed-{slug}-core-card", "core-card", f"cards/seed-{slug}-core.json"
+                ),
+            ]
+        )
+    entries.extend(
         manifest_entry(
             f"core-schema-{name}",
             "core-schema",
@@ -331,25 +486,57 @@ def update_manifest(
     manifest["entries"] = sorted(entries, key=lambda item: item["id"])
     manifest["productVersion"] = PRODUCT_VERSION
     manifest["build"]["generatedAt"] = GENERATED_AT
-    card = manifest["cards"][0]
+    card = next(
+        item for item in manifest["cards"] if item["cardId"] == "hive-hub-public-lab-public"
+    )
     card["coreCardId"] = "hive-hub-public-lab-core-card"
     card["skillDeclarationId"] = "hive-hub-public-lab-skill-declaration"
     card["skillDialId"] = skill_dial_id
     card["chant"] = derive_chant(skill_dial_id)
+    manifest["cards"] = [card]
+    for slug, record in zip(SEED_SLUGS, seed_records, strict=True):
+        seed = json.loads(
+            read_regular_bytes(ROOT / "public-src/organization-seeds" / f"{slug}.json")
+        )
+        manifest["cards"].append(
+            {
+                "cardId": f"seed-{slug}-public",
+                "chant": record["chants"][0],
+                "coreCardId": f"seed-{slug}-core-card",
+                "recordId": f"seed-{slug}",
+                "skillDeclarationId": f"seed-{slug}-skill-declaration",
+                "skillDialId": record["id"],
+                "slug": slug,
+                "title": seed["name"],
+            }
+        )
     write_or_check(target, canonical(manifest), check=check)
 
 
 def sync(*, check: bool) -> None:
-    declaration = build_skill_declaration()
-    declaration_path = (
-        ROOT
-        / "public-src"
-        / "skill-declarations"
-        / "hive-hub-public-lab.json"
+    skill_bytes = read_regular_bytes(ROOT / "skills/hive-network/SKILL.md")
+    write_or_check(
+        ROOT / "public-src/skills/hive-network.json",
+        canonical(
+            {
+                "kind": "agent-skill-document",
+                "name": "hive-network",
+                "mediaType": "text/markdown",
+                "bytes": len(skill_bytes),
+                "sha256": sha(skill_bytes),
+                "content": skill_bytes.decode("utf-8"),
+            }
+        ),
+        check=check,
     )
+    seeds = build_all(root=ROOT, check=check)
+    seed_records = [seed_contracts(seed, check=check) for seed in seeds]
+    declaration = build_skill_declaration()
+    declaration_path = ROOT / "public-src" / "skill-declarations" / "hive-hub-public-lab.json"
     write_or_check(declaration_path, canonical(declaration), check=check)
 
     dialbook, dial_id = build_skill_dialbook(declaration)
+    dialbook["records"].extend(seed_records)
     write_or_check(
         ROOT / "skills" / "hive-hub" / "registry" / "public-dialbook.json",
         canonical(dialbook),
@@ -386,17 +573,14 @@ def sync(*, check: bool) -> None:
         write_or_check(schema_target / source.name, data, check=check)
         if source.name == "ai-join-card.schema.json":
             write_or_check(
-                ROOT
-                / "skills"
-                / "hive-hub"
-                / "schemas"
-                / "core-ai-join-card.schema.json",
+                ROOT / "skills" / "hive-hub" / "schemas" / "core-ai-join-card.schema.json",
                 data,
                 check=check,
             )
     update_manifest(
         schema_names=schema_names,
         skill_dial_id=dial_id,
+        seed_records=seed_records,
         check=check,
     )
 

@@ -1,0 +1,15 @@
+{
+  "kind": "adapter-declaration",
+  "adapterId": "urn:hive-hub:adapter:rapp-work-organization-seed:1",
+  "conformanceId": "rapp-work-organization-seed-contract-v1",
+  "executable": false,
+  "protocolId": "rapp-work-organization-seed-v1",
+  "scope": "Inert organization seed discovery and native SDK input mapping only.",
+  "semanticCompatibilityClaims": [],
+  "version": "1.0.0",
+  "mapping": {
+    "from": ["organization.scaffold", "workspaces[].scaffold", "package file inventory"],
+    "to": ["rapp_work.scaffold plan inputs", "Organization.plan_register inputs", "separately reviewed starter file effects"],
+    "preserves": ["exact SDK pins", "world isolation", "pointer-only organization boundaries", "owner approval", "inert downloaded content"]
+  }
+}

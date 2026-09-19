@@ -1,0 +1,4 @@
+conflict_id,kind,left_ref,right_ref,issue,resolution_needed,classification
+conflict-offline,direct-scope-conflict,sources/announcements.csv#row=2,sources/release-notes.csv#row=3,Full-offline promise is broader than current-preview restart support,Exact candidate plus a 72-hour cold-start protocol and result,SYNTHETIC
+conflict-schedule,schedule-ambiguity,sources/announcements.csv#row=4,sources/release-notes.csv#row=4,Ready-for-supervised-pilot language does not date the token-independent fix,Clarified pilot boundaries and a release-specific schedule statement,SYNTHETIC
+conflict-metric,metric-mismatch,sources/lab-notes.csv#row=2,sources/lab-notes.csv#row=4,Acknowledgment counts and recovered-ID counts describe different properties and runs,Same-run acknowledgment-to-recovered-ID reconciliation; do not call this a direct contradictory measurement,SYNTHETIC

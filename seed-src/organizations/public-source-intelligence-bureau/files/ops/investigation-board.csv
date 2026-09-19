@@ -1,0 +1,7 @@
+inquiry_id,owner,priority,question,evidence_needed,decision_blocked,current_state,classification
+inquiry-candidate,collection,high,Which exact release is being offered for the proposed pilot?,A versioned public-style release artifact and stated scope,Candidate-specific assessment,prospective-not-collected,SYNTHETIC
+inquiry-long-restart,verification,high,Can that candidate start after 72 disconnected hours?,A reproducible cold-start protocol and per-attempt result,Unattended pilot recommendation,prospective-not-collected,SYNTHETIC
+inquiry-id-gap,analysis,high,Why are eight acknowledged IDs absent from the recovered export?,Same-run ID reconciliation that distinguishes export delay from event loss,Durability assertion,prospective-not-collected,SYNTHETIC
+inquiry-supervision,competing-hypotheses,medium,Would a supervised pilot answer the business question without hiding limits?,Explicit operator contingency and failure/stop criteria,Bounded alternative path,prospective-not-collected,SYNTHETIC
+inquiry-independence,collection,medium,What does a genuinely separate test source add?,Documented device/build provenance and independent protocol execution,Confidence calibration,prospective-not-collected,SYNTHETIC
+inquiry-owner-gate,briefing,high,Which evidence and scope does the owner require before deciding?,An explicit conditional decision record without deployment authority,Any real pilot or procurement action,prospective-not-collected,SYNTHETIC

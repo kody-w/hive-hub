@@ -1,0 +1,128 @@
+{
+  "schema": "hive-hub-organization-blueprint/1",
+  "slug": "one-person-conglomerate",
+  "name": "The One-Person Conglomerate",
+  "tagline": "Five small businesses, one explicitly limited founder.",
+  "mission": "Allocate a synthetic founder's attention across five distinct business units using bounded learning experiments, shared operating functions, and evidence rather than invented revenue.",
+  "world_id": "demo-one-person-conglomerate",
+  "teams": [
+    {"slug": "executive-office", "name": "executive-office", "role": "Portfolio owner", "purpose": "Own capacity limits, decisions, and stop conditions without confusing a recommendation with authority."},
+    {"slug": "portfolio-research", "name": "portfolio-research", "role": "Shared research", "purpose": "Separate assumptions, public desk research, and later consented field evidence."},
+    {"slug": "portfolio-finance", "name": "portfolio-finance", "role": "Shared finance", "purpose": "Maintain the founder-hour and hypothetical cash worksheet; no profit forecasts masquerade as facts."},
+    {"slug": "platform-engineering", "name": "platform-engineering", "role": "Shared engineering", "purpose": "Maintain the offline allocation analysis and reusable CSV preflight reference tool."},
+    {"slug": "portfolio-go-to-market", "name": "portfolio-go-to-market", "role": "Shared go-to-market", "purpose": "Draft differentiated offers and approval-gated learning invitations for each unit."},
+    {"slug": "ledgerleaf-tools", "name": "ledgerleaf-tools", "role": "Business unit: file utilities", "purpose": "Explore small offline CSV quality tools for people preparing imports."},
+    {"slug": "fieldnote-guides", "name": "fieldnote-guides", "role": "Business unit: practical guides", "purpose": "Develop original, non-safety-critical workspace organization guides."},
+    {"slug": "quietbench-templates", "name": "quietbench-templates", "role": "Business unit: accessible templates", "purpose": "Prototype accessible meeting and purchasing-request templates."},
+    {"slug": "routepaper-planners", "name": "routepaper-planners", "role": "Business unit: printable planners", "purpose": "Explore printable errand grouping sheets without collecting real location histories."},
+    {"slug": "tinylesson-studio", "name": "tinylesson-studio", "role": "Business unit: short lessons", "purpose": "Create original offline lessons on basic file organization and data hygiene."}
+  ],
+  "case": {
+    "id": "first-portfolio-cycle",
+    "title": "Choose no more than three learning experiments for a 40-hour week",
+    "brief": "All portfolio names, estimates, and observations are SYNTHETIC. Ten candidate experiments compete for 32 discretionary founder-hours and USD 500 after protected reserves. Five business-unit workspaces stay distinct even if only three are active. The task is a defensible allocation and a small reference-tool readiness review, not a claim of customers, profits, or product-market fit.",
+    "inputs": ["data/portfolio.csv", "data/evidence-register.csv", "data/capacity.json", "data/allocation-worksheet.csv", "docs/charter.md"],
+    "success_criteria": [
+      "Each of the five units receives an intake and an explicit active, parked, or rejected recommendation.",
+      "The proposed selection uses at most 32 discretionary hours, USD 500, and three business units, with no more than one experiment per unit.",
+      "All confidence values remain labeled subjective SYNTHETIC planning inputs, not measured demand probabilities.",
+      "The offline allocation tool and CSV preflight checks can be reproduced without installs, network access, or publication.",
+      "A human owner can review the decision, reserves, unallocated capacity, assumptions, and approval gates."
+    ]
+  },
+  "tasks": [
+    {
+      "id": "portfolio-intake", "team": "executive-office", "title": "Open the five-unit portfolio intake",
+      "instructions": "Create one row per business unit with its proposed job, owner workspace, evidence gap, and explicit non-goals. Preserve the synthetic labels and protected reserves. Do not activate memberships or authorize spending.",
+      "inputs": ["data/portfolio.csv", "docs/charter.md", "data/capacity.json"],
+      "outputs": ["deliverables/portfolio-intake.csv"], "depends_on": [],
+      "acceptance": ["Exactly five distinct business units are represented.", "The intake names 8 reserved hours and USD 100 reserved cash.", "No row represents revenue, customers, or approval as established."]
+    },
+    {
+      "id": "uncertainty-audit", "team": "portfolio-research", "title": "Turn assumed demand into falsifiable questions",
+      "instructions": "Reconcile every evidence-register row with the intake. For each unit choose one question that a low-cost experiment could disconfirm. Distinguish offline artifact inspection from later consented customer research.",
+      "inputs": ["deliverables/portfolio-intake.csv", "data/evidence-register.csv", "docs/review-rubric.md"],
+      "outputs": ["deliverables/uncertainty-register.csv"], "depends_on": ["portfolio-intake"],
+      "acceptance": ["All ten assumption rows are accounted for.", "Every unit has a disconfirming observation and a stop condition.", "No synthetic observation is promoted to external validation."]
+    },
+    {
+      "id": "ledgerleaf-intake", "team": "ledgerleaf-tools", "title": "Scope the CSV preflight business-unit probe",
+      "instructions": "Inspect the original csv_guard reference and fixture. Propose a narrow local-import quality use case, an explainable finding format, and exclusions. Run only the authored offline checks; treat them as tool evidence, not market evidence.",
+      "inputs": ["deliverables/uncertainty-register.csv", "docs/business-briefs.md", "reference/csv_guard.py", "reference/test_csv_guard.py", "data/csv-intake.csv"],
+      "outputs": ["deliverables/ledgerleaf-probe.md"], "depends_on": ["uncertainty-audit"],
+      "acceptance": ["The duplicate invoice key in the sample is identified.", "The brief states that preflight does not certify accounting, execute formulas, or send files.", "A usable tool boundary and an unvalidated offer are separately described."]
+    },
+    {
+      "id": "fieldnote-intake", "team": "fieldnote-guides", "title": "Specify a desk-reset guide experiment",
+      "instructions": "Develop an original one-page guide outline for organizing a shared supply drawer. Define a completion rubric using a fictional drawer inventory; avoid safety or equipment-maintenance instructions.",
+      "inputs": ["deliverables/uncertainty-register.csv", "docs/business-briefs.md", "data/portfolio.csv"],
+      "outputs": ["deliverables/fieldnote-probe.md"], "depends_on": ["uncertainty-audit"],
+      "acceptance": ["The outline includes inventory, grouping, labels, and a reversal step.", "A five-minute comprehension check is specified, not claimed performed.", "The proposed experiment maps to fn-outline or fn-observation."]
+    },
+    {
+      "id": "quietbench-intake", "team": "quietbench-templates", "title": "Specify an accessible request-template experiment",
+      "instructions": "Draft the field order for a purchasing-request template with plain-language labels, keyboard traversal, and a print fallback. Use only fictional request data.",
+      "inputs": ["deliverables/uncertainty-register.csv", "docs/business-briefs.md", "data/portfolio.csv"],
+      "outputs": ["deliverables/quietbench-probe.md"], "depends_on": ["uncertainty-audit"],
+      "acceptance": ["Required and optional fields are distinguished without color alone.", "A keyboard-only walkthrough and printable reading order are reviewable.", "No accessibility certification or customer adoption is claimed."]
+    },
+    {
+      "id": "routepaper-intake", "team": "routepaper-planners", "title": "Specify a location-free errand worksheet",
+      "instructions": "Describe a printable worksheet that groups fictional errands by category and available time, not navigation. Include a no-personal-address policy and a criterion for abandoning the concept.",
+      "inputs": ["deliverables/uncertainty-register.csv", "docs/business-briefs.md", "data/portfolio.csv"],
+      "outputs": ["deliverables/routepaper-probe.md"], "depends_on": ["uncertainty-audit"],
+      "acceptance": ["The worksheet uses categories rather than real addresses or travel predictions.", "The proposed test maps to rp-sheet or rp-interview.", "The business remains distinct from the file-tool and lesson units."]
+    },
+    {
+      "id": "tinylesson-intake", "team": "tinylesson-studio", "title": "Specify a file-hygiene micro-lesson",
+      "instructions": "Outline a six-minute offline lesson on naming and grouping sample files. Include three original example filenames and a scored transfer exercise, with a later consent gate for learner research.",
+      "inputs": ["deliverables/uncertainty-register.csv", "docs/business-briefs.md", "data/portfolio.csv"],
+      "outputs": ["deliverables/tinylesson-probe.md"], "depends_on": ["uncertainty-audit"],
+      "acceptance": ["The exercise has an explicit answer rubric and no real personal files.", "Learning objectives are separate from unmeasured learning outcomes.", "The experiment maps to tl-sample or tl-transfer."]
+    },
+    {
+      "id": "capacity-baseline", "team": "portfolio-finance", "title": "Reconcile the allocation worksheet",
+      "instructions": "Check the ten candidate rows, money precision, selected flags, ordinal scores, and reserves. Produce a baseline reconciliation with totals and units before optimization.",
+      "inputs": ["deliverables/portfolio-intake.csv", "data/allocation-worksheet.csv", "data/capacity.json", "docs/review-rubric.md"],
+      "outputs": ["deliverables/capacity-baseline.json"], "depends_on": ["portfolio-intake"],
+      "acceptance": ["The reference selection is lf-schema, fn-outline, and rp-sheet.", "It totals 19 hours and USD 90, leaving 13 discretionary hours and USD 410.", "Scores are not converted into revenue estimates."]
+    },
+    {
+      "id": "allocation-analysis", "team": "platform-engineering", "title": "Run and explain the bounded portfolio search",
+      "instructions": "Run the authored allocation tests and analyze the provided worksheet. Compare the reference selection with the computed recommendation and explain deterministic tie-breaking and the one-experiment-per-unit constraint.",
+      "inputs": ["deliverables/capacity-baseline.json", "deliverables/ledgerleaf-probe.md", "deliverables/fieldnote-probe.md", "deliverables/quietbench-probe.md", "deliverables/routepaper-probe.md", "deliverables/tinylesson-probe.md", "data/allocation-worksheet.csv", "data/capacity.json", "reference/allocation.py", "reference/test_allocation.py"],
+      "outputs": ["deliverables/allocation-analysis.json"], "depends_on": ["capacity-baseline", "ledgerleaf-intake", "fieldnote-intake", "quietbench-intake", "routepaper-intake", "tinylesson-intake"],
+      "acceptance": ["A successful test summary and exact input paths are recorded.", "The recommendation respects all three capacity limits.", "The analysis reports unspent cash and unused hours rather than treating utilization as the objective."]
+    },
+    {
+      "id": "allocation-proposal", "team": "portfolio-finance", "title": "Prepare a reasoned founder allocation",
+      "instructions": "Produce a complete ten-row proposed worksheet with selected flags and a rationale column. Accept or override the mathematical recommendation explicitly; if estimates change, retain the original values alongside proposed values.",
+      "inputs": ["deliverables/allocation-analysis.json", "deliverables/uncertainty-register.csv", "data/allocation-worksheet.csv", "docs/decision-template.json"],
+      "outputs": ["deliverables/allocation-proposal.csv"], "depends_on": ["allocation-analysis", "uncertainty-audit"],
+      "acceptance": ["The proposal contains all ten stable experiment IDs.", "At most one experiment per unit and three active units are selected.", "Any override includes a reason and preserves the protected reserves."]
+    },
+    {
+      "id": "portfolio-messaging", "team": "portfolio-go-to-market", "title": "Draft five differentiated learning invitations",
+      "instructions": "Write one modest offer hypothesis per business unit, with what exists now, what is proposed, and what would be learned next. Draft only: no mailing lists, outreach, publishing, or spending.",
+      "inputs": ["deliverables/ledgerleaf-probe.md", "deliverables/fieldnote-probe.md", "deliverables/quietbench-probe.md", "deliverables/routepaper-probe.md", "deliverables/tinylesson-probe.md", "deliverables/uncertainty-register.csv"],
+      "outputs": ["deliverables/portfolio-messages.md"], "depends_on": ["ledgerleaf-intake", "fieldnote-intake", "quietbench-intake", "routepaper-intake", "tinylesson-intake"],
+      "acceptance": ["Each unit has a distinct audience hypothesis and no fabricated testimonial.", "The CSV tool is described as a reference example, not a validated commercial service.", "Every external invitation remains owner-approval-gated."]
+    },
+    {
+      "id": "portfolio-decision", "team": "executive-office", "title": "Record the reviewable portfolio decision proposal",
+      "instructions": "Use the decision example as a structural guide, not a prior approval. Name active and parked units, experiment exit rules, capacity totals, risks, and the exact human decision still needed.",
+      "inputs": ["deliverables/allocation-proposal.csv", "deliverables/portfolio-messages.md", "docs/decision-template.json", "docs/charter.md"],
+      "outputs": ["deliverables/portfolio-decision.json"], "depends_on": ["allocation-proposal", "portfolio-messaging"],
+      "acceptance": ["Every unit is either active, parked, or rejected with a reason.", "The decision distinguishes recommendation from owner authorization.", "There are no claimed sales, real customers, or fabricated completed experiments."]
+    },
+    {
+      "id": "reference-tool-gate", "team": "platform-engineering", "title": "Prepare the CSV reference-tool handoff",
+      "instructions": "Repeat the CSV checks, document the sample's expected nonzero exit, and assemble a release-readiness checklist for the one real small reference tool. Publication is a later, separately approved operation.",
+      "inputs": ["deliverables/portfolio-decision.json", "deliverables/ledgerleaf-probe.md", "reference/csv_guard.py", "reference/test_csv_guard.py", "data/csv-intake.csv", "docs/review-rubric.md"],
+      "outputs": ["deliverables/csv-tool-handoff.md"], "depends_on": ["portfolio-decision"],
+      "acceptance": ["The tool reads only the explicitly selected UTF-8 file and writes JSON to stdout.", "All authored tests pass; the intentionally duplicated sample key yields a duplicate-key finding.", "Distribution, signing, billing, and real-file ingestion are not represented as completed."]
+    }
+  ],
+  "files": ["README.md", "docs/charter.md", "docs/business-briefs.md", "docs/review-rubric.md", "docs/decision-template.json", "data/portfolio.csv", "data/evidence-register.csv", "data/capacity.json", "data/allocation-worksheet.csv", "data/csv-intake.csv", "reference/allocation.py", "reference/test_allocation.py", "reference/csv_guard.py", "reference/test_csv_guard.py"],
+  "related_seeds": ["product-launch-company", "applied-invention-lab"]
+}

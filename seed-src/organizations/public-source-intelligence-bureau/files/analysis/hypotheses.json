@@ -1,0 +1,11 @@
+{
+  "classification":"SYNTHETIC",
+  "method":"Qualitative competing hypotheses; coded row counts are not probabilities and correlated sources are not independent votes.",
+  "hypotheses":[
+    {"id":"h-fully-offline","description":"The 15 October candidate will satisfy unattended 72-hour offline restart and recovery requirements.","predictions":["A dated exact candidate exists.","A 72-hour disconnected cold-start run reconciles every acknowledged ID."],"would_weaken":["Only token-refresh workarounds are available.","Recovered-ID gaps remain unresolved."]},
+    {"id":"h-supervised-only","description":"A limited supervised pilot is plausible while unattended offline requirements remain unmet.","predictions":["Pilot scope explicitly retains an operator/reconnection contingency.","The credential and recovery limits are disclosed to the owner."],"would_weaken":["An independently reviewable qualifying long-run result removes the need for supervision.","Even the short supervised path cannot reconcile events."]},
+    {"id":"h-slip","description":"The requested unattended pilot may need to move beyond 15 October.","predictions":["No exact qualifying candidate is supplied by the owner's freeze date.","Critical restart or recovery blockers remain open."],"would_weaken":["A qualifying candidate and reproducible evidence arrive before the freeze."],"caution":"An undated roadmap and absent test are uncertainty, not proof that the deadline will be missed."}
+  ],
+  "prior_probabilities":null,
+  "preferred_hypothesis":"not-assigned-by-reference-data"
+}

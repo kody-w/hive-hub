@@ -1,0 +1,19 @@
+{
+  "classification":"SYNTHETIC",
+  "engagement_id":"pocket-queue-prime-pilot",
+  "fictional_customer":"Hearthstep Maker Hall",
+  "purpose":"A closed offline anonymous-ticket intake rehearsal for a fictional maker open-house.",
+  "target_review_date":"2026-10-09",
+  "maximum_synthetic_attendees":60,
+  "retention_ceiling_minutes":120,
+  "data_fields":["synthetic_ticket_id","station_code","joined_at"],
+  "station_codes":["welcome","demo","closeout"],
+  "prime_world":"demo-federation-prime-contractor",
+  "prime_team_slugs":["program-office","partner-sourcing","integration","acceptance-quality","change-control"],
+  "discovery_only_candidates":["applied-invention-lab","enterprise-transformation-firm","product-launch-company"],
+  "real_attendees_or_partner_submissions":false,
+  "contract_approved":false,
+  "federation_activated":false,
+  "foreign_workspace_registration":false,
+  "approved_external_effects":[]
+}

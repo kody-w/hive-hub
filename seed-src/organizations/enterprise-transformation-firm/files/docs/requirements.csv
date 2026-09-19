@@ -1,0 +1,13 @@
+classification,requirement-id,requirement,source-fact,acceptance-case,owner-role
+SYNTHETIC,req-round,Round each net line and tax with decimal half up,pf-round,q-101,quality
+SYNTHETIC,req-tiny,Preserve cent-level tax on a fifteen-cent line,pf-round,q-106,quality
+SYNTHETIC,req-credit,Route exposure above credit limit for review,pf-credit,q-102,credit-reviewer
+SYNTHETIC,req-discount,Route discount above tier cap for review,pf-review,q-103,commercial-reviewer
+SYNTHETIC,req-active,Route inactive account even when amounts are calculable,pf-review,q-104,account-owner
+SYNTHETIC,req-terms,Route terms beyond approved account days,pf-review,q-108,commercial-reviewer
+SYNTHETIC,req-po,Block quote missing PO reference,pf-po,q-105,seller
+SYNTHETIC,req-tax,Block unknown tax code without guessing,pf-data,q-105,billing-coordinator
+SYNTHETIC,req-quantity,Block nonpositive or noninteger quantities,pf-data,q-107,seller
+SYNTHETIC,req-shipping,Round shipping tax separately,pf-ship,q-101,billing-coordinator
+SYNTHETIC,req-authority,Keep clean results pending human approval,pf-review,q-101,account-strategy
+SYNTHETIC,req-isolation,Evaluate quotes independently without mutating balances,pf-credit,q-102,architecture

@@ -1,0 +1,7 @@
+deliverable_id,depends_on,interface_reason,classification
+operating-model,prototype-spec,Roles and retention are built around the exact prototype interface,SYNTHETIC
+pilot-kit,prototype-spec,Operator steps must name the exact data interface,SYNTHETIC
+pilot-kit,operating-model,Operator guidance depends on reviewed roles and retention,SYNTHETIC
+integration-report,prototype-spec,Prime requires compatible prototype content,SYNTHETIC
+integration-report,operating-model,Prime requires compatible operating-model content,SYNTHETIC
+integration-report,pilot-kit,Prime requires compatible pilot-kit content,SYNTHETIC

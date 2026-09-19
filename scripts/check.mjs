@@ -285,7 +285,12 @@ export async function checkStaticSurface({ root, manifestPath }) {
     )
   ).join("\n");
   assert(!/microsol/i.test(allPublicText), "Public output names prohibited private-network material");
-  assert(!/\bRAPP\b/.test(allPublicText), "Generic public output claims or names ecosystem authority");
+  const hubIndex = jsonDocuments.get(`${manifest.build.apiPath}/index.json`);
+  assert(
+    hubIndex.semantics.authority === "locators-never-authority" &&
+      hubIndex.semantics.activation === "inert-until-approved-and-verified",
+    "Protocol-specific examples must not grant authority or execution through the generic Hub"
+  );
 
   const joinScript = (await readPublicFile(resolvedRoot, "hub/join/join.js")).toString("utf8");
   const capturePosition = joinScript.indexOf("const capturedFragment = window.location.hash;");
@@ -332,55 +337,78 @@ export async function checkStaticSurface({ root, manifestPath }) {
     "Dialbook does not bound chant authority"
   );
 
-  const recordDescriptor = dialbook.records[0];
-  const record = jsonDocuments.get(recordDescriptor.path);
-  assert(record.kind === "dial-record" && record.visibility === "public", "Example record is not public");
-  assert(
-    record.dialId ===
-      "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32",
-    "Example record full Dial Record ID is incorrect"
-  );
-  assert(
-    record.chants.length === 1 &&
-      record.chants[0].value === deriveChant(record.dialId),
-    "Example record chant is not derived from its full Dial Record ID"
-  );
-  assert(
-    record.aliases.includes("hive-hub-public-lab") &&
-      record.chants[0].value !== "hive-hub-public-lab",
-    "Example repository slug is not isolated to display/search aliases"
-  );
-  assert(
-    record.locator.repositoryUrl ===
-      "https://github.com/kody-w/hive-hub",
-    "Example record repository is incorrect"
-  );
-  assert(
-    record.locator.revision === "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9",
-    "Example record commit is not pinned as required"
-  );
-  assert(record.claims.authority.length === 0, "Example record claims authority");
-  assert(
-    record.claims.semanticCompatibility.length === 0,
-    "Example record claims semantic compatibility"
-  );
-  const protocol = jsonDocuments.get(record.protocol.path);
-  assert(
-    protocol.protocolId === "urn:hive-hub:protocol:github-repository:1",
-    "Example does not use the generic GitHub repository protocol"
-  );
-  assert(record.protocolFingerprint === record.protocol.ref, "Protocol fingerprint is not exact");
-  const chantProtocol = jsonDocuments.get(record.chantProtocol.path);
-  assert(chantProtocol.protocolName === CHANT_PROTOCOL, "Record chant protocol is not exact");
-  assert(
-    chantProtocol.vocabulary.sha256 === CHANT_VOCABULARY_SHA256,
-    "Record chant protocol vocabulary hash is not exact"
-  );
-  assert(
-    chantProtocol.requires.rappIdentity === false &&
-      chantProtocol.requires.rappRuntime === false,
-    "Record chant protocol depends on a RAPP identity or runtime"
-  );
+  for (const recordDescriptor of dialbook.records) {
+    const record = jsonDocuments.get(recordDescriptor.path);
+    assert(
+      record.kind === "dial-record" && record.visibility === "public",
+      "Example record is not public"
+    );
+    const isSeed = record.locator.provider === "static-seed";
+    if (isSeed) {
+      const seed = jsonDocuments.get(record.locator.seed.path);
+      assert(
+        seed?.kind === "organization-seed" && seed.status === "seed-not-activated" &&
+        seed.classification === "public-synthetic" && seed.activation.grantsAuthority === false,
+        "Seed record claims activation or references an invalid package"
+      );
+      assert(seed.archive.ref === record.locator.archive.ref, "Seed archive binding drift");
+      assert(files.has(seed.archive.path), "Seed ZIP is missing");
+      const archiveBytes = await readPublicFile(resolvedRoot, seed.archive.path);
+      assert(
+        archiveBytes.length === seed.archive.bytes &&
+        `sha256:${sha256Bytes(archiveBytes)}` === seed.archive.ref,
+        "Seed ZIP bytes do not match their exact descriptor"
+      );
+      assert(record.aliases.includes(seed.slug), "Seed alias is not bound to its package");
+    } else {
+      assert(
+        record.dialId ===
+          "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32",
+        "Example record full Dial Record ID is incorrect"
+      );
+      assert(
+        record.aliases.includes("hive-hub-public-lab") &&
+          record.chants[0].value !== "hive-hub-public-lab",
+        "Example repository slug is not isolated to display/search aliases"
+      );
+      assert(
+        record.locator.repositoryUrl === "https://github.com/kody-w/hive-hub",
+        "Example record repository is incorrect"
+      );
+      assert(
+        record.locator.revision === "8e9ee55a7eb9fe4b4aaa084290e1916c0edcade9",
+        "Example record commit is not pinned as required"
+      );
+    }
+    assert(record.claims.authority.length === 0, "Example record claims authority");
+    assert(
+      record.claims.semanticCompatibility.length === 0,
+      "Example record claims semantic compatibility"
+    );
+    const protocol = jsonDocuments.get(record.protocol.path);
+    assert(
+      protocol.protocolId === (isSeed
+        ? "urn:hive-hub:protocol:rapp-work-organization-seed:1"
+        : "urn:hive-hub:protocol:github-repository:1"),
+      "Record is not bound to its exact declared protocol"
+    );
+    assert(record.protocolFingerprint === record.protocol.ref, "Protocol fingerprint is not exact");
+    const chantProtocol = jsonDocuments.get(record.chantProtocol.path);
+    assert(chantProtocol.protocolName === CHANT_PROTOCOL, "Record chant protocol is not exact");
+    assert(
+      chantProtocol.vocabulary.sha256 === CHANT_VOCABULARY_SHA256,
+      "Record chant protocol vocabulary hash is not exact"
+    );
+    assert(
+      chantProtocol.requires.rappIdentity === false &&
+        chantProtocol.requires.rappRuntime === false,
+      "Record chant protocol depends on a RAPP identity or runtime"
+    );
+    assert(
+      record.chants.length === 1 && record.chants[0].value === deriveChant(record.dialId),
+      "A record chant is not derived from its complete Dial Record ID"
+    );
+  }
 
   const bucketDirectory = jsonDocuments.get(`${manifest.build.apiPath}/buckets/index.json`);
   assert(bucketDirectory.buckets.length >= 2, "Static API does not expose multiple buckets");
@@ -410,6 +438,7 @@ export async function checkStaticSurface({ root, manifestPath }) {
       "Public card index contains a non-public card"
     );
     const card = jsonDocuments.get(cardEntry.card.path);
+    const record = jsonDocuments.get(card.record.path);
     assert(card.classification === "public-locator-only", "Card is not locator-only");
     assertNoSensitiveCardFields(card, cardEntry.card.path);
     assert(card.dialId === record.dialId, "Card full Dial Record ID is inconsistent");
@@ -427,6 +456,23 @@ export async function checkStaticSurface({ root, manifestPath }) {
       "Web card and card index disagree about the camera AI card"
     );
     assert(files.has(cardEntry.cameraQr.path), "Camera AI QR SVG is missing");
+    if (record.locator.provider === "static-seed") {
+      assert(card.seed?.ref === record.locator.seed.ref, "Join card selected a different seed");
+    }
+  }
+  const seedsIndex = jsonDocuments.get(`${manifest.build.apiPath}/organization-seeds.json`);
+  assert(seedsIndex?.count === 10 && seedsIndex.seeds.length === 10, "Expected exactly ten seeds");
+  assert(
+    new Set(seedsIndex.seeds.map((seed) => seed.slug)).size === 10,
+    "Organization seed identities are not unique"
+  );
+  const homeHtml = (await readPublicFile(resolvedRoot, "hub/index.html")).toString("utf8");
+  for (const seed of seedsIndex.seeds) {
+    assert(
+      homeHtml.includes(`data-seed="${seed.slug}"`) &&
+      files.has(`hub/seeds/${seed.slug}/index.html`),
+      "Every indexed seed must have a home card and a real detail page"
+    );
   }
 
   const releaseIndex = jsonDocuments.get(`${manifest.build.apiPath}/release.json`);

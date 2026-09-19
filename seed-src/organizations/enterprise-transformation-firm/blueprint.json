@@ -1,0 +1,117 @@
+{
+  "schema": "hive-hub-organization-blueprint/1",
+  "slug": "enterprise-transformation-firm",
+  "name": "The Enterprise Transformation Firm",
+  "tagline": "Turn a concrete quote-to-cash exception queue into a reviewable pilot.",
+  "mission": "Coordinate account strategy, discovery, architecture, engineering, quality, and adoption around an original synthetic enterprise process and an executable offline calculation boundary.",
+  "world_id": "demo-enterprise-transformation-firm",
+  "teams": [
+    {"slug": "account-strategy", "name": "account-strategy", "role": "Engagement strategy", "purpose": "Define the fictional engagement's value hypothesis, sponsor decisions, exclusions, and pilot gates."},
+    {"slug": "discovery", "name": "discovery", "role": "Process and requirements discovery", "purpose": "Reconcile source facts, exceptions, field definitions, and traceable requirements."},
+    {"slug": "architecture", "name": "architecture", "role": "Solution architecture", "purpose": "Define a replaceable pure calculation boundary and human-owned exception routing."},
+    {"slug": "engineering", "name": "engineering", "role": "Prototype engineering", "purpose": "Reproduce the offline quote calculation and propose evidence-backed data corrections."},
+    {"slug": "quality", "name": "quality", "role": "Acceptance and quality", "purpose": "Check exact decimal arithmetic, readiness classifications, data quality, and release evidence."},
+    {"slug": "adoption", "name": "adoption", "role": "Operational adoption", "purpose": "Prepare role-specific practice, exception ownership, and reversible pilot handoff."}
+  ],
+  "case": {
+    "id": "lattice-harbor-quote-pilot",
+    "title": "Lattice Harbor Supply: quote readiness before any invoice is issued",
+    "brief": "Lattice Harbor Supply and every account, quote, policy, and process observation are SYNTHETIC. Eight office-supply quotes expose credit, discount, terms, inactive-account, missing-data, and rounding cases. The reference utility computes line-rounded amounts and returns needs-data, needs-review, or ready-for-human-approval. It never issues invoices, authorizes credit, or contacts an enterprise system.",
+    "inputs": ["docs/client-brief.md", "docs/process-facts.md", "docs/requirements.csv", "data/accounts.csv", "data/quotes.csv", "data/quote-lines.csv", "data/policy.json"],
+    "success_criteria": [
+      "All eight quote cases are traced from original inputs through requirements to explicit acceptance results.",
+      "The prototype reproduces exact expected monetary totals using decimal half-up line and shipping-tax rounding.",
+      "Missing data blocks readiness; policy exceptions require review; even a clean quote still requires human approval.",
+      "Each exception has a proposed accountable role, handoff payload, and return path.",
+      "The pilot case reports hypotheses and measurement plans, never fabricated savings or a completed deployment."
+    ]
+  },
+  "tasks": [
+    {
+      "id": "engagement-boundary", "team": "account-strategy", "title": "Bound the quote-readiness engagement",
+      "instructions": "Translate the fictional client brief into an engagement scope with sponsor questions, operating risks, and explicit exclusions. Treat process timings as synthetic case facts rather than a baseline measured at a real enterprise.",
+      "inputs": ["docs/client-brief.md", "docs/process-facts.md"],
+      "outputs": ["deliverables/engagement-scope.md"], "depends_on": [],
+      "acceptance": ["The scope stops before invoicing, payment, ERP writes, and credit authorization.", "Sponsor decisions and unvalidated value assumptions are separate.", "All client facts remain marked SYNTHETIC."]
+    },
+    {
+      "id": "source-reconciliation", "team": "discovery", "title": "Reconcile quote and account source facts",
+      "instructions": "Reconcile keys and field meanings across accounts, headers, lines, and policy. Create a fact register distinguishing intentional bad-data fixtures, policy exceptions, and unknown real-world requirements.",
+      "inputs": ["deliverables/engagement-scope.md", "docs/process-facts.md", "data/accounts.csv", "data/quotes.csv", "data/quote-lines.csv", "data/policy.json"],
+      "outputs": ["deliverables/source-facts.csv"], "depends_on": ["engagement-boundary"],
+      "acceptance": ["All eight quotes and four accounts are covered without invented repairs.", "Missing PO and unknown tax on q-105 and negative quantity on q-107 are recorded.", "No synthetic policy is represented as tax or accounting advice."]
+    },
+    {
+      "id": "requirements-trace", "team": "discovery", "title": "Build field-to-requirement traceability",
+      "instructions": "Map the supplied requirements to source fields, process facts, and the eight acceptance cases. Mark any new requirement as proposed and name the role that must resolve it.",
+      "inputs": ["deliverables/source-facts.csv", "docs/requirements.csv", "docs/acceptance-cases.md", "docs/handoff-contracts.md"],
+      "outputs": ["deliverables/requirements-trace.csv"], "depends_on": ["source-reconciliation"],
+      "acceptance": ["Every supplied requirement has at least one acceptance case.", "Data readiness and policy review are separate requirements.", "Unresolved policy questions are not silently converted into defaults."]
+    },
+    {
+      "id": "calculation-boundary", "team": "architecture", "title": "Specify the replaceable calculation contract",
+      "instructions": "Describe the pure input/output contract, validation limits, rounding points, and state precedence around the authored utility. Keep enterprise adapters, identity, persistence, and approval outside the reference.",
+      "inputs": ["deliverables/requirements-trace.csv", "data/policy.json", "reference/quote_flow.py", "docs/handoff-contracts.md"],
+      "outputs": ["deliverables/calculation-contract.md"], "depends_on": ["requirements-trace"],
+      "acceptance": ["The contract specifies cent precision and ROUND_HALF_UP per line and shipping tax.", "needs-data outranks needs-review and no state means invoice-sent.", "Unknown accounts and malformed numeric values are rejected without network side effects."]
+    },
+    {
+      "id": "prototype-reproduction", "team": "engineering", "title": "Reproduce the offline quote batch",
+      "instructions": "Run only the authored utility and tests on the supplied data. Capture the full result and command metadata as a proposed engineering handoff, without altering source fixtures.",
+      "inputs": ["deliverables/calculation-contract.md", "reference/quote_flow.py", "reference/test_quote_flow.py", "data/accounts.csv", "data/quotes.csv", "data/quote-lines.csv", "data/policy.json", "reference/expected-results.json"],
+      "outputs": ["deliverables/prototype-run.json"], "depends_on": ["calculation-boundary"],
+      "acceptance": ["Exactly eight results are captured in quote-ID order.", "The authored tests pass and source inputs remain unchanged.", "The run records three readiness categories and never claims a real invoice."]
+    },
+    {
+      "id": "acceptance-review", "team": "quality", "title": "Check arithmetic and exception acceptance",
+      "instructions": "Compare the reproduced batch to the expected-results reference and requirements trace. Record each case's expected amount, actual amount, state, and review or data reason.",
+      "inputs": ["deliverables/prototype-run.json", "deliverables/requirements-trace.csv", "reference/expected-results.json", "docs/acceptance-cases.md", "reference/test_quote_flow.py"],
+      "outputs": ["deliverables/acceptance-matrix.csv"], "depends_on": ["prototype-reproduction"],
+      "acceptance": ["q-101 totals USD 268.21 and q-106 totals USD 10.16.", "q-102, q-103, q-104, and q-108 remain review-gated.", "q-105 and q-107 have null totals and needs-data, not zero-dollar approval."]
+    },
+    {
+      "id": "exception-routing", "team": "architecture", "title": "Design accountable exception handoffs",
+      "instructions": "Turn the observed reason codes into a proposed routing table with role, minimum evidence, proposed response window, and re-evaluation trigger. Do not auto-approve any exception.",
+      "inputs": ["deliverables/acceptance-matrix.csv", "docs/handoff-contracts.md", "docs/process-facts.md"],
+      "outputs": ["deliverables/exception-routing.md"], "depends_on": ["acceptance-review"],
+      "acceptance": ["Each observed reason code has a proposed owner and return path.", "Commercial policy and missing-data routes remain separate.", "All response times are targets to validate, not measured service levels."]
+    },
+    {
+      "id": "correction-proposals", "team": "engineering", "title": "Propose source corrections without fabricating authorization",
+      "instructions": "Create a correction-proposal ledger for q-105 and q-107. Record original values, why they block evaluation, what evidence is needed, and who may supply a replacement. Use proposed synthetic alternatives only as clearly labeled what-if examples.",
+      "inputs": ["deliverables/exception-routing.md", "deliverables/acceptance-matrix.csv", "data/quotes.csv", "data/quote-lines.csv"],
+      "outputs": ["deliverables/correction-proposals.csv"], "depends_on": ["exception-routing"],
+      "acceptance": ["Original fixtures are preserved and all three data defects are addressed.", "Missing PO, tax code, and quantity are not guessed into approved source data.", "A reviewer can distinguish a hypothetical correction from an authorized one."]
+    },
+    {
+      "id": "adoption-workshop", "team": "adoption", "title": "Prepare the role-based practice session",
+      "instructions": "Build a 35-minute practice plan using the sample quotes and the exception routing. Include seller, credit reviewer, and billing coordinator exercises and a no-send rehearsal.",
+      "inputs": ["deliverables/exception-routing.md", "deliverables/acceptance-matrix.csv", "docs/adoption-playbook.md", "docs/acceptance-cases.md"],
+      "outputs": ["deliverables/adoption-session.md"], "depends_on": ["exception-routing"],
+      "acceptance": ["The agenda totals 35 minutes.", "Learners must explain why clean is not authorized and missing data is not a zero total.", "Attendance, competence, and adoption are not claimed before the session occurs."]
+    },
+    {
+      "id": "pilot-value-case", "team": "account-strategy", "title": "Prepare an honest pilot measurement case",
+      "instructions": "Propose measurable pilot outcomes and a baseline collection design using the acceptance findings. Distinguish calculation correctness from cycle time, financial impact, and user adoption, which are not measured by this seed.",
+      "inputs": ["deliverables/acceptance-matrix.csv", "deliverables/correction-proposals.csv", "deliverables/engagement-scope.md", "docs/client-brief.md"],
+      "outputs": ["deliverables/pilot-value-case.md"], "depends_on": ["correction-proposals"],
+      "acceptance": ["The case defines denominators for rework rate and quote-readiness lead time.", "No savings, revenue, deployment, or customer validation is invented.", "The pilot proposal includes stop conditions and separate enterprise access approval."]
+    },
+    {
+      "id": "pilot-quality-gate", "team": "quality", "title": "Assemble a conditional pilot gate",
+      "instructions": "Evaluate the acceptance matrix, unresolved data proposals, adoption plan, and measurement case. Record pass, fail, or not-observed for each gate; lack of real policy confirmation must remain visible.",
+      "inputs": ["deliverables/acceptance-matrix.csv", "deliverables/correction-proposals.csv", "deliverables/adoption-session.md", "deliverables/pilot-value-case.md", "docs/requirements.csv"],
+      "outputs": ["deliverables/pilot-gate.json"], "depends_on": ["adoption-workshop", "pilot-value-case"],
+      "acceptance": ["Every requirement has a gate disposition and linked evidence.", "The gate cannot authorize production connectivity, spending, or invoice issuance.", "Unobserved adoption and real-policy validation are explicitly not passed."]
+    },
+    {
+      "id": "owner-handoff", "team": "adoption", "title": "Deliver the reversible pilot owner pack",
+      "instructions": "Compile operator instructions, escalation paths, practice materials, and outstanding owner approvals. Include a rollback step that is simply ceasing the offline exercise; no production migration exists.",
+      "inputs": ["deliverables/pilot-gate.json", "deliverables/exception-routing.md", "deliverables/adoption-session.md", "deliverables/engagement-scope.md", "docs/adoption-playbook.md"],
+      "outputs": ["deliverables/pilot-owner-pack.md"], "depends_on": ["pilot-quality-gate"],
+      "acceptance": ["The owner pack identifies all three readiness categories and their meaning.", "The handoff can be followed using only the package's offline artifacts.", "It states what has not been deployed, approved, measured, or sent."]
+    }
+  ],
+  "files": ["README.md", "docs/client-brief.md", "docs/process-facts.md", "docs/requirements.csv", "docs/handoff-contracts.md", "docs/adoption-playbook.md", "docs/acceptance-cases.md", "data/policy.json", "data/accounts.csv", "data/quotes.csv", "data/quote-lines.csv", "reference/quote_flow.py", "reference/test_quote_flow.py", "reference/expected-results.json"],
+  "related_seeds": ["product-launch-company", "open-source-infrastructure-foundation"]
+}

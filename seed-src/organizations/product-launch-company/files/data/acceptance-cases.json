@@ -1,0 +1,12 @@
+{
+  "classification": "SYNTHETIC",
+  "artifact_kind": "expected-numerical-cases-not-user-study-results",
+  "cases": [
+    {"id": "sample-fit", "patch": {}, "all_required": false, "expected": {"status": "ready", "scheduled_minutes": 53, "slack_minutes": 2, "required_overrun_minutes": 0, "scheduled_ids": ["welcome", "stock-review", "decision", "risk-check", "roundup"], "parked_ids": ["template-demo"], "wrap_start": "09:55"}},
+    {"id": "required-only-fit", "patch": {"duration_minutes": 40}, "all_required": false, "expected": {"status": "ready", "scheduled_minutes": 35, "slack_minutes": 0, "required_overrun_minutes": 0, "scheduled_ids": ["welcome", "decision", "risk-check"], "parked_ids": ["stock-review", "template-demo", "roundup"], "wrap_start": "09:35"}},
+    {"id": "one-minute-overload", "patch": {"duration_minutes": 39}, "all_required": false, "expected": {"status": "blocked", "scheduled_minutes": 0, "slack_minutes": null, "required_overrun_minutes": 1, "scheduled_ids": [], "parked_ids": ["welcome", "stock-review", "decision", "template-demo", "risk-check", "roundup"], "wrap_start": null}},
+    {"id": "all-required-overload", "patch": {}, "all_required": true, "expected": {"status": "blocked", "scheduled_minutes": 0, "slack_minutes": null, "required_overrun_minutes": 13, "scheduled_ids": [], "parked_ids": ["welcome", "stock-review", "decision", "template-demo", "risk-check", "roundup"], "wrap_start": null}},
+    {"id": "zero-wrap", "patch": {"wrap_minutes": 0}, "all_required": false, "expected": {"status": "ready", "scheduled_minutes": 60, "slack_minutes": 0, "required_overrun_minutes": 0, "scheduled_ids": ["welcome", "stock-review", "decision", "template-demo", "risk-check"], "parked_ids": ["roundup"], "wrap_start": null}},
+    {"id": "end-of-day-fit", "patch": {"start": "23:00"}, "all_required": false, "expected": {"status": "ready", "scheduled_minutes": 53, "slack_minutes": 2, "required_overrun_minutes": 0, "scheduled_ids": ["welcome", "stock-review", "decision", "risk-check", "roundup"], "parked_ids": ["template-demo"], "wrap_start": "23:55"}}
+  ]
+}

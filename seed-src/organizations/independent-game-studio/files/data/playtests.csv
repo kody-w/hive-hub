@@ -1,0 +1,9 @@
+session_id,board,completed,actions,bridge_stall,discovered_undo,confidence_1_to_5,authored_note,classification
+synthetic-p-01,Loading Lane,1,54,1,0,3,Expected closed bridge to open after a blocked move,SYNTHETIC
+synthetic-p-02,Loading Lane,0,36,1,0,2,Did not notice the wait button,SYNTHETIC
+synthetic-p-03,Loading Lane,1,48,0,1,4,Used undo after an empty return trip,SYNTHETIC
+synthetic-p-04,Loading Lane,1,62,1,0,3,Understood carrying after second depot visit,SYNTHETIC
+synthetic-p-05,Loading Lane,0,28,1,0,1,Read bridge color but missed next-action text,SYNTHETIC
+synthetic-p-06,Loading Lane,1,50,0,1,4,Planned return route using undo,SYNTHETIC
+synthetic-p-07,Loading Lane,1,58,0,1,4,Finished but asked whether cells were unlimited,SYNTHETIC
+synthetic-p-08,Loading Lane,0,41,1,0,2,Assumed the bridge would open with elapsed time,SYNTHETIC

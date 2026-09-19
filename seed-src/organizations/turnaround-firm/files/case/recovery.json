@@ -1,0 +1,19 @@
+{
+  "classification":"SYNTHETIC",
+  "case_id":"cedarline-five-day-recovery",
+  "fictional_business":"Cedarline Desk",
+  "product":"Subscription pick-ticket scheduling for small fictional shops",
+  "opening_date":"2026-07-01",
+  "as_of":"2026-09-30",
+  "months":["2026-07","2026-08","2026-09"],
+  "opening_cash_usd":"52000.00",
+  "cash_floor_usd":"12000.00",
+  "modeled_days_per_month":30,
+  "timebox_working_days":5,
+  "engineering_capacity_minutes":360,
+  "support_capacity_minutes":420,
+  "accounting_fixture_assumption":"All included plan billings are collected in the same month; ledger is cash-only and not a complete financial statement.",
+  "payables_treatment":"Incremental unpaid prior-period catch-up obligations, not already paid in the ledger or included in recurring scenario outflows.",
+  "approved_external_effects":[],
+  "realized_recovery_results":null
+}

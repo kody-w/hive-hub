@@ -1,0 +1,10 @@
+Permission notice for this original reference package
+
+You may use, study, copy, modify, combine, and redistribute these original
+source files and synthetic fixtures, including commercially, if you retain
+this notice and clearly distinguish your changes from the supplied reference.
+
+The materials are provided without a promise of correctness, fitness, support,
+or warranty. They deliberately include the documented starter defects. Users
+are responsible for evaluating any use and obtaining their own operational
+authority. This notice grants no rights in third-party names or materials.

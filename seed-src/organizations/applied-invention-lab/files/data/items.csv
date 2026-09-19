@@ -1,0 +1,12 @@
+classification,scenario,sku,count,volume-units,weight-units,shape-note
+SYNTHETIC,order-trap,filler-card-pack,2,4,2,Rectangular paper proxy with unknown actual dimensions
+SYNTHETIC,order-trap,core-board-pack,2,6,3,Flat board proxy with unknown orientation constraints
+SYNTHETIC,weight-trap,light-foam-panel,3,7,1,Bulky light proxy with no measured compression
+SYNTHETIC,weight-trap,dense-counter-pouch,3,2,7,Small dense proxy with unknown pouch geometry
+SYNTHETIC,weight-trap,medium-card-board,2,3,3,Medium flat proxy with unknown nesting
+SYNTHETIC,mixed-classroom,paper-stack,4,3,2,Flat paper proxy
+SYNTHETIC,mixed-classroom,foam-shapes,3,6,1,Irregular foam proxy
+SYNTHETIC,mixed-classroom,tile-pouch,3,2,6,Compact counting-piece proxy
+SYNTHETIC,mixed-classroom,cloth-pack,2,4,2,Folded cloth proxy with no compression model
+SYNTHETIC,mixed-classroom,counter-board,2,5,3,Flat board proxy
+SYNTHETIC,bulky-gaps,wide-foam-block,3,6,1,Indivisible six-volume proxy

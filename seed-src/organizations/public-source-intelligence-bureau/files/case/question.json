@@ -1,0 +1,13 @@
+{
+  "classification":"SYNTHETIC",
+  "case_id":"juniper-offline-pilot",
+  "fictional_product":"Juniper Queue",
+  "fictional_requester":"Paper Pier Demonstration Cooperative",
+  "as_of":"2026-09-17",
+  "proposed_pilot_date":"2026-10-15",
+  "question":"Does the included evidence support unattended browser-kiosk intake for 72 disconnected hours, including a cold restart and complete recovery of acknowledged event IDs?",
+  "decision_requirements":{"offline_hours":72,"cold_restart":true,"minimum_attempts_per_qualifying_run":400,"acknowledged_ids_fully_reconciled":true,"exact_release_identified":true},
+  "excluded_scope":["payments","personal identity","real companies","private individuals","confidential sources","live procurement","real deployments"],
+  "source_policy":"Only the five original synthetic CSV source files in this package are evidence for this exercise.",
+  "decision_authority":"None; a brief may recommend additional evidence and separately approved next work."
+}

@@ -1,0 +1,21 @@
+{
+  "classification":"SYNTHETIC",
+  "interface_id":"pocket-queue-interface",
+  "version":1,
+  "schema_label":"pocket-queue-interface/1",
+  "meaning":"Business-data interface for the local rehearsal, not a signed contract or RAPP runtime schema.",
+  "record_fields":{
+    "synthetic_ticket_id":"Opaque authored exercise identifier; no name, email, or real-person identifier.",
+    "station_code":"One of welcome, demo, or closeout.",
+    "joined_at":"Exercise timestamp; no external telemetry."
+  },
+  "allowed_artifact_fields":{
+    "prototype":["schema","offline_only","network_required","max_demo_attendees","record_fields","station_codes"],
+    "operating-model":["schema","interface_schema","retention_minutes","roles","stop_condition"],
+    "pilot-kit":["schema","interface_schema","operator_steps","public_launch","owner_review_required","disclosure"],
+    "derived-report":["all_upstreams_content_pass"]
+  },
+  "rules":["equals","set-equals","integer-between","text-min-length","nonempty-strings-min","contains-text"],
+  "application_verification":"Not supplied. Boolean offline declarations and content shape do not prove a working application or real operational performance.",
+  "exchange_boundary":"Independent organizations remain separate; only separately owner-approved public artifacts may cross."
+}
