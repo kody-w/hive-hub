@@ -1,0 +1,78 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify inventories, privacy, and the shipped examples
+        env:
+          PYTHONPATH: src:.
+        run: |
+          python -B scripts/sync_integrated_release.py --check
+          python -B scripts/update_agent_lock.py --check
+          python -B scripts/build_release_manifest.py --check
+          python -B scripts/check_public_release.py
+          python -B -m unittest tests.test_shipped_examples
+
+      - name: Confirm the tag matches the declared version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          declared="$(python -c 'import tomllib,pathlib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          tagged="${GITHUB_REF_NAME#v}"
+          if test "$declared" != "$tagged"; then
+            echo "Tag $GITHUB_REF_NAME does not match pyproject version $declared." >&2
+            exit 1
+          fi
+          echo "version=$declared" >> "$GITHUB_ENV"
+
+      - name: Build reproducible wheel and sdist
+        run: |
+          python -m pip install build
+          SOURCE_DATE_EPOCH=1789758971 python -m build
+          python scripts/normalize_sdist.py dist/*.tar.gz
+
+      - name: Clean-install the wheel and exercise the CLI
+        run: |
+          python -m venv .release-install
+          .release-install/bin/python -m pip install --no-deps dist/*.whl
+          .release-install/bin/hive-hub --version
+          .release-install/bin/hive-hub schema list > /dev/null
+          .release-install/bin/hive-hub chant parse \
+            "JUNIPER QUARTZ HARBOR BIRCH COBALT NOOK FLINT" > /dev/null
+          .release-install/bin/python -c "import adapters, hive_hub"
+          rm -rf .release-install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/hive-hub
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+      - name: Publish with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
