@@ -314,6 +314,37 @@ class RemoteDialTests(WorkspaceTestCase):
         self.assertEqual(len(result["candidates"]), 2)
         self.assertEqual(len(HiveHub(self.home).public_book.records()), 2)
 
+    def test_legacy_labels_cannot_impersonate_a_published_derived_chant(self) -> None:
+        original = copy.deepcopy(self.snapshot)
+        original_chant = self.query
+        alternate = copy.deepcopy(self.envelope)
+        fields = {
+            key: value for key, value in alternate["coreRecord"].items()
+            if key not in {"kind", "schema_version", "id"}
+        }
+        fields["chants"] = [original_chant]
+        core = DialRecord.create(**fields)
+        self.assertNotEqual(derive_chant(core.dial_id), original_chant)
+        alternate.update(
+            coreRecord=core.to_dict(), dialId=core.dial_id,
+            chants=[{"role": "candidate-locator-only", "value": derive_chant(core.dial_id)}],
+        )
+        self.snapshot["records"] = [{"record": alternate}]
+        self.set_snapshot(self.snapshot, rehash=True)
+        plan = self.remote()
+        self.assertEqual(self.remote("--apply", plan["plan_id"])["status"], "unreachable")
+        self.assertFalse(self.home.exists())
+
+        self.query = core.dial_id
+        plan = self.remote()
+        self.assertEqual(self.remote("--apply", plan["plan_id"])["record"]["id"], core.id)
+        self.query = original_chant
+        self.set_snapshot(original)
+        plan = self.remote()
+        result = self.remote("--apply", plan["plan_id"])
+        self.assertEqual(result["status"], "resolved")
+        self.assertEqual(result["record"], self.envelope["coreRecord"])
+
     def test_registration_failure_rolls_back_only_new_files(self) -> None:
         plan = self.remote()
         original = SafeFilesystem.apply_write

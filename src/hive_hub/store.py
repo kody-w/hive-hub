@@ -63,7 +63,7 @@ def _core_id_query(query: str) -> str:
 
 
 def _match_records(
-    records: list[DialRecord], query: str
+    records: list[DialRecord], query: str, *, derived_chants_only: bool = False
 ) -> tuple[Literal["id", "url", "chant"], list[DialRecord]]:
     query = _core_id_query(query)
     if is_address(query):
@@ -80,7 +80,8 @@ def _match_records(
             return "chant", []
     return "chant", [
         record for record in records
-        if chant in record.chants or chant == derive_chant(record.dial_id)
+        if chant == derive_chant(record.dial_id)
+        or (not derived_chants_only and chant in record.chants)
     ]
 
 
@@ -226,7 +227,7 @@ def dial_from_public_hub(
             raise ValidationError("public snapshot contains duplicate record identities")
         published[validated.record.id] = validated
     query_kind, records = _match_records(
-        [item.record for item in published.values()], plan["query"]
+        [item.record for item in published.values()], plan["query"], derived_chants_only=True
     )
     if not records:
         return DialResult.unreachable().to_dict()
@@ -251,9 +252,11 @@ def dial_from_public_hub(
             for write in plans.values():
                 if filesystem.apply_write(write):
                     applied.append(write)
-            _, stored_records = PublicDialbook(
-                Path(plan["home"]) / "books/public"
-            ).match(plan["query"])
+            _, stored_records = _match_records(
+                PublicDialbook(Path(plan["home"]) / "books/public").records(),
+                plan["query"],
+                derived_chants_only=True,
+            )
             ordered = sorted(stored_records, key=lambda item: item.id)
             if not ordered:
                 raise ConflictError("registered public record disappeared")

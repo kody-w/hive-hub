@@ -90,6 +90,9 @@ idempotent. URL-only records advertise a derived chant in local indexes without
 modifying their hashed `chants` array. Existing legacy label arrays remain
 unchanged; their intrinsic ID-derived chant also resolves without consuming
 an additional slot in a full legacy index.
+Remote `--from` chant selection always verifies the ID-derived chant, including
+when matching records already in the public book. A stored legacy label cannot
+impersonate another record's canonical published chant.
 
 `--from` accepts only `auto` or `public` scope and refuses ACL/QR options.
 Absent and unauthorized HTTP responses share one sanitized failure.
