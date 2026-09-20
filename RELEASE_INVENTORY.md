@@ -40,7 +40,10 @@
 - `contracts.py`: typed closed contracts and semantic validation
 - `_windows_file.py`: no-follow Win32 handle metadata and true link counts
 - `filesystem.py`: no-follow, atomic no-replace, reversible storage
-- `store.py`: separated books, registry, indexes, and local state
+- `store.py`: separated books, registry, indexes, local state, and explicitly
+  approved public registration from byte-pinned snapshot plans
+- `_http_fetch.py`: bounded read-only HTTP in a deadline-controlled local worker
+- `published.py`: closed core-record projection and inert dependency validation
 - `hub.py`: protocol learning, registration, dial, join, and bootstrap
 - `schema_catalog.py`: bundled Draft 2020-12 schema catalog
 - `cli.py`: canonical JSON command surface and sanitized errors

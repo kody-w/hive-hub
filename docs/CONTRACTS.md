@@ -16,8 +16,8 @@ identity address computed from a documented body that omits the identity field.
 Other documents use the SHA-256 address of their complete canonical document.
 Generic core Dial Record version 1 retains its original identity body,
 including any legacy local chant labels. The separate `hive-hub-chant/1`
-contract derives only from canonical `dial:sha256:` IDs and does not rewrite
-existing local/public/private core records.
+contract derives from the `dial:sha256:` spelling of that same digest. Neither
+conversion nor chant derivation rewrites existing core identity bodies.
 
 The authoritative JSON Schemas are packaged under `hive_hub/schema/` and
 available through `hive_hub.get_schema(name)`. Every object schema sets
@@ -79,6 +79,9 @@ Implements `hive-hub-chant/1`. The derivation is
 bytes modulo 128 and mapping them through the frozen vocabulary. Human parsing
 accepts case differences and either spaces or canonical hyphens; output is
 exactly seven lowercase hyphen-separated words.
+Known vocabulary chants are recognized before rejecting opaque QR factors:
+a valid 43-character hyphenated chant is not mistaken for a QR secret merely
+because its length and characters also fit the base64url pattern.
 
 The vocabulary is byte-exact from
 `kody-w/rappid@c988d7975dadb6a8f055183cdbc4cbb17adfe2ae`, with SHA-256
@@ -91,16 +94,63 @@ Dial Record ID must verify.
 
 Contains an addressed identity, display text, one visibility
 (`local`/`public`/`private`), exact protocol/bundle/adapter addresses, sorted
-absolute URLs, and exactly one `hive-hub-chant/1` value derived from its full
-identity. URL fragments and embedded URL credentials are forbidden. A caller
-may omit the chant when creating a record; if supplied, it must equal the
-derivation.
+absolute URLs, and sorted legacy chant labels. URL fragments and embedded URL
+credentials are forbidden. The identity body includes `chants`; putting a
+chant derived from that identity back into this array would be circular.
+
+### Published record projection
+
+Every active web record carries `coreRecord`, an exact closed `DialRecord`,
+and `coreContracts`, containing the matching closed `protocol`,
+`learningBundle`, and `adapter` documents. `urn:hivehub:sha256:<digest>` and
+the envelope's `dial:sha256:<digest>` are two spellings of **one** identity,
+computed by the existing Python `DialRecord._body`. Core identity bytes have
+no trailing newline; web envelope byte addresses include the final LF.
+
+The trusted build-only projector uses the Python contract constructors. It
+retains the complete published protocol, learning, conformance, adapter, and
+locator documents as hash-verified inert learning artifacts. The projected
+registration declares inspection only, not an executable adapter or additional
+semantic compatibility. The core record's `chants` array is empty and its URLs
+bind the published locator; the presentation envelope derives its one
+seven-word chant **after** computing the identity.
+Import requires core chant labels to be empty or exactly that ID-derived
+chant, never another record's chant or arbitrary legacy display text. Core
+URLs must exactly equal the locator projection used by the builder. Envelope
+aliases and record IDs must have their declared types, fingerprints must match
+their descriptors, and descriptor paths/URLs must be safe, matching,
+credential-free HTTPS references. These structural checks do not confer
+ownership of a valid display label.
+
+`dial-snapshot.json` packages the active envelopes and their separate web byte
+hashes into one bounded response. It contains no private book and requires no
+following of URLs in downloaded documents.
+
+The locked Agent Skill's older dialbook is a separate compatibility format,
+not the canonical core identity. Published cards name its unchanged locator
+as `legacySkillDialId` and its separately referenced card as `legacySkillCard`.
+The primary `cameraAiCard.locator`, public `dialId`, and core record's
+`dial:sha256:` spelling all agree. Changing a camera-card locator recomputes
+both its closed-contract `card_id` and its web byte address before emitting
+the card references and QR. Canonical camera cards target the core client;
+only the explicit legacy card targets the older locked runner.
+Previously published receipt subjects remain byte-exact historical objects,
+outside the active dialbook. The conformance oracle checks every active
+record against the core; receipt and content-hash checks protect the archived
+publication without pretending it originally contained `coreRecord`.
+The all-card oracle also validates every emitted canonical camera card through
+`AIJoinCard.from_dict` and checks its binding to the corresponding core record.
 
 ### `public-dialbook-index` and `private-dialbook-index`
 
 Contain sorted record summaries plus `chant_candidates` and `url_candidates`.
 Each candidate maps to an array of one or more record ids, so collisions are
 never overwritten. The two index kinds reject mixed visibility.
+Every index advertises the sorted, deduplicated union of legacy labels and
+the intrinsic ID-derived chant. Hashed record bodies are unchanged. Existing
+array limits still apply; a 256-label record needing a 257th derived entry
+cannot be represented by that bounded index/result contract and raises a
+typed limit error instead of omitting any candidate.
 
 ### `ai-join-card`
 

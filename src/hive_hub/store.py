@@ -1,31 +1,45 @@
 from __future__ import annotations
 
+import hmac
 import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from .canonical import address_digest, canonical_bytes, content_address, is_address, loads_json
-from .chant import normalize_chant
+from .chant import derive_chant, normalize_chant, validate_dial_record_id
 from .contracts import (
     AdapterPlan,
     AdapterRegistration,
     AdapterRegistrationReceipt,
     DialbookIndex,
+    DialIndexEntry,
     DialRecord,
+    DialResult,
     LearningBundle,
     LocalSubscription,
     PrivateAccessPolicy,
     ProtocolDeclaration,
     SubscriptionPlan,
     Visibility,
+    _closed,
     normalize_record_chant,
+    validate_dial_query,
+    validate_locator,
 )
 from .errors import ConflictError, NotFoundError, ValidationError
 from .filesystem import SafeFilesystem, WritePlan
-from .limits import MAX_LEARNING_BUNDLE_BYTES, MAX_RECORD_BYTES
+from .limits import (
+    HTTP_FETCH_TIMEOUT_SECONDS,
+    MAX_ARRAY_ITEMS,
+    MAX_JSON_BYTES,
+    MAX_LEARNING_BUNDLE_BYTES,
+    MAX_RECORD_BYTES,
+)
+from .published import PublishedRecord
 
 
 def _document_plan(
@@ -39,6 +53,192 @@ def _document_plan(
         relative_path,
         canonical_bytes(document, max_bytes=max_bytes),
     )
+
+
+def _core_id_query(query: str) -> str:
+    if query.startswith("dial:"):
+        return validate_dial_record_id(query).replace("dial:", "urn:hivehub:", 1)
+    return query
+
+
+def _match_records(
+    records: list[DialRecord], query: str, *, derived_chants_only: bool = False
+) -> tuple[Literal["id", "url", "chant"], list[DialRecord]]:
+    query = _core_id_query(query)
+    if is_address(query):
+        return "id", [record for record in records if record.id == query]
+    matches = [record for record in records if query in record.urls]
+    if matches or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", query):
+        return "url", matches
+    try:
+        chant = normalize_chant(query)
+    except ValidationError:
+        try:
+            chant = normalize_record_chant(query)
+        except ValidationError:
+            return "chant", []
+    return "chant", [
+        record for record in records
+        if chant == derive_chant(record.dial_id)
+        or (not derived_chants_only and chant in record.chants)
+    ]
+
+
+def _snapshot_url(base_url: str) -> str:
+    validate_locator(base_url, field="public Hub base URL")
+    try:
+        parsed = urlsplit(base_url)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValidationError("public Hub base URL is invalid") from exc
+    if (
+        parsed.scheme not in {"https", "http"}
+        or not parsed.hostname
+        or parsed.query
+        or parsed.fragment
+        or "\\" in base_url
+        or "%" in base_url
+        or any(part in {".", ".."} for part in parsed.path.split("/"))
+        or (port is not None and port == 0)
+        or base_url != base_url.strip()
+    ):
+        raise ValidationError("public Hub base URL must be an unambiguous HTTP(S) base")
+    if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "::1", "localhost"}:
+        raise ValidationError("public Hub fetches require HTTPS except on loopback")
+    return base_url.rstrip("/") + "/api/hive-hub/v1/dial-snapshot.json"
+
+
+def _read_public_dial_plan(
+    home: str | os.PathLike[str], query: str, base_url: str
+) -> tuple[dict[str, Any], bytes]:
+    candidate = _core_id_query(validate_dial_query(query))
+    if not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", candidate):
+        candidate = normalize_chant(candidate)
+    expected_id = candidate if is_address(candidate) else None
+    url = _snapshot_url(base_url)
+    data = _fetch_public_snapshot(url)
+    body: dict[str, Any] = {
+        "kind": "public-dial-fetch-plan",
+        "schema_version": 1,
+        "home": os.path.abspath(os.path.expanduser(os.fspath(home))),
+        "query": candidate,
+        "fetches": [{
+            "url": url,
+            "expected_sha256": address_digest(content_address(data, raw=True)),
+            "max_bytes": MAX_JSON_BYTES,
+        }],
+        "expected_record_id": expected_id,
+        "redirects": "forbidden",
+        "timeout_seconds": HTTP_FETCH_TIMEOUT_SECONDS,
+        "registration": {
+            "scope": "public",
+            "selection": "verified-query-candidates-only",
+            "max_records": MAX_ARRAY_ITEMS,
+            "contracts": "inert-only",
+            "overwrite": False,
+            "rollback": "remove-only-created-content-addressed-files",
+        },
+        "adapter_execution": False,
+    }
+    return {**body, "plan_id": content_address(body)}, data
+
+
+def public_dial_plan(
+    home: str | os.PathLike[str], query: str, base_url: str
+) -> dict[str, Any]:
+    plan, _ = _read_public_dial_plan(home, query, base_url)
+    return plan
+
+
+def _fetch_public_snapshot(url: str) -> bytes:
+    from ._http_fetch import read_public_snapshot
+
+    return read_public_snapshot(url, timeout=HTTP_FETCH_TIMEOUT_SECONDS)
+
+
+def dial_from_public_hub(
+    home: str | os.PathLike[str],
+    query: str,
+    base_url: str,
+    *,
+    apply: str | None = None,
+) -> dict[str, Any]:
+    if apply is not None and not is_address(apply):
+        raise ValidationError("public fetch approval does not match a valid plan digest")
+    plan, data = _read_public_dial_plan(home, query, base_url)
+    if apply is None:
+        return plan
+    if not hmac.compare_digest(apply, plan["plan_id"]):
+        raise ValidationError(
+            "public fetch approval does not match the current snapshot or plan; "
+            "re-plan and approve the new digest"
+        )
+    snapshot = _closed(
+        loads_json(data), required={"kind", "schema_version", "records"},
+        field="published dial snapshot",
+    )
+    if (
+        snapshot["kind"] != "published-dial-snapshot"
+        or type(snapshot["schema_version"]) is not int
+        or snapshot["schema_version"] != 1
+        or not isinstance(snapshot["records"], list)
+    ):
+        raise ValidationError("public Hub does not provide a version 1 dial snapshot")
+    published: dict[str, PublishedRecord] = {}
+    for entry in snapshot["records"]:
+        entry = _closed(entry, required={"ref", "record"}, field="snapshot record")
+        raw = canonical_bytes(entry["record"], max_bytes=MAX_RECORD_BYTES - 1) + b"\n"
+        expected = "sha256:" + address_digest(content_address(raw, raw=True))
+        if entry["ref"] != expected:
+            raise ValidationError("published record content address mismatch")
+        validated = PublishedRecord.from_dict(entry["record"])
+        if validated.record.id in published:
+            raise ValidationError("public snapshot contains duplicate record identities")
+        published[validated.record.id] = validated
+    query_kind, records = _match_records(
+        [item.record for item in published.values()], plan["query"], derived_chants_only=True
+    )
+    if not records:
+        return DialResult.unreachable().to_dict()
+
+    filesystem = SafeFilesystem(plan["home"])
+    plans: dict[str, WritePlan] = {}
+    for record in records:
+        item = published[record.id]
+        for relative, document in (
+            (f"registry/declarations/{address_digest(item.declaration.fingerprint)}.json",
+             item.declaration.to_dict()),
+            (f"registry/bundles/{address_digest(item.bundle.address)}.json",
+             item.bundle.to_dict()),
+            (f"registry/adapters/{address_digest(item.adapter.address)}.json",
+             item.adapter.to_dict()),
+            (f"books/public/records/{address_digest(record.id)}.json", record.to_dict()),
+        ):
+            plans[relative] = _document_plan(filesystem, relative, document)
+    applied = []
+    with filesystem.interprocess_lock("state/transactions/public-dial.lock"):
+        try:
+            for write in plans.values():
+                if filesystem.apply_write(write):
+                    applied.append(write)
+            _, stored_records = _match_records(
+                PublicDialbook(Path(plan["home"]) / "books/public").records(),
+                plan["query"],
+                derived_chants_only=True,
+            )
+            ordered = sorted(stored_records, key=lambda item: item.id)
+            if not ordered:
+                raise ConflictError("registered public record disappeared")
+        except Exception:
+            for write in reversed(applied):
+                filesystem.remove_if_address(write.relative_path, write.content_address)
+            raise
+    return DialResult(
+        "resolved" if len(ordered) == 1 else "ambiguous",
+        query_kind,
+        tuple(DialIndexEntry.from_record(record) for record in ordered),
+        ordered[0] if len(ordered) == 1 else None,
+    ).to_dict()
 
 
 class ProtocolRegistry:
@@ -266,26 +466,13 @@ class BaseDialbook:
         return sorted(records, key=lambda item: item.id)
 
     def match(self, query: str) -> tuple[Literal["id", "url", "chant"], list[DialRecord]]:
+        query = _core_id_query(query)
         if is_address(query):
             try:
                 return "id", [self.get(query)]
             except NotFoundError:
                 return "id", []
-        records = self.records()
-        matches = [record for record in records if query in record.urls]
-        if matches:
-            return "url", matches
-        if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", query):
-            return "url", []
-        try:
-            chant = normalize_chant(query)
-        except ValidationError:
-            try:
-                chant = normalize_record_chant(query)
-            except ValidationError:
-                return "chant", []
-        matches = [record for record in records if chant in record.chants]
-        return "chant", matches
+        return _match_records(self.records(), query)
 
     def count(self) -> int:
         return len(self._fs.list_files("records"))

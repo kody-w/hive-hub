@@ -21,10 +21,13 @@ locators—not authority.
   hash the private book.
 - Collision-preserving chant and URL candidate arrays.
 - Protocol-neutral `hive-hub-chant/1` derivation from the UTF-8 full Dial
-  Record ID. Canonical records carry exactly one derived seven-word chant;
-  the complete ID must still verify.
-- Plan-first local subscriptions. Clone, authentication, fetch, write, and
-  execution effects remain explicit inert adapter plans requiring approval.
+  Record ID. Published envelopes carry one derived seven-word chant;
+  `dial:sha256:` and `urn:hivehub:sha256:` share the same identity digest.
+- Plan-first public registration and local subscriptions. `dial --from` makes
+  one bounded read-only GET to pin the snapshot before returning a plan.
+  Applying refetches and requires the same bytes before any registration. Other clone,
+  authentication, fetch, write, and execution effects remain inert adapter
+  plans requiring separate approval.
 - Existing source ACLs remain mandatory for private access.
 - Private absence, failed ACL, missing policy, and wrong optional QR factor all
   return the identical `unreachable` result.
@@ -54,24 +57,64 @@ Python 3.10, 3.11, and 3.14 are release-gated. Runtime dependencies are empty.
 
 ## CLI
 
-These work immediately after `pip install hive-hub`, with no files and no
-network:
+### Cold start without a checkout
+
+**Release/deployment note:** this flow needs a wheel containing `dial --from`
+and a Hub publishing `dial-snapshot.json`. The currently published PyPI 0.1.1
+wheel and live Pages site predate this change. Until release and deployment,
+install the built wheel (`python -m pip install /path/to/hive_hub-*.whl`) and
+use the newly built site; do not expect the old live origin to resolve the
+new chant.
+
+```bash
+CHANT="GORSE QUAY DUSK QUILL THICKET DELTA QUARTZ"
+HUB="https://kody-w.github.io/hive-hub/"
+
+# One read-only GET, no state-directory creation: inspect the returned plan.
+PLAN="$(hive-hub dial "$CHANT" --from "$HUB")"
+printf '%s\n' "$PLAN"
+
+# After reviewing the URL, limits, and destination, approve that exact plan.
+PLAN_ID="$(printf '%s' "$PLAN" | python -c 'import json,sys; print(json.load(sys.stdin)["plan_id"])')"
+hive-hub dial "$CHANT" --from "$HUB" --apply "$PLAN_ID"
+
+# Subsequent lookup is local and requires no network.
+hive-hub dial "$CHANT" --scope public
+```
+
+The first invocation reads `<HUB>/api/hive-hub/v1/dial-snapshot.json` once and
+binds its exact byte SHA-256 in the returned plan, without writing state.
+Applying makes one more bounded GET and refuses changed bytes with a request
+to re-plan; it never silently registers a newer snapshot. It verifies every envelope's
+byte address, its closed core identity, its derived chant, and its matching
+inert protocol/bundle/adapter contracts before registering only the matching
+public candidates. It follows no descriptor links and executes nothing.
+Redirects are refused, including same-host redirects. HTTPS is required except
+for explicit loopback development URLs. Each request has one 15-second total
+deadline across DNS/connect, TLS, headers, and body. A full-ID query additionally
+pins the expected record identity. Chants remain collisionable locators, not authority.
+Planning contacts the explicitly supplied origin, so it requires connectivity
+and reveals that read to the origin; ordinary local dialing remains offline.
+
+For a local publisher, run `npm run build:site` and
+`python3 -m http.server 8123 --bind 127.0.0.1 -d site` in its checkout, then set
+`HUB="http://127.0.0.1:8123/"` in the wheel-only client. The client needs no
+checkout, adapter installation, or example files.
+
+These commands also work entirely offline:
 
 ```bash
 hive-hub chant derive \
-  dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32
-hive-hub chant parse "JUNIPER QUARTZ HARBOR BIRCH COBALT NOOK FLINT"
+  dial:sha256:9302697cb9068ededacf36b8ad9197467dd9437589295f7350833c1358fceaf1
+hive-hub chant parse "GORSE QUAY DUSK QUILL THICKET DELTA QUARTZ"
 hive-hub schema list
 hive-hub status
 ```
 
-That Dial Record ID is the live public laboratory Hive in the
-[public dialbook](https://kody-w.github.io/hive-hub/api/hive-hub/v1/dialbook.json),
-and it derives exactly that chant. A chant is a locator, not authority; the
-complete Dial Record ID must still verify.
+### Authoring local contracts
 
-The rest of the walkthrough uses the example contracts, which ship in the
-source tree rather than the wheel:
+This optional walkthrough uses authoring examples from the source tree,
+not from the wheel. It is not a prerequisite for public dialing:
 
 ```bash
 git clone https://github.com/kody-w/hive-hub && cd hive-hub
@@ -109,7 +152,7 @@ Other commands:
 
 ```text
 hive-hub register local|public|private RECORD
-hive-hub dial QUERY [--scope auto|local|public|private]
+hive-hub dial QUERY [--scope auto|local|public|private] [--from HUB_BASE_URL] [--apply PLAN_ID]
 hive-hub join-card --principal-kind human|ai --principal-id ID --locator QUERY
 hive-hub subscribe plan CARD
 hive-hub subscribe apply PLAN
@@ -122,25 +165,30 @@ hive-hub schema show CONTRACT
 ## Python API
 
 ```python
-from hive_hub import HiveHub, Principal, derive_chant
+from hive_hub import HiveHub, dial_from_public_hub, public_dial_plan
 
-hub = HiveHub("state")
-chant = derive_chant(
-    "urn:hivehub:sha256:"
-    "de1124a60f97f732ebd13fba183bcd109e4a506620a64e591e2bfc61c962b752"
-)
-result = hub.dial(chant, scope="public")
-card = hub.create_join_card(
-    principal=Principal.create(kind="ai", identifier="agent:example"),
-    locator=result.record.id,
-)
-planned = hub.plan_local_subscription(card)
-applied = hub.apply_subscription(planned.plan)
+if __name__ == "__main__":
+    hub = HiveHub("state")
+    chant = "gorse-quay-dusk-quill-thicket-delta-quartz"
+    origin = "https://kody-w.github.io/hive-hub/"
+    plan = public_dial_plan(hub.home, chant, origin)  # One read-only GET; no writes.
+    print(plan)  # Review before approving.
+    result = dial_from_public_hub(
+        hub.home, chant, origin, apply=plan["plan_id"]
+    )
+    print(result["status"])
+    local_result = hub.dial(chant, scope="public")  # No implicit fetch.
 ```
+
+Run public-fetch API calls from an importable script with the usual
+`__main__` guard: a disposable spawned worker enforces the cross-platform
+deadline even while DNS or HTTP headers are blocked. Only installed local
+fetch code runs there; downloaded content is never executed.
 
 `derive_chant`, `normalize_chant`, `verify_chant`, `learn_protocol`,
 `register_adapter`, `register_local_record`,
-`register_public_record`, `register_private_record`, `dial`,
+`register_public_record`, `register_private_record`, `dial`, `public_dial_plan`,
+`dial_from_public_hub`, `project_published_record`,
 `create_join_card`, `plan_local_subscription`, `apply_subscription`,
 `revert_subscription`, `inspect_protocol`, and `bootstrap_one` are the main
 core APIs. `inspect_bundle` returns the complete inert learning bundle and
@@ -281,7 +329,8 @@ source documents.
 
 ## Static API
 
-`api/hive-hub/v1/index.json` links the public dialbook, four deterministic
+`api/hive-hub/v1/index.json` links the public dialbook, bounded single-fetch
+`dial-snapshot.json`, four deterministic
 SHA-256 record buckets, federation indexes, content-addressed objects, schemas,
 cards, status, hashes, offline seed, and append-only receipt ledger.
 
@@ -296,8 +345,8 @@ any peer, chant, or record into authority.
 
 The public onboarding laboratory points only to Hive Hub's minimal founding
 revision. Its full Dial Record ID is
-`dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32`
-and its derived chant is `juniper-quartz-harbor-birch-cobalt-nook-flint`.
+`dial:sha256:9302697cb9068ededacf36b8ad9197467dd9437589295f7350833c1358fceaf1`
+and its derived chant is `gorse-quay-dusk-quill-thicket-delta-quartz`.
 `hive-hub-public-lab` is only a display/search alias. This demonstrates discovery
 and a reversible local subscription, not a running autonomous service.
 
@@ -434,6 +483,11 @@ edits.
 
 ## Gates
 
+The complete static gate invokes the locked skill and therefore needs Python
+3.11+ as `python3` (or via `PYTHON` for child processes). The core and adapter
+CI suites also run on Python 3.10; the locked skill's isolation/version gate is
+not bypassed for that interpreter.
+
 ```console
 npm run verify
 ```
@@ -441,7 +495,13 @@ npm run verify
 The gate rebuilds, validates canonical JSON, links, hashes, content-addressed
 paths, bucket coverage, federation candidate arrays, receipt chains, QR SVGs,
 runtime restrictions, CSP/referrer metadata, basic accessibility, public-input
-isolation, exact example revision, and byte-for-byte reproducibility.
+isolation, exact example revision, and byte-for-byte reproducibility. Both CI
+workflows also run `tests.test_published_record_conformance` against the built
+records; the JavaScript suite independently checks the same identity and chant
+binding, every primary camera-card locator, and the unchanged CI HTTP smoke
+script on a fresh ephemeral loopback port. Historical receipt subjects remain
+immutable rather than being
+rewritten to pretend they used the new encoding.
 
 ## Universal Agent Skill
 
@@ -459,6 +519,12 @@ a `hive-hub-chant/1` seven-word chant, a full Dial Record ID, or QR/AI join-card
 JSON. An optional workspace address can accompany any request. Chant candidates
 are accepted only when their complete verified declaration carries the same
 Dial Record ID; repository slugs are not chants.
+
+The locked skill retains its legacy dialbook identity format. Primary generated
+camera cards use the same canonical locator as their public card and core
+record; use the wheel's `dial --from` path for those IDs/chants. For the older
+runner, the web card separately references `legacySkillCard`, whose locator is
+`legacySkillDialId`. Canonical IDs are not silently treated as legacy aliases.
 
 The locked Python 3.11+ runner uses only the standard library and must run with
 isolated mode:

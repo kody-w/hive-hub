@@ -29,6 +29,7 @@ from .filesystem import read_external_file
 from .hub import HiveHub, validate_document
 from .limits import MAX_JSON_BYTES
 from .schema_catalog import get_schema, schema_names
+from .store import dial_from_public_hub
 
 
 class JSONArgumentParser(argparse.ArgumentParser):
@@ -101,6 +102,12 @@ def _parser() -> JSONArgumentParser:
     dial.add_argument("--scope", choices=["auto", "local", "public", "private"], default="auto")
     dial.add_argument("--acl-authorized", action="store_true")
     dial.add_argument("--qr-fragment-stdin", action="store_true")
+    dial.add_argument(
+        "--from", dest="hub_base_url", help="read a public snapshot and plan registration"
+    )
+    dial.add_argument(
+        "--apply", metavar="PLAN_ID", help="approve registration of the exact pinned snapshot"
+    )
 
     chant = subcommands.add_parser(
         "chant",
@@ -279,6 +286,18 @@ def _handle(args: argparse.Namespace) -> Any:
             raise ValidationError("private access options require a private record")
         return hub.register_record(record, private_policy=policy)
     if args.command == "dial":
+        if args.hub_base_url is not None:
+            if (
+                args.scope not in {"auto", "public"}
+                or args.acl_authorized
+                or args.qr_fragment_stdin
+            ):
+                raise ValidationError("--from is public-only and cannot use private access options")
+            return dial_from_public_hub(
+                hub.home, args.query, args.hub_base_url, apply=args.apply
+            )
+        if args.apply is not None:
+            raise ValidationError("--apply requires an explicit --from public Hub")
         return hub.dial(
             args.query,
             scope=args.scope,

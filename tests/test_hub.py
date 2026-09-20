@@ -5,16 +5,35 @@ from hive_hub import (
     AdapterPlan,
     AIJoinCard,
     DialRecord,
+    LimitError,
     Principal,
     SubscriptionPlan,
+    canonical_bytes,
     content_address,
+    derive_chant,
 )
+from hive_hub.limits import MAX_ARRAY_ITEMS
 from hive_hub.store import PublicDialbook
 
 from .helpers import FIXED_TIME, WorkspaceTestCase, make_record, make_stack
 
 
 class HubFlowTests(WorkspaceTestCase):
+    def test_index_includes_both_legacy_and_derived_chants(self) -> None:
+        stack = make_stack(self.work)
+        record = make_record(stack)
+        stack.hub.register_public_record(record)
+        expected = tuple(sorted({*record.chants, derive_chant(record.dial_id)}))
+        self.assertEqual(record.index_chants, expected)
+        index = stack.hub.build_public_index(persist=False)
+        self.assertEqual(index["records"][0]["chants"], list(expected))
+        for chant in expected:
+            candidates = next(
+                group for group in index["chant_candidates"] if group["candidate"] == chant
+            )
+            result = stack.hub.dial(chant, scope="public")
+            self.assertEqual(candidates["record_ids"], [item.id for item in result.candidates])
+
     def test_generic_non_rapp_record_dials_by_id_url_and_chant(self) -> None:
         stack = make_stack(self.work)
         record = make_record(stack)
@@ -61,6 +80,49 @@ class HubFlowTests(WorkspaceTestCase):
             item for item in index["chant_candidates"] if item["candidate"] == "shared glow"
         )
         self.assertEqual(collision["record_ids"], sorted([alpha.id, beta.id]))
+
+    def test_derived_lookup_preserves_a_full_legacy_label_array(self) -> None:
+        stack = make_stack(self.work)
+        record = DialRecord.create(
+            name="Full legacy label array",
+            description="Derived lookup must not enlarge persisted legacy arrays.",
+            visibility="public",
+            protocol_fingerprint=stack.declaration.fingerprint,
+            learning_bundle_address=stack.bundle.address,
+            adapter_registration_address=stack.adapter.address,
+            urls=["https://firefly.invalid/full-labels"],
+            chants=[f"label{index:03d}" for index in range(MAX_ARRAY_ITEMS)],
+        )
+        stack.hub.register_public_record(record)
+        self.assertEqual(stack.hub.public_book.get(record.id), record)
+        self.assertEqual(len(record.index_chants), MAX_ARRAY_ITEMS + 1)
+        for query in (record.chants[0], derive_chant(record.dial_id)):
+            with self.assertRaises(LimitError):
+                stack.hub.dial(query, scope="public")
+        with self.assertRaises(LimitError):
+            stack.hub.build_public_index(persist=False)
+        self.assertEqual(stack.hub.public_book.get(record.id).chants, record.chants)
+
+    def test_union_at_the_index_limit_preserves_every_candidate(self) -> None:
+        stack = make_stack(self.work)
+        record = DialRecord.create(
+            name="Bounded chant union",
+            description="Leave one slot for the intrinsic derived chant.",
+            visibility="public",
+            protocol_fingerprint=stack.declaration.fingerprint,
+            learning_bundle_address=stack.bundle.address,
+            adapter_registration_address=stack.adapter.address,
+            urls=["https://firefly.invalid/bounded-labels"],
+            chants=[f"label{index:03d}" for index in range(MAX_ARRAY_ITEMS - 1)],
+        )
+        stack.hub.register_public_record(record)
+        expected = sorted({*record.chants, derive_chant(record.dial_id)})
+        self.assertEqual(len(expected), MAX_ARRAY_ITEMS)
+        index = stack.hub.build_public_index(persist=False)
+        self.assertEqual(index["records"][0]["chants"], expected)
+        self.assertEqual([item["candidate"] for item in index["chant_candidates"]], expected)
+        canonical_bytes(index)
+        self.assertEqual(stack.hub.dial(expected[-1], scope="public").record, record)
 
     def test_human_and_ai_bootstrap_are_plan_first_and_local(self) -> None:
         stack = make_stack(self.work)

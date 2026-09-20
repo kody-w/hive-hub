@@ -97,6 +97,7 @@ export function createSchemas(schemaBaseUrl) {
         aliases: { items: alias, minItems: 1, type: "array" },
         api: { type: "object" },
         cardId: nonEmptyString,
+        cameraAiCard: descriptor,
         chant: {
           properties: {
             protocol: { const: CHANT_PROTOCOL },
@@ -108,6 +109,8 @@ export function createSchemas(schemaBaseUrl) {
         },
         classification: { const: "public-locator-only" },
         dialId,
+        legacySkillCard: descriptor,
+        legacySkillDialId: dialId,
         fullDialIdVerificationRequired: { const: true },
         kind: { const: "ai-join-card" },
         record: descriptor,
@@ -149,6 +152,9 @@ export function createSchemas(schemaBaseUrl) {
         "chants",
         "claims",
         "conformance",
+        "coreRecord",
+        "coreContracts",
+        "dialId",
         "kind",
         "learningBundle",
         "locator",
@@ -185,13 +191,48 @@ export function createSchemas(schemaBaseUrl) {
         },
         conformance: descriptor,
         dialId,
+        coreRecord: { $ref: `${base}/../core-schemas/dial-record.schema.json` },
+        coreContracts: {
+          additionalProperties: false,
+          properties: {
+            protocol: { $ref: `${base}/../core-schemas/protocol-declaration.schema.json` },
+            learningBundle: { $ref: `${base}/../core-schemas/learning-bundle.schema.json` },
+            adapter: { $ref: `${base}/../core-schemas/adapter-registration.schema.json` }
+          },
+          required: ["protocol", "learningBundle", "adapter"],
+          type: "object"
+        },
         kind: { const: "dial-record" },
         learningBundle: descriptor,
         locator: { type: "object" },
         protocol: descriptor,
+        protocolFingerprint: sha256Ref,
         recordId: nonEmptyString,
         visibility: { const: "public" }
       }
+    ),
+    "dial-snapshot.schema.json": schema(
+      `${base}/dial-snapshot.schema.json`,
+      "Bounded single-fetch public dial snapshot",
+      ["kind", "schema_version", "records"],
+      {
+        kind: { const: "published-dial-snapshot" },
+        schema_version: { const: 1 },
+        records: {
+          type: "array",
+          maxItems: 256,
+          items: {
+            additionalProperties: false,
+            type: "object",
+            required: ["ref", "record"],
+            properties: {
+              ref: sha256Ref,
+              record: { $ref: `${base}/dial-record.schema.json` }
+            }
+          }
+        }
+      },
+      { additionalProperties: false }
     ),
     "dialbook.schema.json": schema(
       `${base}/dialbook.schema.json`,

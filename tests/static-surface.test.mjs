@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { webcrypto } from "node:crypto";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import vm from "node:vm";
 
 import { buildStaticSurface } from "../scripts/build.mjs";
@@ -60,14 +62,124 @@ test("build is byte-for-byte deterministic", async () => {
   }
 });
 
+test("committed public records share the core identity body and derived chant", async () => {
+  const dialbook = JSON.parse(
+    await readFile(path.join(repository, "api/hive-hub/v1/dialbook.json"), "utf8")
+  );
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.ok(dialbook.records.length > 0);
+  assert.equal(
+    dialbook.records.length,
+    manifest.entries.filter((entry) => entry.kind === "record").length
+  );
+  for (const descriptor of dialbook.records) {
+    const bytes = await readFile(path.join(repository, descriptor.path));
+    const record = JSON.parse(bytes);
+    const core = record.coreRecord;
+    assert.ok(core, `${descriptor.path} has no coreRecord`);
+    assert.deepEqual(Object.keys(core).sort(), [
+      "adapter_registration_address", "chants", "description", "id", "kind",
+      "learning_bundle_address", "name", "protocol_fingerprint", "schema_version",
+      "urls", "visibility"
+    ]);
+    assert.equal(core.kind, "dial-record");
+    assert.equal(core.schema_version, 1);
+    const { id, ...fields } = core;
+    const body = { ...fields, kind: "dial-record-body" };
+    const digest = sha256Bytes(Buffer.from(canonicalJson(body).slice(0, -1)));
+    assert.equal(id, `urn:hivehub:sha256:${digest}`);
+    assert.equal(record.dialId, `dial:sha256:${digest}`);
+    assert.deepEqual(record.chants, [
+      { role: "candidate-locator-only", value: deriveChant(record.dialId) }
+    ]);
+    assert.equal(descriptor.ref, `sha256:${sha256Bytes(bytes)}`);
+    assert.equal(bytes.toString("utf8"), canonicalJson(record));
+  }
+  const emitted = (await listPublicFiles(repository))
+    .filter((file) => file.startsWith("api/hive-hub/v1/records/sha256/"));
+  const accounted = new Set(dialbook.records.map((descriptor) => descriptor.path));
+  for (const entry of manifest.entries.filter((item) => item.kind === "historical-object")) {
+    const bytes = await readFile(path.join(repository, "public-src", entry.path));
+    if (JSON.parse(bytes).kind !== "dial-record") {
+      continue;
+    }
+    assert.equal(sha256Bytes(bytes), entry.sha256);
+    const archived = emitted.filter((file) => file.endsWith(`/${entry.sha256}.json`));
+    assert.equal(archived.length, 1);
+    assert.deepEqual(await readFile(path.join(repository, archived[0])), bytes);
+    accounted.add(archived[0]);
+  }
+  assert.deepEqual(emitted.sort(), [...accounted].sort());
+});
+
 test("generated surface passes links, hashes, security, and accessibility gates", async () => {
   const result = await checkStaticSurface({
     manifestPath,
     root: buildA
   });
-  assert.equal(result.inputCount, 72);
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.equal(result.inputCount, manifest.entries.length);
   assert.ok(result.immutableObjectCount >= 9);
   assert.equal(result.qrCount, 22);
+});
+
+test("published camera cards use their record's canonical locator and keep legacy cards separate", async () => {
+  for (const card of resultA.cards) {
+    const webCard = JSON.parse(await readFile(path.join(buildA, card.descriptor.path), "utf8"));
+    const coreCardBytes = await readFile(path.join(buildA, card.cameraAiCard.path));
+    const coreCard = JSON.parse(coreCardBytes);
+    const record = JSON.parse(await readFile(path.join(buildA, webCard.record.path), "utf8"));
+    assert.equal(coreCard.locator, record.dialId);
+    assert.equal(coreCard.locator, webCard.dialId);
+    assert.equal(webCard.dialId, record.coreRecord.id.replace(/^urn:hivehub:/, "dial:"));
+    assert.equal(card.cameraAiCard.ref, `sha256:${sha256Bytes(coreCardBytes)}`);
+    assert.equal(card.cameraEnvelope.sha256, sha256Bytes(coreCardBytes));
+    const { card_id, ...fields } = coreCard;
+    assert.equal(
+      card_id,
+      `urn:hivehub:sha256:${sha256Bytes(
+        Buffer.from(canonicalJson({ ...fields, kind: "ai-join-card-body" }).slice(0, -1))
+      )}`
+    );
+    const legacy = JSON.parse(await readFile(path.join(buildA, webCard.legacySkillCard.path)));
+    assert.equal(legacy.locator, webCard.legacySkillDialId);
+    assert.notEqual(legacy.locator, coreCard.locator);
+  }
+});
+
+test("CI HTTP smoke passes against the generated site on an ephemeral port", async () => {
+  const files = new Map(await Promise.all(resultA.files.map(async (file) => [
+    "/" + file, await readFile(path.join(buildA, file))
+  ])));
+  const server = createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1/").pathname;
+    const file = pathname.endsWith("/") ? pathname + "index.html" : pathname;
+    const bytes = files.get(file);
+    response.writeHead(bytes ? 200 : 404, {
+      "Content-Type": file.endsWith(".json") ? "application/json" : "text/html"
+    });
+    response.end(bytes);
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const result = await promisify(execFile)(
+      process.execPath,
+      [path.join(repository, "scripts/smoke-http.mjs"), "--base", `http://127.0.0.1:${address.port}/`],
+      { timeout: 30_000 }
+    );
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, "local HTTP static smoke passed\n");
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
 });
 
 test("example record is exact and grants no authority or semantic compatibility", async () => {
@@ -82,11 +194,7 @@ test("example record is exact and grants no authority or semantic compatibility"
   assert.equal(record.protocolFingerprint, record.protocol.ref);
   assert.equal(
     record.dialId,
-    "dial:sha256:6b822d070281ee28b89c3c4209e5ba6e796a09ec5973da6e73324cee44127c32"
-  );
-  assert.equal(
-    record.chants[0].value,
-    "juniper-quartz-harbor-birch-cobalt-nook-flint"
+    record.coreRecord.id.replace(/^urn:hivehub:/, "dial:")
   );
   assert.equal(record.chants[0].value, deriveChant(record.dialId));
   assert.deepEqual(record.aliases, ["hive-hub-public-lab"]);
@@ -117,17 +225,29 @@ test("hive-hub-chant/1 is exact, human-friendly, and protocol-neutral", () => {
   assert.throws(() => normalizeChant("hive-hub-public-lab"));
 });
 
-test("public laboratory starts a receipt ledger without retired locators", async () => {
+test("public laboratory preserves prior receipts and appends the camera-card correction", async () => {
   const index = JSON.parse(
     await readFile(path.join(buildA, "api/hive-hub/v1/receipts/index.json"), "utf8")
   );
-  assert.equal(index.receipts.length, 1);
+  assert.equal(index.receipts.length, 3);
   const receipt = JSON.parse(
     await readFile(path.join(buildA, index.receipts[0].path), "utf8")
   );
   assert.equal(receipt.event, "publish-record");
   assert.equal(receipt.previous, null);
-  assert.deepEqual(receipt.subject, resultA.records[0].descriptor);
+  const migration = JSON.parse(
+    await readFile(path.join(buildA, index.receipts[1].path), "utf8")
+  );
+  assert.deepEqual(migration.previous, index.receipts[0]);
+  assert.deepEqual(migration.subject, resultA.records[0].descriptor);
+  assert.notDeepEqual(receipt.subject, migration.subject);
+  const correction = JSON.parse(
+    await readFile(path.join(buildA, index.receipts[2].path), "utf8")
+  );
+  assert.deepEqual(correction.previous, index.receipts[1]);
+  assert.deepEqual(correction.subject, migration.subject);
+  assert.deepEqual(correction.card, resultA.cards[0].descriptor);
+  assert.notDeepEqual(correction.card, migration.card);
 });
 
 test("public build input reader never scans adjacent private books", async () => {
@@ -310,7 +430,7 @@ test("generated join script executes the real core camera-card path", async () =
     },
     set(value) {
       this.value = value;
-      if (value === "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill." ||
+      if (value === "Core camera-AI join card verified. Resolve its locator with the matching Hive Hub client." ||
           value === "Verification failed.") {
         finish(value);
       }
@@ -372,7 +492,7 @@ test("generated join script executes the real core camera-card path", async () =
   ]);
   assert.equal(
     finalStatus,
-    "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill.",
+    "Core camera-AI join card verified. Resolve its locator with the matching Hive Hub client.",
     elements.get("failure").textContent
   );
   const machine = JSON.parse(elements.get("machine-readable").textContent);

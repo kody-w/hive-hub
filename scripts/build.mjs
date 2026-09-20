@@ -20,6 +20,7 @@ import {
   sha256Bytes
 } from "./lib/canonical.mjs";
 import { loadPublicInputs } from "./lib/public-inputs.mjs";
+import { projectCoreRecord } from "./lib/core-record.mjs";
 import { createQrSvg } from "./lib/qr.mjs";
 import { writeOrganizationSeeds } from "./lib/organization-seeds.mjs";
 import {
@@ -324,6 +325,21 @@ function validateSkillDeclaration(document) {
   assert(document.extensions?.authority === false, "Skill declaration must not claim authority");
 }
 
+function coreCardIdentity(document) {
+  const body = {
+    kind: "ai-join-card-body",
+    schema_version: 1,
+    principal: document.principal,
+    locator: document.locator,
+    expected_record_id: null,
+    expected_protocol_fingerprint: null,
+    adapter_plan: null,
+    issued_at: document.issued_at
+  };
+  const bodyDigest = sha256Bytes(Buffer.from(canonicalJson(body).trimEnd()));
+  return `urn:hivehub:sha256:${bodyDigest}`;
+}
+
 function validateCoreCard(document) {
   const keys = Object.keys(document).sort().join(",");
   assert(
@@ -337,19 +353,8 @@ function validateCoreCard(document) {
     document.expected_record_id === null && document.expected_protocol_fingerprint === null,
     "Public camera card cannot claim undeclared core identities"
   );
-  const body = {
-    kind: "ai-join-card-body",
-    schema_version: 1,
-    principal: document.principal,
-    locator: document.locator,
-    expected_record_id: null,
-    expected_protocol_fingerprint: null,
-    adapter_plan: null,
-    issued_at: document.issued_at
-  };
-  const bodyDigest = sha256Bytes(Buffer.from(canonicalJson(body).trimEnd()));
   assert(
-    document.card_id === `urn:hivehub:sha256:${bodyDigest}`,
+    document.card_id === coreCardIdentity(document),
     "Core AI join card id does not match its canonical body"
   );
 }
@@ -541,29 +546,6 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   assert(grouped.get("release").length === 1, "Public build requires one integrated release");
   const releaseEntry = grouped.get("release")[0];
   validateRelease(releaseEntry.document, manifest);
-  const releaseStored = await writeRawContentObject(writer, {
-    apiPath,
-    category: "releases",
-    document: releaseEntry.document,
-    siteBaseUrl
-  });
-  const releaseObject = contentObject(
-    "release",
-    releaseEntry.declaration.id,
-    releaseStored
-  );
-  immutableObjects.push(releaseObject);
-  const releaseIndex = await writeStableJson(
-    writer,
-    `${apiPath}/release.json`,
-    {
-      current: releaseObject.descriptor,
-      kind: "release-index",
-      version: manifest.productVersion
-    },
-    siteBaseUrl
-  );
-
   const skillDeclarations = new Map();
   for (const entry of grouped.get("skill-declaration")) {
     validateSkillDeclaration(entry.document);
@@ -582,7 +564,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     immutableObjects.push(object);
   }
 
-  const coreCards = new Map();
+  const legacyCoreCards = new Map();
   for (const entry of grouped.get("core-card")) {
     validateCoreCard(entry.document);
     const stored = await writeRawContentObject(writer, {
@@ -592,7 +574,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       siteBaseUrl
     });
     const object = contentObject("core-card", entry.declaration.id, stored);
-    coreCards.set(object.id, object);
+    legacyCoreCards.set(object.id, object);
     immutableObjects.push(object);
   }
 
@@ -748,7 +730,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       "protocol",
       entry.declaration.id
     );
-    const document = {
+    let document = {
       ...without(
         entry.document,
         "adapterId",
@@ -774,6 +756,12 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
         archive: seed.archive
       };
     }
+    document = projectCoreRecord(document, {
+      protocol: protocol.document,
+      learningBundle: learningBundle.document,
+      conformance: conformance.document,
+      adapter: adapter.document
+    });
     const preHash = sha256Bytes(
       Buffer.from(
         canonicalJson({
@@ -802,7 +790,32 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   }
   records.sort((left, right) => left.id.localeCompare(right.id));
 
+  const laboratoryRecord = objects.get("hive-hub-public-lab");
+  assert(laboratoryRecord, "Public laboratory record is missing");
+  const releaseStored = await writeRawContentObject(writer, {
+    apiPath,
+    category: "releases",
+    document: {
+      ...releaseEntry.document,
+      publicSample: {
+        ...releaseEntry.document.publicSample,
+        dialId: laboratoryRecord.document.dialId,
+        chant: laboratoryRecord.document.chants[0].value
+      }
+    },
+    siteBaseUrl
+  });
+  const releaseObject = contentObject("release", releaseEntry.declaration.id, releaseStored);
+  immutableObjects.push(releaseObject);
+  const releaseIndex = await writeStableJson(
+    writer,
+    `${apiPath}/release.json`,
+    { current: releaseObject.descriptor, kind: "release-index", version: manifest.productVersion },
+    siteBaseUrl
+  );
+
   const cards = [];
+  const coreCards = new Map();
   const cardIds = new Set();
   for (const declaration of manifest.cards) {
     assert(!cardIds.has(declaration.cardId), `Duplicate card id ${declaration.cardId}`);
@@ -813,20 +826,16 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       `Public card ${declaration.cardId} contains unsupported fields`
     );
     const record = assertReference(objects, declaration.recordId, "record", declaration.cardId);
-    const coreCard = coreCards.get(declaration.coreCardId);
+    const legacyCoreCard = legacyCoreCards.get(declaration.coreCardId);
     const skillDeclaration = skillDeclarations.get(declaration.skillDeclarationId);
-    assert(coreCard, `Card ${declaration.cardId} references an unknown core card`);
+    assert(legacyCoreCard, `Card ${declaration.cardId} references an unknown core card`);
     assert(
       skillDeclaration,
       `Card ${declaration.cardId} references an unknown skill declaration`
     );
     assert(
-      coreCard.document.locator === declaration.skillDialId,
+      legacyCoreCard.document.locator === declaration.skillDialId,
       `Card ${declaration.cardId} core locator does not match its locked skill Dial ID`
-    );
-    assert(
-      record.document.dialId === declaration.skillDialId,
-      `Card ${declaration.cardId} full Dial Record ID disagrees with its record`
     );
     assert(
       declaration.chant === deriveChant(declaration.skillDialId),
@@ -836,10 +845,22 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       record.document.aliases.includes(declaration.slug),
       `Card ${declaration.cardId} slug is not a declared display/search alias`
     );
-    assert(
-      record.document.chants.some((chant) => chant.value === declaration.chant),
-      `Card ${declaration.cardId} chant is not declared by its record`
-    );
+    const coreDocument = {
+      ...legacyCoreCard.document,
+      locator: record.document.dialId
+    };
+    coreDocument.card_id = coreCardIdentity(coreDocument);
+    validateCoreCard(coreDocument);
+    const coreStored = await writeRawContentObject(writer, {
+      apiPath,
+      category: "cards/core",
+      document: coreDocument,
+      siteBaseUrl
+    });
+    const coreCard = contentObject("core-card", declaration.coreCardId, coreStored);
+    assert(!coreCards.has(coreCard.id), "Each canonical camera card must have its own id");
+    coreCards.set(coreCard.id, coreCard);
+    immutableObjects.push(coreCard);
     const cardDocument = {
       adapter: record.document.adapter,
       api: {
@@ -854,12 +875,14 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       chant: {
         protocol: CHANT_PROTOCOL,
         semantics: "candidate-array-locator-only",
-        value: declaration.chant
+        value: record.document.chants[0].value
       },
       classification: "public-locator-only",
       conformance: record.document.conformance,
       kind: "ai-join-card",
-      dialId: declaration.skillDialId,
+      dialId: record.document.dialId,
+      legacySkillDialId: declaration.skillDialId,
+      legacySkillCard: legacyCoreCard.descriptor,
       fullDialIdVerificationRequired: true,
       learningBundle: record.document.learningBundle,
       protocol: record.document.protocol,
@@ -1139,6 +1162,20 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     siteBaseUrl
   );
 
+  const dialSnapshot = await writeStableJson(
+    writer,
+    `${apiPath}/dial-snapshot.json`,
+    {
+      kind: "published-dial-snapshot",
+      schema_version: 1,
+      records: records.map((record) => ({
+        ref: record.descriptor.ref,
+        record: record.document
+      }))
+    },
+    siteBaseUrl
+  );
+
   const cardsIndex = await writeStableJson(
     writer,
     `${apiPath}/cards/index.json`,
@@ -1272,6 +1309,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   const joinAiDocument = {
     apiIndex: publicUrl(siteBaseUrl, `${apiPath}/index.json`),
     cameraAiCard: laboratoryCard.cameraAiCard.descriptor,
+    legacySkillCard: laboratoryCard.document.legacySkillCard,
     organizationSeeds: seedsIndex.descriptor,
     globalSkill: networkSkillDescriptor,
     coreSchemas: coreSchemasIndex.descriptor,
@@ -1304,6 +1342,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       bucketDirectory: bucketsIndex.descriptor,
       cards: cardsIndex.descriptor,
       dialbook: dialbook.descriptor,
+      dialSnapshot: dialSnapshot.descriptor,
       federation: federationIndex.descriptor,
       federationBuckets: federationBuckets.descriptor,
       hashes: {
@@ -1391,6 +1430,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     dialbookUrl: dialbook.descriptor.url,
     exampleRecord: laboratoryCard.record.descriptor,
     cameraAiCard: laboratoryCard.cameraAiCard.descriptor,
+    legacySkillCard: laboratoryCard.document.legacySkillCard,
     organizationSeedsUrl: seedsIndex.descriptor.url,
     globalSkillUrl: networkSkillDescriptor.url,
     joinAiUrl: joinAi.descriptor.url,

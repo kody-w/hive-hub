@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import json
 import os
@@ -9,10 +10,11 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from hive_hub import ConflictError, UnsafePathError
+from hive_hub import ConflictError, LimitError, UnsafePathError
 from hive_hub import _windows_file as windows_file
 from hive_hub._windows_file import WindowsFileMetadata
 from hive_hub.cli import main
+from hive_hub.contracts import normalize_record_chant, validate_dial_query
 from hive_hub.filesystem import (
     SafeFilesystem,
     _has_single_file_link,
@@ -23,6 +25,34 @@ from .helpers import MockWindowsFileApi, WorkspaceTestCase, make_record, make_st
 
 
 class SafetyAndCLITests(WorkspaceTestCase):
+    def test_overlong_storage_names_raise_a_typed_limit_error(self) -> None:
+        filesystem = SafeFilesystem(self.work / "overlong-storage")
+        for filename in ("x" * 256, "\u00e9" * 128):
+            with (
+                self.subTest(filename_bytes=len(filename.encode("utf-8"))),
+                self.assertRaises(LimitError),
+            ):
+                plan = filesystem.plan_write(filename, b"{}")
+                filesystem.apply_write(plan)
+
+    def test_valid_43_character_chants_are_not_opaque_qr_factors(self) -> None:
+        chant = "quartz-hearth-xylem-zeal-zephyr-drift-arbor"
+        self.assertEqual(len(chant), 43)
+        self.assertEqual(validate_dial_query(chant), chant)
+        self.assertEqual(normalize_record_chant(chant), chant)
+        for candidate in ("A" * 43, "not-a-real-vocabulary-chant".ljust(43, "x")):
+            with self.subTest(candidate=candidate):
+                self.cli_rejects_qr_factor(candidate)
+
+    def cli_rejects_qr_factor(self, candidate: str) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(["--home", str(self.work), "dial", candidate])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("bare QR factor", json.loads(stderr.getvalue())["error"]["message"])
+
     def test_core_posix_link_policy_still_requires_exactly_one(self) -> None:
         with patch("hive_hub.filesystem._is_windows", return_value=False):
             for link_count, accepted in ((0, False), (1, True), (2, False)):
@@ -161,20 +191,25 @@ class SafetyAndCLITests(WorkspaceTestCase):
             self.assertEqual(stack.hub.dial(record.id).status, "resolved")
             self.assertEqual(stack.hub.status()["network_used"], False)
 
-    def test_source_has_no_network_or_code_execution_imports(self) -> None:
+    def test_source_has_no_implicit_network_or_code_execution_imports(self) -> None:
         source_root = Path(__file__).parents[1] / "src" / "hive_hub"
         source = "\n".join(path.read_text("utf-8") for path in source_root.glob("*.py"))
         forbidden = (
             "import requests",
             "import socket",
             "import subprocess",
-            "urllib.request",
             "os.system(",
             "eval(",
             "exec(",
         )
         for token in forbidden:
             self.assertNotIn(token, source)
+        for path in source_root.glob("*.py"):
+            for statement in ast.parse(path.read_text("utf-8")).body:
+                if isinstance(statement, ast.ImportFrom):
+                    self.assertNotEqual(statement.module, "urllib.request")
+                elif isinstance(statement, ast.Import):
+                    self.assertNotIn("urllib.request", [alias.name for alias in statement.names])
 
     def test_cli_success_and_errors_are_clean_json(self) -> None:
         stdout = io.StringIO()

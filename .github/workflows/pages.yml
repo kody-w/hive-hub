@@ -43,6 +43,11 @@ jobs:
       - name: Verify deterministic public surface
         run: npm run verify
 
+      - name: Verify published records against the Python core
+        env:
+          PYTHONPATH: src:.
+        run: python -B -m unittest tests.test_published_record_conformance
+
       - name: Verify public privacy boundary
         run: python -B scripts/check_public_release.py
 

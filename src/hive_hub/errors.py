@@ -42,3 +42,7 @@ class UnsafePathError(HiveHubError):
 
 class LimitError(HiveHubError):
     code = "limit-exceeded"
+
+
+class FetchError(HiveHubError):
+    code = "fetch-error"
