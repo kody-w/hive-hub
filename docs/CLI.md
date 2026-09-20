@@ -1,5 +1,8 @@
 # CLI and local storage
 
+For your first join, use the [quickstart and expected output](QUICKSTART.md).
+This page is the command and storage reference, not an installation prerequisite.
+
 Set `HIVE_HUB_HOME` or pass `--home`. The core creates only the bounded
 directories used by the selected operation.
 
@@ -50,6 +53,24 @@ are opened with no-follow semantics and must be regular files.
 
 `bootstrap CARD` combines dial and planning for one card. Add `--apply` to save
 the local subscription. It never performs an adapter effect.
+
+### Undo a quickstart join
+
+The quickstart's `join-plan.json` is a bootstrap result containing the actual
+subscription plan. Extract that inner plan before passing it to `subscribe`:
+
+```bash
+python -c 'import json; print(json.dumps(json.load(open("join-plan.json"))["plan"]))' > subscription-plan.json
+hive-hub subscribe revert subscription-plan.json
+hive-hub status
+```
+
+Use the same `HIVE_HUB_HOME` as the join. The revert result reports
+`"removed":true` and `"adapter_effects_executed":false`. The subscription count
+returns to zero in a fresh quickstart home; the learned public record and inert
+contracts remain. Reversal is not an uninstall or a deletion of the dialbook.
+
+### Offline chant commands
 
 ```bash
 hive-hub chant derive \
@@ -164,4 +185,5 @@ browser storage. Error JSON never echoes it.
 - `3`: sanitized filesystem failure.
 
 Output is one canonical JSON object on stdout. Errors are one canonical JSON
-object on stderr.
+object on stderr. `--help` is the human-readable exception. Argument-parser
+errors may repeat invalid arguments; supply QR factors only through stdin.
