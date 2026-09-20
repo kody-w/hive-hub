@@ -15,6 +15,10 @@ public-index install to complete this new path yet. The sequence below was
 verified from a **built cold-start wheel**, against a **served public build**,
 in a fresh virtual environment with no source checkout.
 
+The [complete recorded session](PRODUCT_SURFACE_REPORT.md#fresh-wheel-only-quickstart-session)
+shows every command and its actual output. Your paths, timestamps, and
+time-dependent plan IDs will differ.
+
 For this preview, get the wheel and matching publisher from your maintainer.
 Set `WHEELHOUSE` to the absolute directory containing that wheel, and `HUB` to
 the publisher's base URL, not its `/hub/` page. The verification publisher was
