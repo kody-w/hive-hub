@@ -10,7 +10,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from hive_hub import ConflictError, UnsafePathError
+from hive_hub import ConflictError, LimitError, UnsafePathError
 from hive_hub import _windows_file as windows_file
 from hive_hub._windows_file import WindowsFileMetadata
 from hive_hub.cli import main
@@ -25,6 +25,16 @@ from .helpers import MockWindowsFileApi, WorkspaceTestCase, make_record, make_st
 
 
 class SafetyAndCLITests(WorkspaceTestCase):
+    def test_overlong_storage_names_raise_a_typed_limit_error(self) -> None:
+        filesystem = SafeFilesystem(self.work / "overlong-storage")
+        for filename in ("x" * 256, "\u00e9" * 128):
+            with (
+                self.subTest(filename_bytes=len(filename.encode("utf-8"))),
+                self.assertRaises(LimitError),
+            ):
+                plan = filesystem.plan_write(filename, b"{}")
+                filesystem.apply_write(plan)
+
     def test_valid_43_character_chants_are_not_opaque_qr_factors(self) -> None:
         chant = "quartz-hearth-xylem-zeal-zephyr-drift-arbor"
         self.assertEqual(len(chant), 43)

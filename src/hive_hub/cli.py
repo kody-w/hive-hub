@@ -102,8 +102,12 @@ def _parser() -> JSONArgumentParser:
     dial.add_argument("--scope", choices=["auto", "local", "public", "private"], default="auto")
     dial.add_argument("--acl-authorized", action="store_true")
     dial.add_argument("--qr-fragment-stdin", action="store_true")
-    dial.add_argument("--from", dest="hub_base_url", help="plan an explicit public Hub fetch")
-    dial.add_argument("--apply", metavar="PLAN_ID", help="approve the exact public fetch plan")
+    dial.add_argument(
+        "--from", dest="hub_base_url", help="read a public snapshot and plan registration"
+    )
+    dial.add_argument(
+        "--apply", metavar="PLAN_ID", help="approve registration of the exact pinned snapshot"
+    )
 
     chant = subcommands.add_parser(
         "chant",

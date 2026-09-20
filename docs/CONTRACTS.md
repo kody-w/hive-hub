@@ -114,6 +114,13 @@ registration declares inspection only, not an executable adapter or additional
 semantic compatibility. The core record's `chants` array is empty and its URLs
 bind the published locator; the presentation envelope derives its one
 seven-word chant **after** computing the identity.
+Import requires core chant labels to be empty or exactly that ID-derived
+chant, never another record's chant or arbitrary legacy display text. Core
+URLs must exactly equal the locator projection used by the builder. Envelope
+aliases and record IDs must have their declared types, fingerprints must match
+their descriptors, and descriptor paths/URLs must be safe, matching,
+credential-free HTTPS references. These structural checks do not confer
+ownership of a valid display label.
 
 `dial-snapshot.json` packages the active envelopes and their separate web byte
 hashes into one bounded response. It contains no private book and requires no
@@ -139,9 +146,11 @@ The all-card oracle also validates every emitted canonical camera card through
 Contain sorted record summaries plus `chant_candidates` and `url_candidates`.
 Each candidate maps to an array of one or more record ids, so collisions are
 never overwritten. The two index kinds reject mixed visibility.
-URL-only records advertise a derived chant. Existing label arrays are preserved,
-including arrays at the configured item limit; intrinsic ID-derived lookup
-also works for those records without inserting another index label.
+Every index advertises the sorted, deduplicated union of legacy labels and
+the intrinsic ID-derived chant. Hashed record bodies are unchanged. Existing
+array limits still apply; a 256-label record needing a 257th derived entry
+cannot be represented by that bounded index/result contract and raises a
+typed limit error instead of omitting any candidate.
 
 ### `ai-join-card`
 

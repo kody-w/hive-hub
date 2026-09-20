@@ -15,7 +15,12 @@ from typing import Any
 from ._windows_file import windows_descriptor_metadata, windows_path_metadata
 from .canonical import content_address
 from .errors import ConflictError, LimitError, StorageError, UnsafePathError
-from .limits import MAX_FILES_PER_COLLECTION, MAX_JSON_BYTES, MAX_PATH_DEPTH
+from .limits import (
+    MAX_FILES_PER_COLLECTION,
+    MAX_JSON_BYTES,
+    MAX_PATH_COMPONENT_BYTES,
+    MAX_PATH_DEPTH,
+)
 
 _THREAD_LOCKS_GUARD = threading.Lock()
 _THREAD_LOCKS: dict[str, threading.Lock] = {}
@@ -76,6 +81,7 @@ class SafeFilesystem:
 
     def _open_absolute_dir(self, *, create: bool) -> int:
         components = [part for part in self.root.parts if part not in ("", os.sep)]
+        self._check_component_lengths(components)
         fd = os.open(os.sep, self._dir_flags())
         try:
             for component in components:
@@ -99,6 +105,12 @@ class SafeFilesystem:
             raise
 
     @staticmethod
+    def _check_component_lengths(parts: list[str] | tuple[str, ...]) -> None:
+        for part in parts:
+            if len(os.fsencode(part)) > MAX_PATH_COMPONENT_BYTES:
+                raise LimitError("storage path component exceeds the configured byte limit")
+
+    @staticmethod
     def _parts(relative_path: str) -> tuple[str, ...]:
         path = PurePosixPath(relative_path)
         parts = path.parts
@@ -109,6 +121,7 @@ class SafeFilesystem:
             for part in parts
         ):
             raise UnsafePathError("unsafe relative storage path")
+        SafeFilesystem._check_component_lengths(parts)
         return parts
 
     @contextmanager

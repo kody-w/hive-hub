@@ -19,16 +19,7 @@ from hive_hub.contracts import (
 )
 from hive_hub.errors import ValidationError
 from hive_hub.limits import MAX_JSON_BYTES
-
-
-def locator_urls(value: dict[str, Any]) -> list[str]:
-    urls = []
-    for key, child in value.items():
-        if isinstance(child, dict):
-            urls.extend(locator_urls(child))
-        elif isinstance(child, str) and (key == "url" or key.endswith("Url")):
-            urls.append(child)
-    return urls
+from hive_hub.published import published_locator_urls
 
 
 def project(value: dict[str, Any]) -> dict[str, Any]:
@@ -86,7 +77,7 @@ def project(value: dict[str, Any]) -> dict[str, Any]:
         protocol_fingerprint=declaration.fingerprint,
         learning_bundle_address=bundle.address,
         adapter_registration_address=registration.address,
-        urls=locator_urls(record["locator"]),
+        urls=published_locator_urls(record["locator"]),
         # Derived locators cannot be part of the body from which they are derived.
         chants=[],
     )

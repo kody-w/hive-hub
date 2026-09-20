@@ -3,7 +3,6 @@ from __future__ import annotations
 import hmac
 import os
 import re
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -31,7 +30,7 @@ from .contracts import (
     validate_dial_query,
     validate_locator,
 )
-from .errors import ConflictError, FetchError, LimitError, NotFoundError, ValidationError
+from .errors import ConflictError, NotFoundError, ValidationError
 from .filesystem import SafeFilesystem, WritePlan
 from .limits import (
     HTTP_FETCH_TIMEOUT_SECONDS,
@@ -109,21 +108,23 @@ def _snapshot_url(base_url: str) -> str:
     return base_url.rstrip("/") + "/api/hive-hub/v1/dial-snapshot.json"
 
 
-def public_dial_plan(
+def _read_public_dial_plan(
     home: str | os.PathLike[str], query: str, base_url: str
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], bytes]:
     candidate = _core_id_query(validate_dial_query(query))
     if not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", candidate):
         candidate = normalize_chant(candidate)
     expected_id = candidate if is_address(candidate) else None
+    url = _snapshot_url(base_url)
+    data = _fetch_public_snapshot(url)
     body: dict[str, Any] = {
         "kind": "public-dial-fetch-plan",
         "schema_version": 1,
         "home": os.path.abspath(os.path.expanduser(os.fspath(home))),
         "query": candidate,
         "fetches": [{
-            "url": _snapshot_url(base_url),
-            "expected_sha256": None,
+            "url": url,
+            "expected_sha256": address_digest(content_address(data, raw=True)),
             "max_bytes": MAX_JSON_BYTES,
         }],
         "expected_record_id": expected_id,
@@ -139,56 +140,20 @@ def public_dial_plan(
         },
         "adapter_execution": False,
     }
-    return {**body, "plan_id": content_address(body)}
+    return {**body, "plan_id": content_address(body)}, data
+
+
+def public_dial_plan(
+    home: str | os.PathLike[str], query: str, base_url: str
+) -> dict[str, Any]:
+    plan, _ = _read_public_dial_plan(home, query, base_url)
+    return plan
 
 
 def _fetch_public_snapshot(url: str) -> bytes:
-    from http.client import HTTPException
-    from urllib.error import HTTPError, URLError
-    from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+    from ._http_fetch import read_public_snapshot
 
-    class NoRedirect(HTTPRedirectHandler):
-        def redirect_request(
-            self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
-        ) -> None:
-            fp.close()
-            raise FetchError("HTTP redirects are forbidden for approved fetches")
-
-    request = Request(url, headers={"Accept": "application/json", "Accept-Encoding": "identity"})
-    opener = build_opener(ProxyHandler({}), NoRedirect())
-    deadline = time.monotonic() + HTTP_FETCH_TIMEOUT_SECONDS
-    try:
-        with opener.open(request, timeout=HTTP_FETCH_TIMEOUT_SECONDS) as response:
-            if response.status != 200 or response.geturl() != url:
-                raise FetchError("public Hub snapshot is unreachable")
-            if response.headers.get("Content-Encoding", "identity").lower() != "identity":
-                raise FetchError("encoded public Hub responses are forbidden")
-            length_header = response.headers.get("Content-Length")
-            length = None
-            if length_header is not None:
-                if not re.fullmatch(r"[0-9]{1,10}", length_header):
-                    raise FetchError("public Hub response has an invalid byte count")
-                length = int(length_header)
-                if length > MAX_JSON_BYTES:
-                    raise LimitError("public Hub snapshot exceeds the configured byte limit")
-            data = bytearray()
-            while True:
-                if time.monotonic() >= deadline:
-                    raise FetchError("public Hub fetch exceeded its time limit")
-                chunk = response.read1(min(64 * 1024, MAX_JSON_BYTES + 1 - len(data)))
-                if not chunk:
-                    break
-                data.extend(chunk)
-                if len(data) > MAX_JSON_BYTES:
-                    raise LimitError("public Hub snapshot exceeds the configured byte limit")
-            if length is not None and len(data) != length:
-                raise FetchError("public Hub response byte count mismatch")
-            return bytes(data)
-    except HTTPError as exc:
-        exc.close()
-        raise FetchError("public Hub snapshot is unreachable") from exc
-    except (URLError, OSError, HTTPException) as exc:
-        raise FetchError("public Hub snapshot is unreachable") from exc
+    return read_public_snapshot(url, timeout=HTTP_FETCH_TIMEOUT_SECONDS)
 
 
 def dial_from_public_hub(
@@ -198,12 +163,16 @@ def dial_from_public_hub(
     *,
     apply: str | None = None,
 ) -> dict[str, Any]:
-    plan = public_dial_plan(home, query, base_url)
+    if apply is not None and not is_address(apply):
+        raise ValidationError("public fetch approval does not match a valid plan digest")
+    plan, data = _read_public_dial_plan(home, query, base_url)
     if apply is None:
         return plan
-    if not is_address(apply) or not hmac.compare_digest(apply, plan["plan_id"]):
-        raise ValidationError("public fetch approval does not match the current plan")
-    data = _fetch_public_snapshot(plan["fetches"][0]["url"])
+    if not hmac.compare_digest(apply, plan["plan_id"]):
+        raise ValidationError(
+            "public fetch approval does not match the current snapshot or plan; "
+            "re-plan and approve the new digest"
+        )
     snapshot = _closed(
         loads_json(data), required={"kind", "schema_version", "records"},
         field="published dial snapshot",

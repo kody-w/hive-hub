@@ -4,7 +4,10 @@ import copy
 import hashlib
 import io
 import json
+import multiprocessing
+import socket
 import threading
+import time
 from contextlib import redirect_stderr, redirect_stdout, suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
@@ -26,6 +29,19 @@ from hive_hub.published import PublishedRecord, project_published_record
 from .helpers import PROJECT_ROOT, WorkspaceTestCase, files_under
 
 
+def _slow_dns_worker(connection, url, timeout) -> None:
+    from hive_hub._http_fetch import _snapshot_worker
+
+    resolve = socket.getaddrinfo
+
+    def delayed_resolve(*args, **kwargs):
+        time.sleep(3)
+        return resolve(*args, **kwargs)
+
+    with patch("socket.getaddrinfo", side_effect=delayed_resolve):
+        _snapshot_worker(connection, url, timeout)
+
+
 class RemoteDialTests(WorkspaceTestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -37,19 +53,43 @@ class RemoteDialTests(WorkspaceTestCase):
         self.requests: list[str] = []
         self.response_status = 200
         self.response_headers: dict[str, str] = {}
+        self.extra_response_headers: list[tuple[str, str]] = []
         self.include_length = True
+        self.dribble_headers = False
+        self.header_delay = 0.0
+        self.body_delay = 0.0
+        self.dribble_started = threading.Event()
+        self.stop_dribble = threading.Event()
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 owner.requests.append(self.path)
+                if owner.dribble_headers:
+                    owner.dribble_started.set()
+                    try:
+                        self.wfile.write(b"HTTP/1.1 200 OK\r\nX-Dribble: ")
+                        end = time.monotonic() + 3
+                        while time.monotonic() < end and not owner.stop_dribble.wait(0.02):
+                            self.wfile.write(b"x")
+                        self.wfile.write(b"\r\nContent-Length: 0\r\n\r\n")
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
+                    return
+                if owner.header_delay:
+                    owner.stop_dribble.wait(owner.header_delay)
                 self.send_response(owner.response_status)
                 self.send_header("Content-Type", "application/json")
                 if owner.include_length and "Content-Length" not in owner.response_headers:
                     self.send_header("Content-Length", str(len(owner.data)))
                 for key, value in owner.response_headers.items():
                     self.send_header(key, value)
+                for key, value in owner.extra_response_headers:
+                    self.send_header(key, value)
                 self.end_headers()
+                if owner.body_delay:
+                    owner.dribble_started.set()
+                    owner.stop_dribble.wait(owner.body_delay)
                 with suppress(BrokenPipeError, ConnectionResetError):
                     self.wfile.write(owner.data)
 
@@ -65,6 +105,7 @@ class RemoteDialTests(WorkspaceTestCase):
         self.addCleanup(self.stop_server)
 
     def stop_server(self) -> None:
+        self.stop_dribble.set()
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=5)
@@ -94,31 +135,148 @@ class RemoteDialTests(WorkspaceTestCase):
                 ).hexdigest()
         self.data = canonical_bytes(snapshot) + b"\n"
 
-    def test_plan_is_offline_content_addressed_and_writes_nothing(self) -> None:
-        with patch(
-            "hive_hub.store._fetch_public_snapshot", side_effect=AssertionError("unapproved")
-        ):
-            plan = self.remote()
-            again = self.remote()
+    def test_plan_pins_one_read_only_snapshot_and_writes_nothing(self) -> None:
+        plan = self.remote()
+        self.assertEqual(self.requests, ["/api/hive-hub/v1/dial-snapshot.json"])
+        again = self.remote()
         self.assertEqual(plan, again)
         body = {key: value for key, value in plan.items() if key != "plan_id"}
         self.assertEqual(plan["plan_id"], content_address(body))
         self.assertEqual(plan["fetches"], [{
             "url": self.base + "api/hive-hub/v1/dial-snapshot.json",
-            "expected_sha256": None,
+            "expected_sha256": hashlib.sha256(self.data).hexdigest(),
             "max_bytes": MAX_JSON_BYTES,
         }])
         self.assertEqual(plan["redirects"], "forbidden")
         self.assertFalse(plan["adapter_execution"])
         self.assertFalse(self.home.exists())
-        self.assertEqual(self.requests, [])
+        self.assertEqual(self.requests, ["/api/hive-hub/v1/dial-snapshot.json"] * 2)
 
-    def test_wrong_or_retargeted_approval_never_fetches_or_writes(self) -> None:
+    def test_changed_snapshot_requires_replanning_before_registration(self) -> None:
+        self.query = self.envelope["coreRecord"]["urls"][0]
+        plan = self.remote()
+        result = self.remote("--apply", plan["plan_id"])
+        self.assertEqual(result["record"], self.envelope["coreRecord"])
+        before = {str(path): path.read_bytes() for path in files_under(self.home)}
+        alternate = copy.deepcopy(self.envelope)
+        fields = {
+            key: value for key, value in alternate["coreRecord"].items()
+            if key not in {"kind", "schema_version", "id"}
+        }
+        fields["name"] += " replacement"
+        core = DialRecord.create(**fields)
+        alternate.update(
+            coreRecord=core.to_dict(), dialId=core.dial_id, displayName=core.name,
+            recordId="replacement-record", aliases=["replacement-record"],
+            chants=[{"role": "candidate-locator-only", "value": derive_chant(core.dial_id)}],
+        )
+        self.set_snapshot({"kind": "published-dial-snapshot", "schema_version": 1,
+                           "records": [{"record": alternate}]}, rehash=True)
+        error = self.remote("--apply", plan["plan_id"], expected=2)
+        self.assertEqual(error["error"]["code"], "validation-error")
+        self.assertIn("re-plan", error["error"]["message"])
+        self.assertEqual(
+            {str(path): path.read_bytes() for path in files_under(self.home)}, before
+        )
+        fresh = self.remote()
+        self.assertNotEqual(fresh["plan_id"], plan["plan_id"])
+        self.assertEqual(
+            fresh["fetches"][0]["expected_sha256"], hashlib.sha256(self.data).hexdigest()
+        )
+        self.assertEqual(self.remote("--apply", fresh["plan_id"])["status"], "ambiguous")
+
+    def test_header_dribble_cannot_extend_the_total_fetch_deadline(self) -> None:
+        children = {process.pid for process in multiprocessing.active_children()}
+        with patch("hive_hub.store.HTTP_FETCH_TIMEOUT_SECONDS", 1):
+            plan = self.remote()
+            self.dribble_headers = True
+            started = time.monotonic()
+            try:
+                error = self.remote("--apply", plan["plan_id"], expected=2)
+            finally:
+                elapsed = time.monotonic() - started
+                self.stop_dribble.set()
+        self.assertTrue(self.dribble_started.is_set())
+        self.assertEqual(error["error"]["code"], "fetch-error")
+        self.assertFalse(self.home.exists())
+        self.assertLess(elapsed, 1.75, f"one-second deadline took {elapsed:.3f}s")
+        self.assertEqual(
+            {process.pid for process in multiprocessing.active_children()}, children
+        )
+
+    def test_dns_is_inside_the_deadline_and_its_worker_is_reaped(self) -> None:
+        children = {process.pid for process in multiprocessing.active_children()}
+        with (
+            patch("hive_hub.store.HTTP_FETCH_TIMEOUT_SECONDS", 1),
+            patch("hive_hub._http_fetch._snapshot_worker", new=_slow_dns_worker),
+        ):
+            started = time.monotonic()
+            error = self.remote(expected=2)
+            elapsed = time.monotonic() - started
+        self.assertEqual(error["error"]["code"], "fetch-error")
+        self.assertLess(elapsed, 1.75)
+        self.assertFalse(self.home.exists())
+        self.assertEqual(self.requests, [])
+        self.assertEqual(
+            {process.pid for process in multiprocessing.active_children()}, children
+        )
+
+    def test_body_read_cannot_reset_the_header_phase_deadline(self) -> None:
+        with patch("hive_hub.store.HTTP_FETCH_TIMEOUT_SECONDS", 1):
+            plan = self.remote()
+            self.header_delay = 0.5
+            self.body_delay = 2.0
+            started = time.monotonic()
+            try:
+                error = self.remote("--apply", plan["plan_id"], expected=2)
+            finally:
+                elapsed = time.monotonic() - started
+                self.stop_dribble.set()
+        self.assertTrue(self.dribble_started.is_set())
+        self.assertEqual(error["error"]["code"], "fetch-error")
+        self.assertLess(elapsed, 1.75)
+        self.assertFalse(self.home.exists())
+
+    def test_all_content_encoding_headers_must_be_identity(self) -> None:
+        plan = self.remote()
+        for values in (
+            ["identity", "gzip"], ["gzip", "identity"], ["identity, gzip"],
+        ):
+            with self.subTest(values=values):
+                self.extra_response_headers = [("Content-Encoding", value) for value in values]
+                error = self.remote("--apply", plan["plan_id"], expected=2)
+                self.assertEqual(error["error"]["code"], "fetch-error")
+                self.assertFalse(self.home.exists())
+
+    def test_duplicate_content_lengths_are_refused(self) -> None:
+        plan = self.remote()
+        self.extra_response_headers = [("Content-Length", str(len(self.data) + 1))]
+        error = self.remote("--apply", plan["plan_id"], expected=2)
+        self.assertEqual(error["error"]["code"], "fetch-error")
+        self.assertFalse(self.home.exists())
+
+    def test_snapshot_pin_binds_raw_bytes_including_whitespace(self) -> None:
+        plan = self.remote()
+        self.data += b"\n"
+        error = self.remote("--apply", plan["plan_id"], expected=2)
+        self.assertEqual(error["error"]["code"], "validation-error")
+        self.assertIn("re-plan", error["error"]["message"])
+        self.assertFalse(self.home.exists())
+        fresh = self.remote()
+        self.assertEqual(self.remote("--apply", fresh["plan_id"])["status"], "resolved")
+
+    def test_wrong_or_retargeted_approval_never_registers(self) -> None:
         plan = self.remote()
         for approval in ("bad", "urn:hivehub:sha256:" + "0" * 64):
             with self.subTest(approval=approval):
+                self.requests.clear()
                 error = self.remote("--apply", approval, expected=2)
                 self.assertIn("does not match", error["error"]["message"])
+                self.assertEqual(
+                    self.requests,
+                    [] if approval == "bad" else ["/api/hive-hub/v1/dial-snapshot.json"],
+                )
+        self.requests.clear()
         self.cli(
             "dial", self.envelope["dialId"], "--from", self.base,
             "--apply", plan["plan_id"], expected=2,
@@ -128,7 +286,10 @@ class RemoteDialTests(WorkspaceTestCase):
             "--apply", plan["plan_id"], expected=2,
         )
         self.assertFalse(self.home.exists())
-        self.assertEqual(self.requests, [])
+        self.assertEqual(self.requests, [
+            "/api/hive-hub/v1/dial-snapshot.json",
+            "/different/api/hive-hub/v1/dial-snapshot.json",
+        ])
 
     def test_approval_pins_a_known_full_record_digest(self) -> None:
         plan = self.cli("dial", self.envelope["dialId"], "--from", self.base)
@@ -145,7 +306,7 @@ class RemoteDialTests(WorkspaceTestCase):
         first_home = self.home
         self.home = self.work / "different-home"
         self.remote("--apply", plan["plan_id"], expected=2)
-        self.assertEqual(self.requests, [])
+        self.assertEqual(self.requests, ["/api/hive-hub/v1/dial-snapshot.json"] * 2)
         self.assertFalse(first_home.exists())
         self.assertFalse(self.home.exists())
 
@@ -154,7 +315,7 @@ class RemoteDialTests(WorkspaceTestCase):
         result = self.remote("--apply", plan["plan_id"])
         self.assertEqual(result["status"], "resolved")
         self.assertEqual(result["record"], self.envelope["coreRecord"])
-        self.assertEqual(self.requests, ["/api/hive-hub/v1/dial-snapshot.json"])
+        self.assertEqual(self.requests, ["/api/hive-hub/v1/dial-snapshot.json"] * 2)
         self.assertFalse((self.home / "books/private").exists())
         hub = HiveHub(self.home)
         with patch(
@@ -176,23 +337,22 @@ class RemoteDialTests(WorkspaceTestCase):
         )
 
     def test_tampered_web_content_address_is_refused_before_writes(self) -> None:
-        plan = self.remote()
         self.snapshot["records"][0]["record"]["summary"] = "tampered"
         self.set_snapshot(self.snapshot)
+        plan = self.remote()
         error = self.remote("--apply", plan["plan_id"], expected=2)
         self.assertIn("content address mismatch", error["error"]["message"])
         self.assertFalse(self.home.exists())
 
     def test_rehashed_envelope_cannot_hide_a_tampered_core_identity(self) -> None:
-        plan = self.remote()
         self.envelope["coreRecord"]["id"] = "urn:hivehub:sha256:" + "0" * 64
         self.set_snapshot(self.snapshot, rehash=True)
+        plan = self.remote()
         error = self.remote("--apply", plan["plan_id"], expected=2)
         self.assertIn("canonical identity body", error["error"]["message"])
         self.assertFalse(self.home.exists())
 
     def test_rehashed_envelope_cannot_replace_dial_id_chant_or_contracts(self) -> None:
-        plan = self.remote()
         for field in ("dialId", "chants", "coreContracts"):
             snapshot = copy.deepcopy(self.snapshot)
             envelope = snapshot["records"][0]["record"]
@@ -204,6 +364,7 @@ class RemoteDialTests(WorkspaceTestCase):
                 envelope[field]["adapter"]["name"] = "substituted"
             with self.subTest(field=field):
                 self.set_snapshot(snapshot, rehash=True)
+                plan = self.remote()
                 self.remote("--apply", plan["plan_id"], expected=2)
                 self.assertFalse(self.home.exists())
 
@@ -240,6 +401,8 @@ class RemoteDialTests(WorkspaceTestCase):
         for data in payloads:
             with self.subTest(length=len(data)):
                 self.data = data
+                if len(data) <= MAX_JSON_BYTES:
+                    plan = self.remote()
                 self.remote("--apply", plan["plan_id"], expected=2)
                 self.assertFalse(self.home.exists())
 
@@ -252,12 +415,12 @@ class RemoteDialTests(WorkspaceTestCase):
         self.assertFalse(self.home.exists())
 
     def test_large_individual_envelope_is_rejected_below_snapshot_cap(self) -> None:
-        plan = self.remote()
         snapshot = copy.deepcopy(self.snapshot)
         snapshot["records"][0]["record"]["extra"] = [
             "x" * (MAX_RECORD_BYTES // 4) for _ in range(5)
         ]
         self.data = canonical_bytes(snapshot)
+        plan = self.remote()
         error = self.remote("--apply", plan["plan_id"], expected=2)
         self.assertEqual(error["error"]["code"], "limit-exceeded")
         self.assertFalse(self.home.exists())
@@ -315,35 +478,126 @@ class RemoteDialTests(WorkspaceTestCase):
         self.assertEqual(len(HiveHub(self.home).public_book.records()), 2)
 
     def test_legacy_labels_cannot_impersonate_a_published_derived_chant(self) -> None:
-        original = copy.deepcopy(self.snapshot)
         original_chant = self.query
+        for index, label in enumerate((original_chant, "acme bank support desk")):
+            for query_kind in ("id", "url"):
+                with self.subTest(label=label, query_kind=query_kind):
+                    self.home = self.work / f"squatting-{index}-{query_kind}"
+                    alternate = copy.deepcopy(self.envelope)
+                    fields = {
+                        key: value for key, value in alternate["coreRecord"].items()
+                        if key not in {"kind", "schema_version", "id"}
+                    }
+                    fields["chants"] = [label]
+                    core = DialRecord.create(**fields)
+                    self.assertNotEqual(derive_chant(core.dial_id), label)
+                    alternate.update(
+                        coreRecord=core.to_dict(), dialId=core.dial_id,
+                        chants=[{"role": "candidate-locator-only",
+                                 "value": derive_chant(core.dial_id)}],
+                    )
+                    self.set_snapshot(
+                        {"kind": "published-dial-snapshot", "schema_version": 1,
+                         "records": [{"record": alternate}]}, rehash=True,
+                    )
+                    self.query = core.dial_id if query_kind == "id" else core.urls[0]
+                    plan = self.remote()
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        code = main([
+                            "--home", str(self.home), "dial", self.query, "--from", self.base,
+                            "--apply", plan["plan_id"],
+                        ])
+                    created_home = self.home.exists()
+                    offline = HiveHub(self.home).dial(label, scope="public")
+                    self.assertEqual(offline.status, "unreachable", "squatting survived offline")
+                    self.assertEqual(code, 2, stdout.getvalue() or stderr.getvalue())
+                    self.assertFalse(created_home)
+
+    def test_import_urls_must_match_the_published_locator(self) -> None:
+        for index, urls in enumerate((
+            ["https://unrelated.invalid/claimed-hive"],
+            self.envelope["coreRecord"]["urls"][:-1],
+        )):
+            with self.subTest(urls=urls):
+                self.home = self.work / f"url-mismatch-{index}"
+                alternate = copy.deepcopy(self.envelope)
+                fields = {
+                    key: value for key, value in alternate["coreRecord"].items()
+                    if key not in {"kind", "schema_version", "id"}
+                }
+                fields["urls"] = urls
+                core = DialRecord.create(**fields)
+                alternate.update(
+                    coreRecord=core.to_dict(), dialId=core.dial_id,
+                    chants=[{"role": "candidate-locator-only",
+                             "value": derive_chant(core.dial_id)}],
+                )
+                self.set_snapshot(
+                    {"kind": "published-dial-snapshot", "schema_version": 1,
+                     "records": [{"record": alternate}]}, rehash=True,
+                )
+                self.query = core.dial_id
+                plan = self.remote()
+                self.remote("--apply", plan["plan_id"], expected=2)
+                self.assertFalse(self.home.exists())
+
+    def test_invalid_chant_candidate_blocks_the_entire_url_import(self) -> None:
         alternate = copy.deepcopy(self.envelope)
         fields = {
             key: value for key, value in alternate["coreRecord"].items()
             if key not in {"kind", "schema_version", "id"}
         }
-        fields["chants"] = [original_chant]
+        fields["chants"] = [self.query]
         core = DialRecord.create(**fields)
-        self.assertNotEqual(derive_chant(core.dial_id), original_chant)
         alternate.update(
             coreRecord=core.to_dict(), dialId=core.dial_id,
             chants=[{"role": "candidate-locator-only", "value": derive_chant(core.dial_id)}],
         )
-        self.snapshot["records"] = [{"record": alternate}]
-        self.set_snapshot(self.snapshot, rehash=True)
+        self.set_snapshot(
+            {"kind": "published-dial-snapshot", "schema_version": 1,
+             "records": [self.snapshot["records"][0], {"record": alternate}]},
+            rehash=True,
+        )
+        self.query = core.urls[0]
         plan = self.remote()
-        self.assertEqual(self.remote("--apply", plan["plan_id"])["status"], "unreachable")
+        self.remote("--apply", plan["plan_id"], expected=2)
         self.assertFalse(self.home.exists())
 
-        self.query = core.dial_id
-        plan = self.remote()
-        self.assertEqual(self.remote("--apply", plan["plan_id"])["record"]["id"], core.id)
-        self.query = original_chant
-        self.set_snapshot(original)
-        plan = self.remote()
-        result = self.remote("--apply", plan["plan_id"])
-        self.assertEqual(result["status"], "resolved")
-        self.assertEqual(result["record"], self.envelope["coreRecord"])
+    def test_published_presentation_fields_follow_schema_rules(self) -> None:
+        cases = [
+            ("recordId", {}, None), ("recordId", "", None),
+            ("aliases", ["invalid alias"], None), ("aliases", [], None),
+            ("aliases", {"label": "object"}, None),
+            ("protocolFingerprint", 7, None),
+            ("protocolFingerprint", "sha256:" + "0" * 64, None),
+            ("chantProtocolFingerprint", "sha256:" + "0" * 64, None),
+            ("$schema", "file:///etc/passwd", None),
+        ]
+        for name in ("protocol", "learningBundle", "conformance", "adapter", "chantProtocol"):
+            for field, invalid in (
+                ("path", "../../etc/passwd"), ("path", "/absolute/file"),
+                ("path", r"relative\file.json"), ("path", "%2e%2e/secret"),
+                ("url", "file:///etc/passwd"), ("url", "http://example.test/plaintext"),
+                ("url", "https://example.test/unrelated.json"), ("ref", 7),
+            ):
+                cases.append((name, invalid, field))
+        for index, (name, invalid, nested) in enumerate(cases):
+            with self.subTest(name=name, nested=nested, invalid=invalid):
+                self.home = self.work / f"invalid-presentation-{index}"
+                alternate = copy.deepcopy(self.envelope)
+                if nested:
+                    alternate[name][nested] = invalid
+                else:
+                    alternate[name] = invalid
+                self.set_snapshot(
+                    {"kind": "published-dial-snapshot", "schema_version": 1,
+                     "records": [{"record": alternate}]}, rehash=True,
+                )
+                self.query = alternate["dialId"]
+                plan = self.remote()
+                self.remote("--apply", plan["plan_id"], expected=2)
+                self.assertFalse(self.home.exists())
 
     def test_registration_failure_rolls_back_only_new_files(self) -> None:
         plan = self.remote()

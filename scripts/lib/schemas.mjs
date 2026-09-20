@@ -206,6 +206,7 @@ export function createSchemas(schemaBaseUrl) {
         learningBundle: descriptor,
         locator: { type: "object" },
         protocol: descriptor,
+        protocolFingerprint: sha256Ref,
         recordId: nonEmptyString,
         visibility: { const: "public" }
       }

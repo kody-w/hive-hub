@@ -23,8 +23,9 @@ locators—not authority.
 - Protocol-neutral `hive-hub-chant/1` derivation from the UTF-8 full Dial
   Record ID. Published envelopes carry one derived seven-word chant;
   `dial:sha256:` and `urn:hivehub:sha256:` share the same identity digest.
-- Plan-first public discovery and local subscriptions. `dial --from` performs
-  its one bounded fetch only after exact digest approval. Other clone,
+- Plan-first public registration and local subscriptions. `dial --from` makes
+  one bounded read-only GET to pin the snapshot before returning a plan.
+  Applying refetches and requires the same bytes before any registration. Other clone,
   authentication, fetch, write, and execution effects remain inert adapter
   plans requiring separate approval.
 - Existing source ACLs remain mandatory for private access.
@@ -69,7 +70,7 @@ new chant.
 CHANT="GORSE QUAY DUSK QUILL THICKET DELTA QUARTZ"
 HUB="https://kody-w.github.io/hive-hub/"
 
-# No request and no state-directory creation: inspect the returned plan.
+# One read-only GET, no state-directory creation: inspect the returned plan.
 PLAN="$(hive-hub dial "$CHANT" --from "$HUB")"
 printf '%s\n' "$PLAN"
 
@@ -81,15 +82,19 @@ hive-hub dial "$CHANT" --from "$HUB" --apply "$PLAN_ID"
 hive-hub dial "$CHANT" --scope public
 ```
 
-The first invocation plans a single GET of
-`<HUB>/api/hive-hub/v1/dial-snapshot.json`. Applying verifies every envelope's
+The first invocation reads `<HUB>/api/hive-hub/v1/dial-snapshot.json` once and
+binds its exact byte SHA-256 in the returned plan, without writing state.
+Applying makes one more bounded GET and refuses changed bytes with a request
+to re-plan; it never silently registers a newer snapshot. It verifies every envelope's
 byte address, its closed core identity, its derived chant, and its matching
 inert protocol/bundle/adapter contracts before registering only the matching
 public candidates. It follows no descriptor links and executes nothing.
 Redirects are refused, including same-host redirects. HTTPS is required except
-for explicit loopback development URLs. The mutable snapshot's byte digest is
-not known offline and is shown as `null`; a full-ID query additionally pins the
-expected record identity. Chants remain collisionable locators, not authority.
+for explicit loopback development URLs. Each request has one 15-second total
+deadline across DNS/connect, TLS, headers, and body. A full-ID query additionally
+pins the expected record identity. Chants remain collisionable locators, not authority.
+Planning contacts the explicitly supplied origin, so it requires connectivity
+and reveals that read to the origin; ordinary local dialing remains offline.
 
 For a local publisher, run `npm run build:site` and
 `python3 -m http.server 8123 --bind 127.0.0.1 -d site` in its checkout, then set
@@ -162,17 +167,23 @@ hive-hub schema show CONTRACT
 ```python
 from hive_hub import HiveHub, dial_from_public_hub, public_dial_plan
 
-hub = HiveHub("state")
-chant = "gorse-quay-dusk-quill-thicket-delta-quartz"
-origin = "https://kody-w.github.io/hive-hub/"
-plan = public_dial_plan(hub.home, chant, origin)  # Offline; no writes.
-print(plan)  # Review before approving.
-result = dial_from_public_hub(
-    hub.home, chant, origin, apply=plan["plan_id"]
-)
-print(result["status"])
-local_result = hub.dial(chant, scope="public")  # No implicit fetch.
+if __name__ == "__main__":
+    hub = HiveHub("state")
+    chant = "gorse-quay-dusk-quill-thicket-delta-quartz"
+    origin = "https://kody-w.github.io/hive-hub/"
+    plan = public_dial_plan(hub.home, chant, origin)  # One read-only GET; no writes.
+    print(plan)  # Review before approving.
+    result = dial_from_public_hub(
+        hub.home, chant, origin, apply=plan["plan_id"]
+    )
+    print(result["status"])
+    local_result = hub.dial(chant, scope="public")  # No implicit fetch.
 ```
+
+Run public-fetch API calls from an importable script with the usual
+`__main__` guard: a disposable spawned worker enforces the cross-platform
+deadline even while DNS or HTTP headers are blocked. Only installed local
+fetch code runs there; downloaded content is never executed.
 
 `derive_chant`, `normalize_chant`, `verify_chant`, `learn_protocol`,
 `register_adapter`, `register_local_record`,

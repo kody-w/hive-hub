@@ -1004,8 +1004,7 @@ class DialRecord:
 
     @property
     def index_chants(self) -> tuple[str, ...]:
-        """Keep bounded legacy label arrays intact; derive an empty index view."""
-        return self.chants or (derive_chant(self.dial_id),)
+        return tuple(sorted({*self.chants, derive_chant(self.dial_id)}))
 
     @staticmethod
     def _body(
@@ -1694,6 +1693,7 @@ class DialIndexEntry:
 
     @classmethod
     def from_record(cls, record: DialRecord) -> DialIndexEntry:
+        chants = tuple(_array(list(record.index_chants), field="indexed chants"))
         return cls(
             id=record.id,
             name=record.name,
@@ -1701,7 +1701,7 @@ class DialIndexEntry:
             learning_bundle_address=record.learning_bundle_address,
             adapter_registration_address=record.adapter_registration_address,
             urls=record.urls,
-            chants=record.index_chants,
+            chants=chants,
         )
 
     @classmethod

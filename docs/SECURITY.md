@@ -2,7 +2,8 @@
 
 Hive Hub core is local-first. It contains no credential broker, repository
 client, or code executor. Public discovery has one explicit, lazily loaded
-stdlib HTTP client; ordinary dialing and planning remain offline.
+stdlib HTTP client; ordinary local dialing and subscription planning remain
+offline. Explicit public-discovery planning performs a read-only snapshot GET.
 
 ## Authority boundaries
 
@@ -50,7 +51,7 @@ persisted core contract.
 ## Filesystem and parser controls
 
 - absolute storage root opened component-by-component with no-follow flags;
-- safe relative internal paths with bounded depth;
+- safe relative internal paths with bounded depth and 255-byte components;
 - regular files only and no symlink traversal;
 - bounded bytes, JSON depth, object members, arrays, and collection counts;
 - duplicate JSON key and floating-point refusal;
@@ -58,7 +59,8 @@ persisted core contract.
 - atomic no-replace writes and byte-address verification before reversal;
 - cross-platform per-record interprocess locking around private record and
   policy registration, including rollback;
-- no downloaded-code imports, `eval`, `exec`, shell commands, or subprocesses.
+- no downloaded-code imports, `eval`, `exec`, or shell commands; the bounded
+  HTTP worker runs only locally installed code.
 
 The core does not claim resistance to a hostile process with equal operating
 system privileges. Hosts should apply normal directory ownership and
@@ -66,26 +68,45 @@ permissions.
 
 ## Approved public discovery
 
-`dial --from` first returns a content-addressed plan without requests or writes.
-Its exact digest is required to perform the single bounded snapshot GET and
-inert public registration. Base URL, query, destination, limits, and effect
-policy all participate in the digest. It never reads private/local dialbooks,
+`dial --from` first performs one read-only GET and returns a content-addressed
+plan without writes. The snapshot's exact byte SHA-256, base URL, query,
+destination, limits, and effect policy all participate in the plan digest.
+Apply refetches once and compares the recomputed plan with the approved digest,
+refusing changed bytes before registration and requiring a new plan. This
+avoids registering content that appeared only after approval.
+Neither phase reads private/local dialbooks,
 uses proxy credentials, follows redirects, or follows pointers in the response.
 TLS verification remains enabled; plaintext HTTP is limited to explicit
 loopback development hosts.
 
-The initial snapshot is mutable discovery data: its byte digest is unknown
-before the approved request. Envelope byte hashes, unchanged core identity
+The snapshot is mutable discovery data, pinned by the planning read, not an
+authenticated statement of publisher authority. Envelope byte hashes, unchanged core identity
 bodies, derived chants, artifact hashes, and exact contract relationships are
 verified before any registration. A full-ID query pins a record digest; a
 chant alone provides only candidate discovery, not publisher authenticity or
 authorization. Registration grants no execution permission.
 
+Public imports reject core chant labels other than the exact ID-derived chant
+and require the core URL list to match the locator projection. Presentation
+record IDs/aliases, fingerprints, and descriptor path/URL/ref values are typed
+and validated; valid display labels still do not prove ownership of a name.
+Existing locally authored legacy records retain their label semantics. This
+is not a retroactive purge or authorization claim about old public-book data.
+
 The response and each envelope retain the core's byte/collection/depth limits.
-Compressed responses, duplicate keys, floats, and unexpected contract fields
+Every Content-Encoding header is checked, and ambiguous Content-Length headers
+are refused. Compressed responses, duplicate keys, floats, and unexpected contract fields
 are rejected. Writes are content-addressed, no-replace, and serialized for
 public imports; a failed import rolls back only its newly created files.
 Existing local content is never overwritten.
+
+One wall-clock deadline covers the whole request, including blocking DNS,
+connection/TLS, status line, headers, and body. A disposable spawned worker
+isolates only the installed stdlib fetch implementation. On expiry it is
+terminated and reaped, rather than leaving a daemon thread fetching after the
+CLI has returned. The worker does not write files, register records, or execute
+downloaded text. Python API callers use the normal `__main__`-guarded script
+pattern required by process spawning.
 
 ## Universal skill network and execution boundary
 
