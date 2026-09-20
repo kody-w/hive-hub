@@ -77,10 +77,12 @@ a subscription on your device.
   learning bundle, conformance contract, and inert adapter by SHA-256.
   Downloaded instructions and code stay inert; execution needs separate
   verification and approval.
-- **Approval before discovery effects.** Public `dial --from` is offline until
-  you approve its exact plan. Applying makes one bounded fetch, refuses
-  redirects, and registers only verified matching public candidates.
-  Subscription writes are reversible; adapter effects are not executed.
+- **Approval before discovery effects.** Public `dial --from` writes nothing
+  until you approve its exact plan. Planning makes one bounded read-only GET
+  and pins the snapshot's byte digest into the plan; applying refetches and
+  refuses to proceed if those bytes changed. It refuses redirects and
+  registers only verified matching public candidates. Subscription writes are
+  reversible; adapter effects are not executed.
 - **Your existing access stays in charge.** Private Hives use their source's
   ACLs. Hive Hub adds no collaborators and brokers no credentials. Optional
   `acl+qr` is a second factor after ACL, never a substitute for it.

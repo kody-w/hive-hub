@@ -89,9 +89,12 @@ someone else's output. Review these fields:
 | `registration.scope` / `registration.contracts` | `public` / `inert-only` |
 | `registration.overwrite` / `adapter_execution` | `false` / `false` |
 
-There has been no network request or Hive Hub state write. The shell has
-saved only `dial-plan.json`. Chants can collide; the full record ID below is
-what identifies the laboratory we intend to join.
+Nothing has been written: no Hive Hub state, no home directory. Planning did
+make one bounded read-only GET so it could pin the snapshot's byte digest into
+the plan — that is what makes your approval bind these exact bytes rather than
+whatever the origin serves later. The shell has saved only `dial-plan.json`.
+Chants can collide; the full record ID below is what identifies the laboratory
+we intend to join.
 
 ## 3. Approve the fetch and check the result
 

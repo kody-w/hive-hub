@@ -92,9 +92,11 @@ byte address, its closed core identity, its derived chant, and its matching
 inert protocol/bundle/adapter contracts before registering only the matching
 public candidates. It follows no descriptor links and executes nothing.
 Redirects are refused, including same-host redirects. HTTPS is required except
-for explicit loopback development URLs. The mutable snapshot's byte digest is
-not known offline and is shown as `null`; a full-ID query additionally pins the
-expected record identity. Chants remain collisionable locators, not authority.
+for explicit loopback development URLs. Planning pins the snapshot's byte
+digest in `fetches[].expected_sha256`; applying refetches once and refuses
+changed content before any write, requiring a fresh plan. A full-ID query
+additionally pins the expected record identity. Chants remain collisionable
+locators, not authority.
 
 For a local publisher, run `npm run build:site` and
 `python3 -m http.server 8123 --bind 127.0.0.1 -d site` in its checkout, then set
