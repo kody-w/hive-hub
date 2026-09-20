@@ -218,11 +218,11 @@ class RemoteDialTests(WorkspaceTestCase):
                 with self.subTest(status=status, target=target):
                     self.response_status = status
                     self.response_headers = {"Location": target}
+                    self.requests.clear()
                     error = self.remote("--apply", plan["plan_id"], expected=2)
-                    self.assertIn("redirect", error["error"]["message"])
-        self.assertTrue(all(path.endswith("/dial-snapshot.json") for path in self.requests))
-        self.assertEqual(len(self.requests), 10)
-        self.assertFalse(self.home.exists())
+                    self.assertEqual(error["error"]["code"], "fetch-error")
+                    self.assertEqual(self.requests, ["/api/hive-hub/v1/dial-snapshot.json"])
+                    self.assertFalse(self.home.exists())
 
     def test_unknown_duplicate_float_and_oversized_json_stay_rejected(self) -> None:
         plan = self.remote()
