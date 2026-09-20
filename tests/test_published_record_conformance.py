@@ -4,7 +4,7 @@ import unittest
 
 from hive_hub.canonical import address_digest, canonical_bytes, content_address, loads_json
 from hive_hub.chant import derive_chant
-from hive_hub.contracts import DialRecord
+from hive_hub.contracts import AIJoinCard, DialRecord
 from hive_hub.limits import MAX_RECORD_BYTES
 from hive_hub.published import PublishedRecord
 
@@ -77,6 +77,24 @@ class PublishedRecordConformanceTests(unittest.TestCase):
             self.assertEqual(matching[0].read_bytes(), raw)
             archived.add(matching[0])
         self.assertEqual(paths, active | archived, "an emitted record escaped the oracle")
+
+    def test_every_published_camera_card_binds_the_same_canonical_record(self) -> None:
+        index = loads_json((PROJECT_ROOT / "api/hive-hub/v1/cards/index.json").read_bytes())
+        self.assertGreater(len(index["cards"]), 0)
+        for entry in index["cards"]:
+            with self.subTest(card=entry["card"]["path"]):
+                web = loads_json((PROJECT_ROOT / entry["card"]["path"]).read_bytes())
+                envelope = loads_json((PROJECT_ROOT / web["record"]["path"]).read_bytes())
+                record = DialRecord.from_dict(envelope["coreRecord"])
+                raw = (PROJECT_ROOT / entry["cameraAiCard"]["path"]).read_bytes()
+                card = AIJoinCard.from_dict(loads_json(raw))
+                self.assertEqual(card.locator, record.dial_id)
+                self.assertEqual(card.locator, web["dialId"])
+                self.assertEqual(web["cameraAiCard"], entry["cameraAiCard"])
+                self.assertEqual(
+                    entry["cameraAiCard"]["ref"],
+                    "sha256:" + address_digest(content_address(raw, raw=True)),
+                )
 
 
 if __name__ == "__main__":

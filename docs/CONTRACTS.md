@@ -121,12 +121,18 @@ following of URLs in downloaded documents.
 
 The locked Agent Skill's older dialbook is a separate compatibility format,
 not the canonical core identity. Published cards name its unchanged locator
-as `legacySkillDialId`; their `dialId` and displayed chant use the core
-identity. Camera cards still address that locked compatibility runner.
+as `legacySkillDialId` and its separately referenced card as `legacySkillCard`.
+The primary `cameraAiCard.locator`, public `dialId`, and core record's
+`dial:sha256:` spelling all agree. Changing a camera-card locator recomputes
+both its closed-contract `card_id` and its web byte address before emitting
+the card references and QR. Canonical camera cards target the core client;
+only the explicit legacy card targets the older locked runner.
 Previously published receipt subjects remain byte-exact historical objects,
 outside the active dialbook. The conformance oracle checks every active
 record against the core; receipt and content-hash checks protect the archived
 publication without pretending it originally contained `coreRecord`.
+The all-card oracle also validates every emitted canonical camera card through
+`AIJoinCard.from_dict` and checks its binding to the corresponding core record.
 
 ### `public-dialbook-index` and `private-dialbook-index`
 

@@ -35,7 +35,7 @@
         }
         document.getElementById("machine-readable").textContent = JSON.stringify(result, null, 2);
         document.getElementById("machine-section").hidden = false;
-        status.textContent = "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill.";
+        status.textContent = "Core camera-AI join card verified. Resolve its locator with the matching Hive Hub client.";
         return;
       }
       assertPublicCard(card);

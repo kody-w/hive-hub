@@ -325,6 +325,21 @@ function validateSkillDeclaration(document) {
   assert(document.extensions?.authority === false, "Skill declaration must not claim authority");
 }
 
+function coreCardIdentity(document) {
+  const body = {
+    kind: "ai-join-card-body",
+    schema_version: 1,
+    principal: document.principal,
+    locator: document.locator,
+    expected_record_id: null,
+    expected_protocol_fingerprint: null,
+    adapter_plan: null,
+    issued_at: document.issued_at
+  };
+  const bodyDigest = sha256Bytes(Buffer.from(canonicalJson(body).trimEnd()));
+  return `urn:hivehub:sha256:${bodyDigest}`;
+}
+
 function validateCoreCard(document) {
   const keys = Object.keys(document).sort().join(",");
   assert(
@@ -338,19 +353,8 @@ function validateCoreCard(document) {
     document.expected_record_id === null && document.expected_protocol_fingerprint === null,
     "Public camera card cannot claim undeclared core identities"
   );
-  const body = {
-    kind: "ai-join-card-body",
-    schema_version: 1,
-    principal: document.principal,
-    locator: document.locator,
-    expected_record_id: null,
-    expected_protocol_fingerprint: null,
-    adapter_plan: null,
-    issued_at: document.issued_at
-  };
-  const bodyDigest = sha256Bytes(Buffer.from(canonicalJson(body).trimEnd()));
   assert(
-    document.card_id === `urn:hivehub:sha256:${bodyDigest}`,
+    document.card_id === coreCardIdentity(document),
     "Core AI join card id does not match its canonical body"
   );
 }
@@ -560,7 +564,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     immutableObjects.push(object);
   }
 
-  const coreCards = new Map();
+  const legacyCoreCards = new Map();
   for (const entry of grouped.get("core-card")) {
     validateCoreCard(entry.document);
     const stored = await writeRawContentObject(writer, {
@@ -570,7 +574,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       siteBaseUrl
     });
     const object = contentObject("core-card", entry.declaration.id, stored);
-    coreCards.set(object.id, object);
+    legacyCoreCards.set(object.id, object);
     immutableObjects.push(object);
   }
 
@@ -811,6 +815,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   );
 
   const cards = [];
+  const coreCards = new Map();
   const cardIds = new Set();
   for (const declaration of manifest.cards) {
     assert(!cardIds.has(declaration.cardId), `Duplicate card id ${declaration.cardId}`);
@@ -821,15 +826,15 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       `Public card ${declaration.cardId} contains unsupported fields`
     );
     const record = assertReference(objects, declaration.recordId, "record", declaration.cardId);
-    const coreCard = coreCards.get(declaration.coreCardId);
+    const legacyCoreCard = legacyCoreCards.get(declaration.coreCardId);
     const skillDeclaration = skillDeclarations.get(declaration.skillDeclarationId);
-    assert(coreCard, `Card ${declaration.cardId} references an unknown core card`);
+    assert(legacyCoreCard, `Card ${declaration.cardId} references an unknown core card`);
     assert(
       skillDeclaration,
       `Card ${declaration.cardId} references an unknown skill declaration`
     );
     assert(
-      coreCard.document.locator === declaration.skillDialId,
+      legacyCoreCard.document.locator === declaration.skillDialId,
       `Card ${declaration.cardId} core locator does not match its locked skill Dial ID`
     );
     assert(
@@ -840,6 +845,22 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       record.document.aliases.includes(declaration.slug),
       `Card ${declaration.cardId} slug is not a declared display/search alias`
     );
+    const coreDocument = {
+      ...legacyCoreCard.document,
+      locator: record.document.dialId
+    };
+    coreDocument.card_id = coreCardIdentity(coreDocument);
+    validateCoreCard(coreDocument);
+    const coreStored = await writeRawContentObject(writer, {
+      apiPath,
+      category: "cards/core",
+      document: coreDocument,
+      siteBaseUrl
+    });
+    const coreCard = contentObject("core-card", declaration.coreCardId, coreStored);
+    assert(!coreCards.has(coreCard.id), "Each canonical camera card must have its own id");
+    coreCards.set(coreCard.id, coreCard);
+    immutableObjects.push(coreCard);
     const cardDocument = {
       adapter: record.document.adapter,
       api: {
@@ -861,6 +882,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
       kind: "ai-join-card",
       dialId: record.document.dialId,
       legacySkillDialId: declaration.skillDialId,
+      legacySkillCard: legacyCoreCard.descriptor,
       fullDialIdVerificationRequired: true,
       learningBundle: record.document.learningBundle,
       protocol: record.document.protocol,
@@ -1287,6 +1309,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
   const joinAiDocument = {
     apiIndex: publicUrl(siteBaseUrl, `${apiPath}/index.json`),
     cameraAiCard: laboratoryCard.cameraAiCard.descriptor,
+    legacySkillCard: laboratoryCard.document.legacySkillCard,
     organizationSeeds: seedsIndex.descriptor,
     globalSkill: networkSkillDescriptor,
     coreSchemas: coreSchemasIndex.descriptor,
@@ -1407,6 +1430,7 @@ export async function buildStaticSurface({ manifestPath, outDir }) {
     dialbookUrl: dialbook.descriptor.url,
     exampleRecord: laboratoryCard.record.descriptor,
     cameraAiCard: laboratoryCard.cameraAiCard.descriptor,
+    legacySkillCard: laboratoryCard.document.legacySkillCard,
     organizationSeedsUrl: seedsIndex.descriptor.url,
     globalSkillUrl: networkSkillDescriptor.url,
     joinAiUrl: joinAi.descriptor.url,

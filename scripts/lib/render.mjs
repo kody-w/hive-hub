@@ -307,7 +307,7 @@ export function renderJoinJavaScript() {
         }
         document.getElementById("machine-readable").textContent = JSON.stringify(result, null, 2);
         document.getElementById("machine-section").hidden = false;
-        status.textContent = "Core camera-AI join card verified. Pass the exact JSON to the Hive Hub skill.";
+        status.textContent = "Core camera-AI join card verified. Resolve its locator with the matching Hive Hub client.";
         return;
       }
       assertPublicCard(card);
@@ -993,6 +993,7 @@ footer {
 export function renderLlmsText({
   apiIndexUrl,
   cameraAiCard,
+  legacySkillCard,
   dialbookUrl,
   exampleRecord,
   organizationSeedsUrl,
@@ -1013,6 +1014,7 @@ Standalone global network skill: ${globalSkillUrl}
 Machine join instructions: ${joinAiUrl}
 Integrated 0.1.1 release: ${release.url} (${release.ref})
 Core camera-AI join card: ${cameraAiCard.url} (${cameraAiCard.ref})
+Legacy locked-skill compatibility card: ${legacySkillCard.url} (${legacySkillCard.ref})
 Example immutable Dial Record: ${exampleRecord.url}
 Example Dial Record fingerprint: ${exampleRecord.ref}
 
@@ -1033,6 +1035,7 @@ Example Dial Record fingerprint: ${exampleRecord.ref}
 
 - index.json discovers current indexes and schemas.
 - dialbook.json maps chants and display/search aliases to separate candidate arrays.
+- cameraAiCard uses the same canonical locator as its public card and record; legacySkillCard is a separate compatibility route for the older locked runner.
 - buckets/index.json routes SHA-256 records across deterministic shards.
 - federation/index.json and federation/buckets.json union candidate indexes without creating authority.
 - hashes.json validates generated public files.

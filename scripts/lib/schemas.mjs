@@ -97,6 +97,7 @@ export function createSchemas(schemaBaseUrl) {
         aliases: { items: alias, minItems: 1, type: "array" },
         api: { type: "object" },
         cardId: nonEmptyString,
+        cameraAiCard: descriptor,
         chant: {
           properties: {
             protocol: { const: CHANT_PROTOCOL },
@@ -108,6 +109,8 @@ export function createSchemas(schemaBaseUrl) {
         },
         classification: { const: "public-locator-only" },
         dialId,
+        legacySkillCard: descriptor,
+        legacySkillDialId: dialId,
         fullDialIdVerificationRequired: { const: true },
         kind: { const: "ai-join-card" },
         record: descriptor,

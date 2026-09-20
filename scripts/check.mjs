@@ -454,11 +454,31 @@ export async function checkStaticSurface({ root, manifestPath }) {
       card.cameraAiCard.ref === cardEntry.cameraAiCard.ref,
       "Web card and card index disagree about the camera AI card"
     );
+    assert(card.dialId === coreCard.locator, "Public card and core locator disagree");
+    const { card_id, ...coreFields } = coreCard;
+    const coreBody = { ...coreFields, kind: "ai-join-card-body" };
+    assert(
+      card_id === `urn:hivehub:sha256:${sha256Bytes(Buffer.from(canonicalJson(coreBody).slice(0, -1)))}`,
+      "Camera AI card id does not match its corrected locator"
+    );
+    const legacyCard = jsonDocuments.get(card.legacySkillCard.path);
+    assert(
+      legacyCard.locator === card.legacySkillDialId,
+      "Legacy skill card does not match its separate compatibility locator"
+    );
     assert(files.has(cardEntry.cameraQr.path), "Camera AI QR SVG is missing");
     if (record.locator.provider === "static-seed") {
       assert(card.seed?.ref === record.locator.seed.ref, "Join card selected a different seed");
     }
   }
+  const joinInstructions = jsonDocuments.get("hub/join/ai.json");
+  const laboratoryCard = cardsIndex.cards
+    .map((entry) => jsonDocuments.get(entry.card.path))
+    .find((card) => card.cardId === "hive-hub-public-lab-public");
+  assert(
+    joinInstructions.cameraAiCard.ref === laboratoryCard.cameraAiCard.ref,
+    "Join instructions do not select the canonical laboratory camera card"
+  );
   const seedsIndex = jsonDocuments.get(`${manifest.build.apiPath}/organization-seeds.json`);
   assert(seedsIndex?.count === 10 && seedsIndex.seeds.length === 10, "Expected exactly ten seeds");
   assert(

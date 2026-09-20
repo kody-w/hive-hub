@@ -472,6 +472,11 @@ edits.
 
 ## Gates
 
+The complete static gate invokes the locked skill and therefore needs Python
+3.11+ as `python3` (or via `PYTHON` for child processes). The core and adapter
+CI suites also run on Python 3.10; the locked skill's isolation/version gate is
+not bypassed for that interpreter.
+
 ```console
 npm run verify
 ```
@@ -482,7 +487,9 @@ runtime restrictions, CSP/referrer metadata, basic accessibility, public-input
 isolation, exact example revision, and byte-for-byte reproducibility. Both CI
 workflows also run `tests.test_published_record_conformance` against the built
 records; the JavaScript suite independently checks the same identity and chant
-binding. Historical receipt subjects remain immutable rather than being
+binding, every primary camera-card locator, and the unchanged CI HTTP smoke
+script on a fresh ephemeral loopback port. Historical receipt subjects remain
+immutable rather than being
 rewritten to pretend they used the new encoding.
 
 ## Universal Agent Skill
@@ -502,11 +509,11 @@ JSON. An optional workspace address can accompany any request. Chant candidates
 are accepted only when their complete verified declaration carries the same
 Dial Record ID; repository slugs are not chants.
 
-The locked skill retains its legacy dialbook identity format. Generated camera
-cards keep that compatibility locator, explicitly named `legacySkillDialId` in
-the web card. The new canonical CLI IDs/chants are not aliases in that older
-runner; use the supplied camera card for it, or the wheel's `dial --from` path
-for canonical core discovery.
+The locked skill retains its legacy dialbook identity format. Primary generated
+camera cards use the same canonical locator as their public card and core
+record; use the wheel's `dial --from` path for those IDs/chants. For the older
+runner, the web card separately references `legacySkillCard`, whose locator is
+`legacySkillDialId`. Canonical IDs are not silently treated as legacy aliases.
 
 The locked Python 3.11+ runner uses only the standard library and must run with
 isolated mode:
