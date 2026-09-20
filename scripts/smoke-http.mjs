@@ -82,7 +82,10 @@ async function main() {
   );
   assert(release.version === "0.1.1", "release version failed");
   assert(wellKnown.release.ref === releaseIndex.current.ref, "well-known release link failed");
-  assert(joinHtml.includes("Verify this locator before you dial."), "join page failed");
+  assert(
+    joinHtml.includes('data-verification-warning="required"'),
+    "join page is missing its verify-before-you-join warning"
+  );
   process.stdout.write("local HTTP static smoke passed\n");
 }
 
