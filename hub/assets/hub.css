@@ -57,6 +57,7 @@ a {
 
 a:focus-visible,
 button:focus-visible,
+summary:focus-visible,
 [tabindex]:focus-visible {
   outline: 3px solid #ffbf47;
   outline-offset: 3px;
@@ -114,6 +115,49 @@ section + section {
 
 .hero {
   max-width: 64rem;
+}
+
+.dial-layout {
+  padding-top: clamp(1.5rem, 4vw, 3rem);
+}
+
+.dial-layout .hero h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  max-width: none;
+}
+
+.chant {
+  color: var(--accent-strong);
+  font-size: clamp(1.9rem, 4.7vw, 3.7rem);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  margin-block: 1rem;
+  text-wrap: balance;
+}
+
+.command-label {
+  margin-bottom: 0.5rem;
+}
+
+.dial-command {
+  font-size: 0.9rem;
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.dial-help {
+  color: var(--muted);
+  margin-top: 1.25rem;
+}
+
+.dial-help summary {
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.dial-help p {
+  max-width: 72ch;
 }
 
 .eyebrow {

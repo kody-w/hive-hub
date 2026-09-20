@@ -15,6 +15,8 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath, seedCards = 
   const repositoryUrl = escapeHtml(record.locator.repositoryUrl);
   const revision = escapeHtml(record.locator.revision);
   const chant = escapeHtml(record.chants[0].value);
+  const spokenChant = escapeHtml(record.chants[0].value.replaceAll("-", " ").toUpperCase());
+  const hubUrl = escapeHtml(new URL("./", card.api.llms).href);
   const dialId = escapeHtml(record.dialId);
   const alias = escapeHtml(record.aliases[0]);
   return `<!doctype html>
@@ -23,7 +25,7 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath, seedCards = 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     ${SECURITY_META}
-    <meta name="description" content="Protocol-neutral Hive discovery through a deterministic static API.">
+    <meta name="description" content="Find a Hive with seven words. Try the public laboratory, verify its rules, and plan a local join for yourself or your AI.">
     <title>Hive Hub</title>
     <link rel="stylesheet" href="./assets/hub.css">
     <link rel="alternate" type="text/plain" href="../llms.txt" title="Hive Hub instructions for AI clients">
@@ -36,25 +38,38 @@ export function renderHomeHtml({ card, generatedAt, record, qrPath, seedCards = 
       <nav aria-label="Primary">
         <a href="../api/hive-hub/v1/index.json">Static API</a>
         <a href="../llms.txt">llms.txt</a>
-        <a href="./join/">AI join</a>
+        <a href="./join/">Join cards</a>
       </nav>
     </header>
-    <main id="main">
+    <main id="main" class="dial-layout">
       <section class="hero" aria-labelledby="hero-title">
-        <p class="eyebrow">Public organization seeds · RAPP Work</p>
-        <h1 id="hero-title">An organization to start from. Not another prompt.</h1>
-        <p class="lede">Ten downloadable RAPP Work starters with scoped teams, original artifacts, synthetic cases, and work ready to claim. Bring your AI, choose a seed, and initialize your own organization through the canonical SDK.</p>
+        <p class="eyebrow">Try the public laboratory</p>
+        <h1 id="hero-title">Your Hive is seven words away.</h1>
+        <p class="chant">${spokenChant}</p>
+        <p class="lede">A Hive is a place for people and AI to work together. Try this public lab: check its rules and save a local subscription.</p>
+        <p class="command-label">Cold-start build: previews a plan; it does not join yet.</p>
+        <pre class="dial-command" tabindex="0" role="region" aria-label="Preview a public laboratory dial plan"><code>hive-hub dial "${spokenChant}" --from ${hubUrl}</code></pre>
         <div class="actions">
-          <a class="button" href="#organizations">Explore the ten organizations</a>
-          <a class="button button-secondary" href="./skills/hive-network/SKILL.md" download="SKILL.md">Give your AI the global skill</a>
-          <a class="button" href="../api/hive-hub/v1/dialbook.json">Open the public dialbook</a>
-          <a class="text-link" href="../api/hive-hub/v1/organization-seeds.json">Organization seed API</a>
+          <a class="button" href="./join/${card.qrFragment}">Open the laboratory join card</a>
+          <a class="text-link" href="#example-title">What am I joining?</a>
         </div>
-        <p class="muted">Real starter packages, not activated companies or running agents. The Hub remains protocol-neutral; these examples use RAPP Work. Private Hives are never listed here.</p>
+        <details class="dial-help">
+          <summary>Install, approve, and join</summary>
+          <p>The CLI path requires a cold-start wheel with <code>dial --from</code> and a publisher serving <code>dial-snapshot.json</code>. The public PyPI 0.1.1 wheel predates that command. Use the built-wheel preview in the <a href="${repositoryUrl}" rel="noreferrer noopener">repository quickstart</a> until the matching release is published.</p>
+          <p>Review the fetch plan before approving its exact <code>plan_id</code>. Then review and apply a local subscription plan. A chant finds candidates, not identity or permission: verify the complete Dial Record ID. Joining runs no downloaded code and grants no access.</p>
+        </details>
       </section>
 
       <section id="organizations" aria-labelledby="organizations-title">
-        <h2 id="organizations-title">Choose the organization you want to run.</h2>
+        <p class="eyebrow">Next, start something of your own · RAPP Work</p>
+        <h2 id="organizations-title">Ten organizations to start from. Not another prompt.</h2>
+        <p class="lede">Download a starter with scoped teams, original artifacts, a synthetic case, and work ready to claim. Bring your AI and initialize your own organization through the canonical SDK.</p>
+        <div class="actions">
+          <a class="button button-secondary" href="./skills/hive-network/SKILL.md" download="SKILL.md">Give your AI the global skill</a>
+          <a class="text-link" href="../api/hive-hub/v1/organization-seeds.json">Organization seed API</a>
+          <a class="text-link" href="../api/hive-hub/v1/dialbook.json">Public dialbook</a>
+        </div>
+        <p class="muted">Real starter packages, not activated companies or running agents. These examples use RAPP Work; the Hub remains protocol-neutral. Private Hives are never listed here.</p>
         <div class="seed-grid">
 ${seedCards.map(({ seed, card: seedCard }) => `
           <article class="seed-card" data-seed="${escapeHtml(seed.document.slug)}">
@@ -84,8 +99,9 @@ ${seedCards.map(({ seed, card: seedCard }) => `
 
       <section class="example" aria-labelledby="example-title">
         <div>
-          <p class="eyebrow">Protocol-only onboarding laboratory</p>
+          <p class="eyebrow">What you are joining · protocol-only laboratory</p>
           <h2 id="example-title">${title}</h2>
+          <p>This Hive points to the project's minimal founding revision. Joining saves a reversible local subscription; it does not clone the repository, run an agent, activate an organization, or grant membership.</p>
           <dl>
             <div><dt>Repository</dt><dd><a href="${repositoryUrl}" rel="noreferrer noopener">${repositoryUrl}</a></dd></div>
             <div><dt>Exact commit</dt><dd><code>${revision}</code></dd></div>
@@ -100,7 +116,7 @@ ${seedCards.map(({ seed, card: seedCard }) => `
           </div>
         </div>
         <figure class="qr-card">
-          <img src="../${escapeHtml(qrPath)}" width="320" height="320" alt="QR code locating the public AI join card for the example repository">
+          <img src="../${escapeHtml(qrPath)}" width="320" height="320" alt="Locator-only QR for the public laboratory join card">
           <figcaption>Locator-only QR. It carries no credential, authority, or access grant.</figcaption>
         </figure>
       </section>
@@ -207,7 +223,7 @@ export function renderJoinHtml() {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     ${SECURITY_META}
     <meta name="description" content="Decode and verify a locator-only Hive Hub AI join card.">
-    <title>Verify an AI join card · Hive Hub</title>
+    <title>Check a Hive before joining · Hive Hub</title>
     <link rel="stylesheet" href="../assets/hub.css">
     <link rel="alternate" type="text/plain" href="../../llms.txt" title="Hive Hub instructions for AI clients">
     <link rel="alternate" type="application/json" href="./ai.json" title="Machine-readable join instructions">
@@ -225,16 +241,19 @@ export function renderJoinHtml() {
     <main id="main" class="join-layout">
       <section aria-labelledby="join-title">
         <p class="eyebrow">Client-side verification</p>
-        <h1 id="join-title">Verify this locator before you dial.</h1>
+        <h1 id="join-title" data-verification-warning="required">Check this Hive before you join.</h1>
         <p id="status" class="status" role="status" aria-live="polite">Reading the URL fragment and clearing it from browser history…</p>
         <div id="failure" class="notice notice-error" role="alert" hidden></div>
       </section>
 
       <section id="join-help" aria-labelledby="join-help-title" hidden>
         <h2 id="join-help-title">Start with a complete join link</h2>
-        <p>Scan a locator-only Hive QR or open its complete join link. Choose one of the ten public RAPP Work organization seeds to get real starter files and scoped team work.</p>
+        <p>Scan a locator-only Hive QR or open its complete join link. Start with the public laboratory to try a local subscription, or choose an organization seed for your own work.</p>
         <p>For an unlisted Hive, give its locator directly to an AI that already has source access. Do not publish private locators in the directory.</p>
-        <a class="button" href="../#organizations">Explore the organization seeds</a>
+        <div class="actions">
+          <a class="button" href="../">Try the public laboratory</a>
+          <a class="text-link" href="../#organizations">Explore the ten organization seeds</a>
+        </div>
       </section>
 
       <section id="verified" aria-labelledby="verified-title" hidden>
@@ -667,6 +686,7 @@ a {
 
 a:focus-visible,
 button:focus-visible,
+summary:focus-visible,
 [tabindex]:focus-visible {
   outline: 3px solid #ffbf47;
   outline-offset: 3px;
@@ -724,6 +744,49 @@ section + section {
 
 .hero {
   max-width: 64rem;
+}
+
+.dial-layout {
+  padding-top: clamp(1.5rem, 4vw, 3rem);
+}
+
+.dial-layout .hero h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  max-width: none;
+}
+
+.chant {
+  color: var(--accent-strong);
+  font-size: clamp(1.9rem, 4.7vw, 3.7rem);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  margin-block: 1rem;
+  text-wrap: balance;
+}
+
+.command-label {
+  margin-bottom: 0.5rem;
+}
+
+.dial-command {
+  font-size: 0.9rem;
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.dial-help {
+  color: var(--muted);
+  margin-top: 1.25rem;
+}
+
+.dial-help summary {
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.dial-help p {
+  max-width: 72ch;
 }
 
 .eyebrow {

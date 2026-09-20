@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'">
     <meta name="referrer" content="no-referrer">
     <meta name="description" content="Decode and verify a locator-only Hive Hub AI join card.">
-    <title>Verify an AI join card · Hive Hub</title>
+    <title>Check a Hive before joining · Hive Hub</title>
     <link rel="stylesheet" href="../assets/hub.css">
     <link rel="alternate" type="text/plain" href="../../llms.txt" title="Hive Hub instructions for AI clients">
     <link rel="alternate" type="application/json" href="./ai.json" title="Machine-readable join instructions">
@@ -24,16 +24,19 @@
     <main id="main" class="join-layout">
       <section aria-labelledby="join-title">
         <p class="eyebrow">Client-side verification</p>
-        <h1 id="join-title">Verify this locator before you dial.</h1>
+        <h1 id="join-title" data-verification-warning="required">Check this Hive before you join.</h1>
         <p id="status" class="status" role="status" aria-live="polite">Reading the URL fragment and clearing it from browser history…</p>
         <div id="failure" class="notice notice-error" role="alert" hidden></div>
       </section>
 
       <section id="join-help" aria-labelledby="join-help-title" hidden>
         <h2 id="join-help-title">Start with a complete join link</h2>
-        <p>Scan a locator-only Hive QR or open its complete join link. Choose one of the ten public RAPP Work organization seeds to get real starter files and scoped team work.</p>
+        <p>Scan a locator-only Hive QR or open its complete join link. Start with the public laboratory to try a local subscription, or choose an organization seed for your own work.</p>
         <p>For an unlisted Hive, give its locator directly to an AI that already has source access. Do not publish private locators in the directory.</p>
-        <a class="button" href="../#organizations">Explore the organization seeds</a>
+        <div class="actions">
+          <a class="button" href="../">Try the public laboratory</a>
+          <a class="text-link" href="../#organizations">Explore the ten organization seeds</a>
+        </div>
       </section>
 
       <section id="verified" aria-labelledby="verified-title" hidden>
