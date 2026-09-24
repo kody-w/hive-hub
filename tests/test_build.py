@@ -420,13 +420,14 @@ class TemplateTests(HubCase):
             ({"starters/team/shared/tasks/T-3.md": "```dataviewjs\nrun()\n```\n"}, "dataviewjs"),
             ({"starters/team/shared/tasks/T-3.md": "Data lives in /srv/data.\n"}, "absolute paths"),
             ({"starters/team/shared/tasks/T-3.md": "a\u202eb\n"}, "control, bidi"),
-            ({"starters/team/shared/tasks/con.md": "x\n"}, "work on every system"),
             ({long_name: "x\n"}, "within 120 characters"),
             ({"starters/orphan/README.md": "x\n"}, "no starter card names this template"),
             ({"starters/README.md": "x\n"}, "holds only template folders"),
             ({"cards/starters/team.md": card({**STARTER, "template": "starters/gone/"}, "")},
              "no template folder starters/gone/"),
         ]
+        if os.name != "nt":  # Windows cannot create a file named after a device such as con
+            cases.append(({"starters/team/shared/tasks/con.md": "x\n"}, "work on every system"))
         for change, fragment in cases:
             with self.subTest(fragment=fragment, change=list(change)):
                 hub = self.hub(with_starter())
