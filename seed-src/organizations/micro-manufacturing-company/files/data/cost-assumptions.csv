@@ -1,8 +1,0 @@
-key,value,unit,basis,classification
-feedstock_usd_per_kg,24.00,USD/kg,Authored planning assumption; not a supplier price,SYNTHETIC
-scrap_fraction,0.08,fraction,Authored yield-loss scenario; not observed process performance,SYNTHETIC
-bench_minutes_per_kit,6.00,minutes,Authored handling estimate; excludes fabrication machine time,SYNTHETIC
-bench_usd_per_hour,22.00,USD/hour,Authored labor allocation,SYNTHETIC
-packaging_usd_per_kit,0.35,USD/kit,Authored material allocation; nothing purchased,SYNTHETIC
-overhead_usd_per_kit,1.10,USD/kit,Authored overhead allocation,SYNTHETIC
-scenario_price_usd_per_kit,12.00,USD/kit,Hypothetical scenario price; no sales or market evidence,SYNTHETIC

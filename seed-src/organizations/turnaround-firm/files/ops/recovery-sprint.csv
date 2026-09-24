@@ -1,8 +1,0 @@
-work_id,owner,budget_bucket,estimate_minutes,depends_on,entry_gate,exit_evidence,classification
-sprint-reproduce,engineering,engineering,60,,Authored baseline and reviewed defect scope,Minimal failing-policy reproduction,SYNTHETIC
-sprint-patch,engineering,engineering,180,sprint-reproduce,Agreed severity and exclusion rule,Candidate module and narrow tests,SYNTHETIC
-sprint-regression,operations,engineering,90,sprint-patch,Candidate source available,Actually run regression results,SYNTHETIC
-sprint-rollback,operations,engineering,30,sprint-regression,Regression findings reviewed,Documented hold/rollback boundary,SYNTHETIC
-sprint-support,operations,support,420,sprint-rollback,Owner approval required before actual account work,Prospective support slice; no completion implied,SYNTHETIC
-sprint-customer-review,customer-success,review,60,sprint-regression,Truthful drafts and commitment review,Unsent reviewed message drafts,SYNTHETIC
-sprint-cash-review,finance,review,60,,Reconciled ledger and incremental reserve,Conditional scenario review,SYNTHETIC

@@ -1,0 +1,8 @@
+# Chants for Hive Hub: seven words from the first seven bytes of each card's SHA-256.
+# A chant is a locator, never authority. Check the card's full sha256 in api/v2/index.json.
+# A chant that two or more cards share is a collision, marked COLLISION.
+
+birch-juniper-harbor-oxbow-larch-elm-jasper  protocol/hive-md  sha256:c69d0ed338b1ce826c8723d69e083e87378d78215869b3f7d9bdc433b2c4cafd
+pine-cobalt-crag-ledge-knoll-willow-anvil  hive/contoso-model-hive  sha256:bc9661501e8a5f6caefa2d3f1d0dc69411a8cd474c0f56b981359205f13c069c
+quay-ursa-gorse-bluff-yield-birch-north  protocol/rapp-hive/1  sha256:ef593360f7c6ba57ba771af110234791616c6a51a11b51a656d64206ce849bad
+tarn-zephyr-vetch-aspen-willow-cinder-larch  protocol/rapp-hive/2  sha256:a7ac42940a89382303ba7eff9a53ca1d14933aef242807ad11d79f9148208444

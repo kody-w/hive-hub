@@ -1,3 +1,0 @@
-{"classification":"SYNTHETIC","event_id":"event-a-open","item_id":"item-a","action":"open","at_minute":10}
-{"classification":"SYNTHETIC","event_id":"event-a-close","item_id":"item-a","action":"close","at_minute":20}
-{"classification":"SYNTHETIC","event_id":"event-b-open","item_id":"item-b","action":"open","at_minute":15}

@@ -1,7 +1,0 @@
-classification,check-id,scenario,assumption,planned-observation,decision-if-not-met,observation-state
-SYNTHETIC,geometry-pair,order-trap,Paired proxies can correspond to a useful mock arrangement,Try two empty paper outlines inside one mock tote outline,Reject scalar fit as sufficient and add geometric constraints,not-performed
-SYNTHETIC,label-match,order-trap,An operator can match IDs to sample items,Ask a consented participant to match four invented labels,Revise labels before any field pilot,not-performed
-SYNTHETIC,dual-load,weight-trap,Both displayed constraints are understandable,Ask which of two hypothetical insertions violates weight proxy,Revise the instruction legend,not-performed
-SYNTHETIC,regression-visible,mixed-classroom,An unfavorable method result remains visible,Inspect a prototype comparing counts 6 7 and 8,Block claims of universal heuristic superiority,not-performed
-SYNTHETIC,gap-explanation,bulky-gaps,A lower bound is not mistaken for an attainable count,Ask why three indivisible six-volume items need three bins,Improve the bound explanation,not-performed
-SYNTHETIC,no-safety-inference,all-scenarios,Abstract units are not treated as physical safe limits,Check that every instruction page carries the model-only warning,Stop any proposed real transport or lifting use,not-performed

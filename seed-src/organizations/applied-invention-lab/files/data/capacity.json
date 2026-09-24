@@ -1,9 +1,0 @@
-{
-  "classification": "SYNTHETIC",
-  "volume_units": 10,
-  "weight_units": 10,
-  "max_items_per_scenario": 60,
-  "exact_item_limit": 12,
-  "exact_node_limit": 50000,
-  "interpretation": "Abstract positive integer capacities only; not physical dimensions, mass, container strength, or safe handling limits."
-}

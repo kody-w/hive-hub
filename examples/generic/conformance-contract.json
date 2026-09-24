@@ -1,1 +1,0 @@
-{"kind":"conformance-contract","requirements":[{"description":"Decode a Firefly envelope.","id":"decode-envelope"},{"description":"Preserve event ordering.","id":"preserve-order"}],"schema_version":1,"version":"1.0"}

@@ -1,17 +1,19 @@
 # Changelog
 
-## Unreleased (experimental)
+## Target shape (experimental branch; `main` keeps the previous design)
 
-- Declared the experimental `hive-md` protocol for folder Hives (`HIVE-MD.md`
-  at `kody-w/rapp-model-hive@2bd7c95`): an exact declaration and fingerprint, a
-  conformance contract naming the convention and its checker by SHA-256, a
-  learning bundle, and an inert adapter registration.
-- Added the opt-in `adapters.hive_md` adapter. It validates folder-Hive dial
-  pins offline and hands them to the person's own Brainstem, and it is not part
-  of the default registry. This closes the Hive Hub side of ecosystem gap G12.
-- Added the deterministic `examples/hive-md` Contoso model Hive example.
-- Placed Hive Hub in the RAPP/1 organism map in the README, `llms.txt`, and the
-  reference and security docs, with `rapp-hive/2` marked frozen.
+- A hub is now a tree of markdown cards, one fact per file, plus `tools/build.py`, a
+  standard-library builder that checks every card and generates `views/`: the api/v2 JSON, a
+  static site that needs no JavaScript, and `chants.txt`.
+- Cards: the protocols `hive-md` (experimental), `rapp-hive/1` (in force) and `rapp-hive/2`
+  (frozen), and the synthetic Contoso model Hive (experimental, no live shared copy).
+- Joining happens only in the person's own Brainstem, with the card's pins. The hub writes nothing
+  into a Hive, keeps no subscription state and runs nothing.
+- Removed the Python package and CLI, local subscriptions, join cards, bootstrap, adapters
+  (including the short-lived `hive-md` pin adapter, whose checks moved into the builder), the
+  generated api v1 and site, the locked Agent Skill, the RAPP Work organization seeds, the static
+  build scripts and the release workflows.
+- Kept the frozen `hive-hub-chant/1` vocabulary; a chant now comes from a card's SHA-256.
 
 ## 0.1.1 - 2026-09-18
 

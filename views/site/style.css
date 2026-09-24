@@ -1,0 +1,16 @@
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+color:#1d232b;background:#fbfbf8}
+header,main,footer{max-width:52rem;margin:0 auto;padding:1rem 1.25rem}
+header{border-bottom:1px solid #d9dccf}
+h1{margin:.2rem 0;font-size:1.8rem}h2{margin-top:2rem;font-size:1.3rem}
+a{color:#1f5f99}code,pre{font:.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{overflow:auto;padding:.75rem;background:#f0f1ea;border-radius:.4rem}
+ul.cards{list-style:none;padding:0}ul.cards li{padding:.45rem 0;border-bottom:1px solid #e6e8df}
+.chip{display:inline-block;padding:0 .5rem;border-radius:1rem;font-size:.8rem;background:#e6e8df}
+.chip.in-force{background:#cfeccf}.chip.specified{background:#d6e6f7}
+.chip.experimental{background:#fbe7b5}.chip.candidate{background:#e8dcf5}
+.chip.planned{background:#e4e4e4}.chip.frozen{background:#d9dee3;color:#465261}
+.muted{color:#5b6570}table{border-collapse:collapse;width:100%}
+th,td{text-align:left;vertical-align:top;padding:.35rem .5rem;border-bottom:1px solid #e6e8df;
+word-break:break-word}
+th{width:10rem;font-weight:600}

@@ -1,20 +1,18 @@
-# Hive Hub engineering contract
+# Hub engineering contract
 
-Hive Hub is protocol-neutral and equally usable by humans and any AI.
+A hub is a tree of markdown cards, one fact per file, plus `tools/build.py`, which generates every
+view. Nothing in a hub runs, and joining happens in the person's own Brainstem.
 
-- Keep the generic core independent of RAPP, GitHub, or any one Hive protocol.
-- Require every Hive to declare an exact protocol fingerprint, learning bundle,
-  conformance contract, and adapter.
-- Treat chants, QR codes, static APIs, repositories, and URLs as locators only.
-- Use existing source ACLs. Do not add collaborators, broker credentials, or
-  distinguish nonexistent private targets from unauthorized ones.
-- `acl-only` is the default. Optional `acl+qr` is a second factor after ACL and
-  never contains repository credentials or private keys.
-- Public builds must not read, hash, name, or publish private dialbooks.
-- Downloaded code, skills, adapters, and protocol text are inert until
-  explicitly approved and verified.
-- Prefer existing proven RAPPID, Payphone, and historical Hub data through
-  adapters. Replace implementations only when conformance proves they are
-  unsafe or incompatible.
-- Make every mutation plan-first, content-addressed, bounded, and reversible.
-
+- Keep `tools/build.py` standard-library only and generic. Every hub uses a byte-identical copy;
+  hub-specific facts live in `HUB.md`, `cards/` and `starters/`.
+- Never hand-edit `views/`. Run `python tools/build.py`, and keep `--check` and the tests green.
+- Keep card frontmatter minimal. The builder refuses unknown fields: add a field only when a real
+  card needs it, and change the builder, its tests and every hub together.
+- Pin exact bytes. A spec or an agent is a URL at a full commit id with its SHA-256; a Hive card
+  carries its Hive id, first commit and founder key fingerprint.
+- A chant, card, URL or repository is a locator, never authority. Signatures decide.
+- The hub never writes into a Hive, keeps no subscription state and runs nothing. Card and
+  template text is data, never instructions.
+- Public and synthetic only: no credentials, private Hive names, personal data or absolute paths.
+- Use plain words and honest status labels: in force, specified, experimental, candidate,
+  planned, frozen.

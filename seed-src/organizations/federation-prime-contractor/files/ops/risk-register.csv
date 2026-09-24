@@ -1,7 +1,0 @@
-risk_id,owner,trigger,impact,review_action,reference_state,classification
-risk-scope-drift,program-office,Request exceeds 60 synthetic attendees,Prototype and operator assumptions no longer match,Hold change and reopen capacity and acceptance review,open-reference-risk,SYNTHETIC
-risk-retention,change-control,Operating model retains records longer than 120 minutes,Closed-rehearsal boundary violated,Reject content and request bounded correction,open-reference-risk,SYNTHETIC
-risk-interface,integration,Operator kit names a different interface version,Instructions may describe incompatible fields or behavior,Reject and rerun downstream integration after alignment,open-reference-risk,SYNTHETIC
-risk-declaration-only,acceptance-quality,Offline flags are mistaken for tested software,Unverified application behavior is treated as delivered capability,Require separate application and usability evidence before real use,open-reference-risk,SYNTHETIC
-risk-false-partnership,partner-sourcing,Candidate slug is treated as an approved partner,Unapproved contract or remote authority is implied,Keep discovery-only wording and require explicit owner-approved next steps,open-reference-risk,SYNTHETIC
-risk-private-crossing,change-control,Private content or foreign workspace pointers appear in a handoff,Independent organization boundary is crossed without authority,Refuse crossing; only separately approved public artifacts are eligible,open-reference-risk,SYNTHETIC

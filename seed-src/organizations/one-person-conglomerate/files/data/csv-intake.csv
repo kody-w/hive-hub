@@ -1,6 +1,0 @@
-classification,invoice-id,amount-usd,category
-SYNTHETIC,sample-001,12.50,paper
-SYNTHETIC,sample-002,8.00,labels
-SYNTHETIC,sample-003,16.25,folders
-SYNTHETIC,sample-003,16.25,folders
-SYNTHETIC,sample-004,0.00,reference-only

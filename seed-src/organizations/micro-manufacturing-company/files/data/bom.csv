@@ -1,3 +1,0 @@
-part_id,name,quantity,geometry_key,source_selector,assembly_role,classification
-tray,Desk tray,1,tray_volume_mm3,tray,Outer shell and floor,SYNTHETIC
-insert,Ladder insert,1,insert_volume_mm3,insert,Removable bay separator,SYNTHETIC
