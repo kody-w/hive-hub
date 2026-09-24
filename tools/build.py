@@ -78,7 +78,6 @@ MAX_CARD_BYTES = 32 << 10
 MAX_TEMPLATE_FILE_BYTES = 1 << 20
 MAX_TEMPLATE_PATH = 120
 MAX_URL = 2048
-OS_JUNK = {".ds_store", "thumbs.db", "desktop.ini"}  # what operating systems drop; ignored
 
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 PROTOCOL_ID = re.compile(r"[a-z0-9]+(?:[.-][a-z0-9]+)*(?:/[a-z0-9]+(?:[.-][a-z0-9]+)*)*\Z")
@@ -122,7 +121,8 @@ EMOJI_OK = re.compile(
     f"(?<=[{_EMOJI}])[\ufe0e\ufe0f]|(?<=[0-9#*])\ufe0f(?=\u20e3)"
     f"|(?:(?<=[{_EMOJI}])|(?<=[{_EMOJI}]\ufe0f))\u200d(?=[{_EMOJI}])"
 )
-DATAVIEWJS = re.compile(r"^[ \t>*+\-0-9.)]*(`{3,}|~{3,})[ \t]*dataviewjs|`+[ \t]*\$=", re.M | re.I)
+DATAVIEWJS = re.compile(
+    r"^[ \t>*+\-0-9.)]*(`{3,}|~{3,})[ \t]*dataviewjs|(?<!`)`+[ \t]*\$=", re.M | re.I)
 SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}\Z")
 RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)),
             *(f"lpt{i}" for i in range(1, 10))}
@@ -270,8 +270,6 @@ def _walk(base: Path, root: Path, problems: list[str]) -> list[Path]:
             for entry in sorted(entries, key=lambda item: item.name):
                 path = Path(entry.path)
                 shown = path.relative_to(root).as_posix()
-                if entry.name.lower() in OS_JUNK:
-                    continue
                 if entry.is_symlink():
                     problems.append(f"{shown}: links are refused")
                 elif entry.is_dir(follow_symlinks=False):
@@ -355,6 +353,12 @@ def read_card(root: Path, file: Path, problems: list[str]) -> Card | None:
         problems.append(f"{path}: the card is not in its one exact form")
         return None
     slug = "/".join(inner) if kind == "protocol" else inner[-1]
+    if len(slug) > 64 or any(len(part) > 64 for part in inner):
+        problems.append(f"{path}: slugs, ids and folder names are at most 64 characters")
+        return None
+    if any(part.split(".")[0] in RESERVED for part in inner):
+        problems.append(f"{path}: names must work on every system (no device names like con)")
+        return None
     if kind == "protocol" and (PROTOCOL_ID.fullmatch(slug) is None or fields.get("id") != slug):
         problems.append(f"{path}: a protocol card lives at cards/protocols/<id>.md with that id")
         return None
@@ -499,6 +503,11 @@ def load(root: Path) -> tuple[str, str, str, list[Card]]:
         problems.append("HUB.md: must not hold an absolute path")
     headings = (line[2:].strip() for line in hub_text.split("\n") if line.startswith("# "))
     title = next(headings, "Hub")
+    for name in ("cards", "starters", "views"):
+        if (root / name).is_symlink() or ((root / name).exists() and not (root / name).is_dir()):
+            problems.append(f"{name}: must be a plain folder, not a link or a file")
+    if problems:
+        raise BuildError(problems)
     cards: list[Card] = []
     if (root / "cards").is_dir():
         for file in _walk(root / "cards", root, problems):
@@ -512,6 +521,13 @@ def load(root: Path) -> tuple[str, str, str, list[Card]]:
             problems.append(f"{card.path}: duplicate slug {card.slug}; also {other.path}")
         problems.extend(check_card(card))
     problems.extend(_cross_check(root, by_slug))
+    folders = {(card.folder, "/".join(card.slug.split("/")[:depth])): card
+               for card in cards for depth in range(1, card.slug.count("/") + 1)}
+    for card in cards:
+        for extension in (".json", ".html"):
+            clash = folders.get((card.folder, card.slug + extension))
+            if clash is not None:
+                problems.append(f"{card.path}: its views would clash with {clash.path}")
     if problems:
         raise BuildError(problems)
     order = list(KINDS)
@@ -558,8 +574,6 @@ def _cross_check(root: Path, by_slug: dict[tuple[str, str], Card]) -> list[str]:
     if starters.is_dir():
         with os.scandir(starters) as entries:
             for entry in sorted(entries, key=lambda item: item.name):
-                if entry.name.lower() in OS_JUNK:
-                    continue
                 if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
                     folders[entry.name] = Path(entry.path)
                 else:
@@ -880,8 +894,17 @@ def build(root: Path) -> dict[str, bytes]:
     return render(*load(root))
 
 
+def _views_problems(root: Path) -> list[str]:
+    folder = root / "views"
+    if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+        return ["views: must be a plain folder, not a link or a file"]
+    return []
+
+
 def differences(root: Path, views: dict[str, bytes]) -> list[str]:
-    problems: list[str] = []
+    problems = _views_problems(root)
+    if problems:
+        return problems
     folder = root / "views"
     existing = ({path.relative_to(root).as_posix(): path for path in _walk(folder, root, problems)}
                 if folder.is_dir() else {})
@@ -895,22 +918,29 @@ def differences(root: Path, views: dict[str, bytes]) -> list[str]:
     return problems
 
 
+def _remove_empty_folders(folder: Path) -> None:
+    for directory in sorted((item for item in folder.rglob("*") if item.is_dir()), reverse=True):
+        if not any(directory.iterdir()):
+            directory.rmdir()
+
+
 def write(root: Path, views: dict[str, bytes]) -> None:
     folder = root / "views"
-    problems: list[str] = []
-    for stale in (_walk(folder, root, problems) if folder.is_dir() else []):
-        if stale.relative_to(root).as_posix() not in views:
-            stale.unlink()
+    problems = _views_problems(root)
+    existing = _walk(folder, root, problems) if folder.is_dir() and not problems else []
     if problems:
         raise BuildError(problems)
+    for stale in existing:
+        if stale.relative_to(root).as_posix() not in views:
+            stale.unlink()
+    if folder.is_dir():
+        _remove_empty_folders(folder)
     for name, data in views.items():
         target = root / name
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.is_file() or target.read_bytes() != data:
             target.write_bytes(data)
-    for directory in sorted((item for item in folder.rglob("*") if item.is_dir()), reverse=True):
-        if not any(directory.iterdir()):
-            directory.rmdir()
+    _remove_empty_folders(folder)
 
 
 def main(argv: list[str] | None = None) -> int:
