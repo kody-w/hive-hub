@@ -193,6 +193,8 @@ class DeterminismTests(HubCase):
         hub = self.hub({})
         shutil.copy2(ROOT / "HUB.md", hub.root / "HUB.md")
         shutil.copytree(ROOT / "cards", hub.root / "cards")
+        if (ROOT / "starters").is_dir():
+            shutil.copytree(ROOT / "starters", hub.root / "starters")
         build.write(hub.root, build.build(hub.root))
         first = view_files(hub.root)
         build.write(hub.root, build.build(hub.root))
