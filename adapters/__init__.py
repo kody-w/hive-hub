@@ -15,6 +15,7 @@ from .contracts import (
 from .defaults import build_default_registry
 from .filesystem import LocalFilesystemWorkspaceAdapter
 from .github import GitHubRepositoryAdapter
+from .hive_md import HiveMdDialPinAdapter, HiveMdDialPins
 from .legacy_hub import LegacyRappHubInspector
 from .payphone import PayphoneAdapter, door_from_rappid
 from .rapp import RappDelegatingAdapter, RappToolKind
@@ -29,6 +30,8 @@ __all__ = [
     "CapabilityRequirement",
     "ConformanceContract",
     "GitHubRepositoryAdapter",
+    "HiveMdDialPinAdapter",
+    "HiveMdDialPins",
     "InertProtocolAdapter",
     "LearningBundle",
     "LearningDocument",

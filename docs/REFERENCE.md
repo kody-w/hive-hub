@@ -16,6 +16,36 @@ content-addressed learning bundle, conformance contract, and inert adapter
 registration. Chants, URLs, QR codes, repositories, and static APIs are
 locators—not authority.
 
+## Where this fits
+
+In the experimental RAPP/1 organism map, Hive Hub is the discovery and join
+part of the Hive Mind, the network across sovereign Hives. It finds candidate
+Hives, verifies their exact declarations, and plans a reversible local
+subscription. It never decides membership: transport carries; signatures
+decide. The core stays independent of RAPP and GitHub.
+
+```text
+6  You            talk to your Brainstem; confirm every exact plan
+5  Brainstem      your own AI; its Hive agent joins folder Hives
+4  Your device    your copy of each Hive, one key per device per Hive
+3  Hive           where members share work   <-- across: the Hive Mind (Hive Hub)
+2  Organization   the accountable body, with exactly one Hive
+1  Estate         an owner's signed registry
+0  RAPP/1         bytes and identity
+```
+
+A layer-3 Hive is either a folder Hive (experimental; declared here as
+[`hive-md`](#folder-hive-dial-pins-experimental)) or a `rapp-hive/1` Private
+Hive, the profile in force. `rapp-hive/2` is frozen as a research record. The
+map is the
+[`ECOSYSTEM.md`](https://github.com/kody-w/rapp-work/blob/experimental/rapp-work-constitution/ECOSYSTEM.md)
+and draft
+[`CONSTITUTION.md`](https://github.com/kody-w/rapp-work/blob/experimental/rapp-work-constitution/CONSTITUTION.md)
+on `kody-w/rapp-work` branch `experimental/rapp-work-constitution`; the folder
+convention is
+[`kody-w/rapp-model-hive`](https://github.com/kody-w/rapp-model-hive/tree/experimental/hive-md)
+branch `experimental/hive-md`.
+
 ## Guarantees
 
 - Canonical UTF-8 JSON and `urn:hivehub:sha256:<64hex>` content addresses.
@@ -220,6 +250,7 @@ Locator-only QR remains the recommended default.
 - [0.1.1 release inventory](../RELEASE_INVENTORY.md)
 - [Deterministic release manifest](../release/release-manifest.json)
 - [Generic non-RAPP example](../examples/README.md)
+- [Folder Hive (`hive-md`, experimental) example](../examples/README.md#folder-hive-hive-md-experimental)
 
 ## Neutral adapter package
 
@@ -234,6 +265,7 @@ core package without importing any RAPP runtime:
 | Legacy RAPPID summon-chant compatibility | `rappidex/1-summon-chant` |
 | Payphone DoorRef/dial result | `rapp-payphone-dial/1.0` |
 | Historical Hub inspector | `legacy-rapp-hub/00ac2f73` |
+| Folder-Hive dial pins (experimental, opt-in) | `hive-md/0` |
 
 Each declaration binds its protocol to canonical contract bytes with SHA-256
 and includes capability requirements, supported private-access modes, an inert
@@ -262,6 +294,28 @@ The optional RAPPID adapter retains its separate compatibility derivation over
 a full RAPPID. Payphone routing prefixes likewise never authorize: connection
 requires the exact full RAPPID.
 
+### Folder-Hive dial pins (experimental)
+
+`adapters/hive_md.py` serves the experimental `hive-md` protocol for folder
+Hives (`HIVE-MD.md` at `kody-w/rapp-model-hive@2bd7c95`). It is opt-in: it is
+not part of `build_default_registry()` or the integrated 0.1.1 contracts, so
+`hive-hub adapter builtin list` does not show it; register it explicitly with
+`AdapterRegistry((HiveMdDialPinAdapter(),))`.
+
+It only validates a record's [dial pins](CONTRACTS.md#protocol-specific-data)
+offline and returns a `BrainstemHandoff`: the Hive agent `join` call with
+exactly `address` and `id` = `root`, plus the `hive` id and `founder` key
+fingerprint the Brainstem must show for comparison. Joining through Hive Hub
+still saves only a reversible local subscription; the join plan's one inert
+effect says the next step happens in the person's own Brainstem, which writes
+one SSH-signed request file. The adapter never reaches the address, writes into
+a Hive, runs the Hive agent or its checker, or holds a key. It refuses
+malformed commit ids, Hive ids, and fingerprints, local paths, credentials in
+URLs, queries, fragments, and remote-helper syntax. This closes gap G12 of the
+ecosystem map on the Hive Hub side. The
+[example](../examples/README.md#folder-hive-hive-md-experimental) describes the
+synthetic Contoso model Hive.
+
 ## Conformance
 
 ```sh
@@ -272,8 +326,8 @@ mypy --strict adapters
 
 Fixtures cover canonical GitHub forms, absent/unauthorized indistinguishability,
 ambient-token hygiene, no remote writes, exact chant vectors and collision
-buckets, new Payphone DoorRef vectors and truncated-ID collisions, and inert
-historical malicious instructions.
+buckets, new Payphone DoorRef vectors and truncated-ID collisions, inert
+historical malicious instructions, and folder-Hive pin refusals.
 
 ## Explicit compatibility refusals
 

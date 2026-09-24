@@ -58,6 +58,8 @@
 - collision-preserving seven-word RAPPID chant
 - Payphone `connected|unreachable` resolution
 - inert historical Hub inspection
+- experimental, opt-in folder-Hive (`hive-md/0`) dial-pin validation and
+  Brainstem hand-off; not in the default registry or the integrated contracts
 
 ## Generic chant contract
 

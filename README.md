@@ -99,6 +99,37 @@ The full [guarantees and implementation reference](docs/REFERENCE.md#guarantees)
 preserve the addressing, filesystem, transaction, adapter, and build contracts.
 The [security model](docs/SECURITY.md) explains their limits.
 
+## Where this fits
+
+In the experimental RAPP/1 organism map, Hive Hub is the discovery and join
+part of the Hive Mind: the network across sovereign Hives. It helps you find a
+Hive and plan a join; it never decides who is in. **Transport carries;
+signatures decide.** The core still needs no RAPP runtime and no GitHub.
+
+```text
+6  You            talk to your Brainstem; confirm every exact plan
+5  Brainstem      your own AI; its Hive agent joins folder Hives
+4  Your device    your copy of each Hive, one key per device per Hive
+3  Hive           where members share work   <-- across: the Hive Mind (Hive Hub)
+2  Organization   the accountable body, with exactly one Hive
+1  Estate         an owner's signed registry
+0  RAPP/1         bytes and identity
+```
+
+Folder Hives are declared by the experimental
+[`hive-md` protocol](examples/README.md#folder-hive-hive-md-experimental): a
+dial record pins the shared copy's address, the Hive id, its first commit, and
+the founder key fingerprint. Joining is still a reversible local subscription;
+the next step happens in your own Brainstem, whose Hive agent writes one signed
+request file. Hive Hub never writes into a Hive or runs its agent. `rapp-hive/1`
+remains the Private Hive profile in force; `rapp-hive/2` is frozen as a
+research record. See the
+[ecosystem map](https://github.com/kody-w/rapp-work/blob/experimental/rapp-work-constitution/ECOSYSTEM.md),
+the draft
+[constitution](https://github.com/kody-w/rapp-work/blob/experimental/rapp-work-constitution/CONSTITUTION.md),
+and the
+[Hive folder convention](https://github.com/kody-w/rapp-model-hive/tree/experimental/hive-md).
+
 ## Start something of your own
 
 After the laboratory, explore the
@@ -128,6 +159,7 @@ for local work and owner-reviewed contributions.
 | Use Python, adapters, or the locked Agent Skill | [Implementation reference](docs/REFERENCE.md) |
 | Publish a static Hub, verify QR cards, or maintain receipts | [Static publishing reference](docs/REFERENCE.md#static-network) |
 | Author a non-RAPP Hive | [Generic example](examples/README.md) |
+| Describe a folder Hive (experimental) | [`hive-md` example](examples/README.md#folder-hive-hive-md-experimental) |
 | Inspect this release | [Release inventory](RELEASE_INVENTORY.md) and [manifest](release/release-manifest.json) |
 
 The 0.1.1 distribution imports as `hive_hub`, includes the separately

@@ -5,6 +5,27 @@ client, or code executor. Public discovery has one explicit, lazily loaded
 stdlib HTTP client; ordinary local dialing and subscription planning remain
 offline. Explicit public-discovery planning performs a read-only snapshot GET.
 
+## Where this fits
+
+In the experimental RAPP/1 organism map, Hive Hub is the discovery and join
+part of the Hive Mind, the network across sovereign Hives. Its security job is
+narrow: never let a locator, a record, or its own result stand in for
+authority. Transport carries; signatures decide. Membership is decided inside
+each Hive by signatures, never by Hive Hub.
+
+```text
+6  You            confirm every exact plan in a later turn
+5  Brainstem      your own AI; its Hive agent verifies and signs for you
+4  Your device    your copy of each Hive; one key per device, never committed
+3  Hive           signed commits decide who is in   <-- across: Hive Mind (Hive Hub)
+2  Organization   the accountable body
+1  Estate         an owner's signed registry
+0  RAPP/1         hashes, signatures, and identity
+```
+
+`rapp-hive/1` remains the Private Hive profile in force; `rapp-hive/2` is
+frozen as a research record and is not a target for new joins.
+
 ## Authority boundaries
 
 - A locator is never proof of identity or authorization.
@@ -125,3 +146,26 @@ The release privacy scanner stores only irreversible SHA-256 deny digests.
 Private CI can add digests through
 `HIVE_HUB_PRIVATE_IDENTIFIER_DENY_SHA256`; plaintext private identifiers or
 reconstructable string halves are not shipped.
+
+## Folder-Hive dial pins (experimental)
+
+A folder Hive's dial record pins its shared-copy `address`, `hive` id, first
+commit (`root`), and `founder` key fingerprint in an inert learning artifact
+bound by the Dial Record ID. The opt-in `hive-md` adapter validates them
+offline and only describes the next step for the person's own Brainstem:
+
+- It performs no network access, so a private shared copy and a nonexistent
+  one produce the same result.
+- It never writes into a Hive, runs the Hive agent or its checker, or creates,
+  holds, or passes on a key.
+- It refuses local paths, user names, passwords or tokens in URLs, credential
+  query parameters, fragments, remote-helper syntax, option-like addresses,
+  abbreviated or null commit ids, and non-canonical fingerprints. Refusal
+  messages never repeat the refused value.
+- The pinned root commit fixes the founder key and the Hive id. The Brainstem's
+  Hive agent checks every commit from that root and shows both; if either
+  differs from its pin, the record is wrong and the person stops.
+
+A matching record, chant, or pin set is still only a locator. Admission happens
+inside the Hive, when members move the newcomer's signed request into
+`members/<name>/keys/`.

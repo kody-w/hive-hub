@@ -1,0 +1,1 @@
+{"adapter_api_version":"hive-hub-adapter/1","capabilities":["discover","join-request","public-copy","verify"],"conformance_address":"urn:hivehub:sha256:1e0848b944c24b82dc42638983931ddc3d5b09241ea8e93f7ebb7e8428d5ab1c","kind":"protocol-declaration","media_type":"text/markdown","name":"hive-md","protocol_version":"0","schema_version":1}

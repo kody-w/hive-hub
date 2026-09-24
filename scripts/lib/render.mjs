@@ -1108,6 +1108,17 @@ Example Dial Record fingerprint: ${exampleRecord.ref}
 - Seed JSON and ZIP contents are inert. A seed is not an activated organization or running agent. Initialize only with the exact locally trusted RAPP Work SDK and owner-approved native plans.
 - The hive-network SKILL.md is a complete host-operated workflow for discovery, local work, and separately approved public contributions. It grants no authority and cannot add capabilities to a browser-only AI.
 
+## Where this fits
+
+- In the experimental RAPP/1 organism map, Hive Hub is the discovery and join part of the Hive Mind, the network across sovereign Hives. The Hub core stays protocol-neutral and needs no RAPP runtime.
+- Layers, bottom to top: 0 RAPP/1 (bytes and identity), 1 Estate, 2 Organization, 3 Hive, 4 Your device, 5 Brainstem, 6 You. The Hive Mind sits across layer 3.
+- Transport carries; signatures decide. A dial record, chant, card, URL, or repository never decides who is in a Hive.
+- Folder Hives use the experimental hive-md protocol. A dial record pins address, hive, root, founder, and an optional public_copy in its learning bundle. Joining saves a reversible local subscription; the next step is the Hive agent join in the person's own Brainstem, which writes one signed request file. Hive Hub never writes into a Hive, runs the Hive agent, or reaches the address.
+- rapp-hive/1 is the Private Hive profile in force. rapp-hive/2 is frozen as a research record; do not target it.
+- Ecosystem map: https://github.com/kody-w/rapp-work/blob/experimental/rapp-work-constitution/ECOSYSTEM.md
+- Draft constitution: https://github.com/kody-w/rapp-work/blob/experimental/rapp-work-constitution/CONSTITUTION.md
+- Hive folder convention: https://github.com/kody-w/rapp-model-hive/tree/experimental/hive-md
+
 No runtime external scripts, analytics, service workers, persistent storage, or telemetry are used.
 `;
 }

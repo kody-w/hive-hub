@@ -126,6 +126,28 @@ ownership of a valid display label.
 hashes into one bounded response. It contains no private book and requires no
 following of URLs in downloaded documents.
 
+### Protocol-specific data
+
+`dial-record` has no protocol extension map. A protocol's per-Hive data travels
+as an inert artifact in the record's learning bundle, so the Dial Record ID
+binds it through `learning_bundle_address`; URL-valued items also appear in
+`urls`. The core never interprets that data; only the protocol's adapter does.
+
+The experimental `hive-md` protocol for folder Hives uses one artifact,
+`hive-md/dial-pins.json`: canonical JSON plus one line feed, with exactly
+`kind: "hive-md-dial-pins"`, `schema_version: 1`, and these pins:
+
+- `address`: the shared copy's credential-free `ssh`, `https`, or `git` URL,
+  never a local path. It may be private; nothing distinguishes a private
+  address from a nonexistent one.
+- `hive`: the Hive id, 32 lowercase hexadecimal characters.
+- `root`: the full 40-hex id of the Hive's first commit.
+- `founder`: the founder key's `SHA256:` fingerprint (43 base64 characters).
+- optional `public_copy`: the `https` URL of the reviewed public copy.
+
+The record's `urls` are exactly `address` and any `public_copy`. See the
+[example](../examples/README.md#folder-hive-hive-md-experimental).
+
 The locked Agent Skill's older dialbook is a separate compatibility format,
 not the canonical core identity. Published cards name its unchanged locator
 as `legacySkillDialId` and its separately referenced card as `legacySkillCard`.

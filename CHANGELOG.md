@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased (experimental)
+
+- Declared the experimental `hive-md` protocol for folder Hives (`HIVE-MD.md`
+  at `kody-w/rapp-model-hive@2bd7c95`): an exact declaration and fingerprint, a
+  conformance contract naming the convention and its checker by SHA-256, a
+  learning bundle, and an inert adapter registration.
+- Added the opt-in `adapters.hive_md` adapter. It validates folder-Hive dial
+  pins offline and hands them to the person's own Brainstem, and it is not part
+  of the default registry. This closes the Hive Hub side of ecosystem gap G12.
+- Added the deterministic `examples/hive-md` Contoso model Hive example.
+- Placed Hive Hub in the RAPP/1 organism map in the README, `llms.txt`, and the
+  reference and security docs, with `rapp-hive/2` marked frozen.
+
 ## 0.1.1 - 2026-09-18
 
 - Added protocol-neutral `hive-hub-chant/1` with deterministic seven-word

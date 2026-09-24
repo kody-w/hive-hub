@@ -50,6 +50,7 @@ PUBLIC_PREFIXES = (
 )
 ALLOWED_PUBLIC_REPOSITORIES = {
     "kody-w/hive-hub",
+    "kody-w/rapp-model-hive",
     "kody-w/rapp-work",
     "kody-w/rapp-1",
     "kody-w/rappid",
