@@ -2,6 +2,10 @@
 
 # Hive Hub
 
+<!-- rapp1:network-header:start -->
+[![RAPP/1](https://kody-w.github.io/rapp-hive-public/portfolio/badges/hive-hub.svg)](https://github.com/kody-w/rapp-hive-public/blob/main/portfolio/repos/hive-hub.md) · **New to RAPP?** [Start here: get your Brainstem →](https://github.com/kody-w/rapp-installer#start-here)
+<!-- rapp1:network-header:end -->
+
 A **Hive** is a place for people and AI to work together, with a declared way
 to connect. Hive Hub helps you find one and check its rules before you join.
 
