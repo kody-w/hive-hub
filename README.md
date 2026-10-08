@@ -1,3 +1,7 @@
+<!-- retired-notice:start -->
+> **Retired experiment, kept for reference.** The living project is [kody-w/RAPP](https://github.com/kody-w/RAPP).
+<!-- retired-notice:end -->
+
 **Not here for code? [Open the Hive Hub site to find a Hive](https://kody-w.github.io/hive-hub/).**
 
 # Hive Hub
